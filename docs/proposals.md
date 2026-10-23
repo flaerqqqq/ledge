@@ -195,3 +195,17 @@ Format:
 - why: the tui layer may not read the environment (section 3), and the color rule (FR-TUI-09, A-04) is already a pure function that the caller evaluates. Without the argument the engine cannot draw in color. The loop and the drop-based restore are as in 6.4.
 - status: Open
 
+
+### P-18 set-option target with a trailing colon (architecture 7.1)
+- from: implementer / slice S-09
+- doc: docs/architecture.md (section 7.1, table row "set option")
+- change: the set-option row reads `set-option -t =<name>: @ledge_managed 1`, `set-option -t =<name>: @ledge_profile <profile>`, `set-option -t =<name>: @ledge_dir <dir>`. Other session commands keep `=<name>`.
+- why: on tmux 3.5a, `set-option -t =<name>` fails with `no such session: =<name>` while `set-option -t =<name>:` sets the session option (checked with a scratch server). `new-window -t =<name>`, `kill-session -t =<name>`, `rename-session -t =<name>` and `switch-client -t =<name>` work with the bare form. The trailing colon keeps the exact-name match. Not yet checked on tmux 3.2 (the minimum); the S-09 integration tests run on the installed tmux only.
+- status: Open
+
+### P-19 S-09 ProcessRunner and tests: what S-09 creates
+- from: implementer / slice S-09
+- doc: docs/architecture.md (section 4, `ProcessRunner` row) and docs/testing.md (test layout)
+- change: (a) `ProcessRunner` in S-09 has `find_program`, `capture` and `inherit`. `spawn_detached` is not added here; S-12 adds it with the editor launch, its first user (P-6 rule). (b) The test layout gains `tests/component_tmux.rs` (fake-process argv of the tmux commands, FR-PLAT-01, FR-NAME-03/04); the table in testing.md does not list it.
+- why: P-6 says each port is created by its first user, so a method with no caller in S-09 is deferred the same way. The argv checks belong with the other component tests and need `FakeProcess` from tests/support.
+- status: Open

@@ -136,3 +136,12 @@ fn terminal_failed_text_is_verbatim() {
         "could not use the terminal: Broken pipe (os error 32)"
     );
 }
+
+// FR-PLAT-01, architecture 8.3 [new]: tmux older than 3.2
+#[test]
+fn tmux_version_too_old_text_is_verbatim() {
+    assert_eq!(
+        messages::tmux_version_too_old("3.1"),
+        "tmux 3.2 or later is required; found 3.1."
+    );
+}

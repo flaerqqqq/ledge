@@ -76,3 +76,8 @@ pub fn terminal_required() -> &'static str {
 pub fn terminal_failed(detail: &str) -> String {
     format!("could not use the terminal: {detail}")
 }
+
+/// FR-PLAT-01, architecture 8.3 [new]: the installed tmux is older than 3.2. `found` is `<major>.<minor>`.
+pub fn tmux_version_too_old(found: &str) -> String {
+    format!("tmux 3.2 or later is required; found {found}.")
+}

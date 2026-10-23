@@ -10,7 +10,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 
 | FR-ID | Slice | Code | Tests | Status | Note |
 |---|---|---|---|---|---|
-| FR-PLAT-01 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
+| FR-PLAT-01 | S-09 | src/ports/backend.rs; src/adapters/tmux.rs; src/adapters/process.rs | tests/component_tmux.rs; tests/it_tmux_adapter.rs (ignored, real tmux); src/adapters/tmux.rs (unit) | covered | Argv and error mapping on FakeProcess (default gate). Real tmux on an isolated server: version 3.2 minimum, create, list, kill, rename (ignored, run by the gate when tmux is on PATH). Manual: the `#{session_path}` check on a real tmux 3.2 (A-17), since the gate has tmux 3.5a only. |
 | FR-PLAT-02 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-TUI-01 | S-08 | src/tui/engine.rs; src/adapters/terminal.rs | tests/tui_engine.rs; src/adapters/terminal.rs (unit) | covered | The picker is drawn by `run_picker` on a fake terminal. Real drawing on a tty is in the FR-TUI-06 manual check. |
 | FR-TUI-02 | S-06 | src/tui/fuzzy.rs | src/tui/fuzzy.rs (unit tests) | covered |  |
@@ -30,7 +30,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-OPEN-06 | S-01 | domain/naming.rs | domain/naming.rs | covered |  |
 | FR-OPEN-07 | S-10 |  |  | open |  |
 | FR-OPEN-08 | S-11 |  |  | open | Expected manual: attach and switch need a real client and tty; argv covered by adapter test. |
-| FR-OPEN-09 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
+| FR-OPEN-09 | S-09 | src/adapters/tmux.rs | tests/it_tmux_adapter.rs (ignored, real tmux) | covered | With no server, list is empty; the first create starts the server (real tmux, isolated server name). |
 | FR-OPEN-10 | S-11 |  |  | open |  |
 | FR-OPEN-11 | S-11 |  |  | open |  |
 | FR-PICK-01 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
@@ -142,9 +142,9 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CONF-08 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-NAME-01 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered | Vectors provisional until user supplies reference pairs (D-02). |
 | FR-NAME-02 | S-01 | domain/naming.rs | domain/naming.rs | open | Vectors provisional until user supplies reference pairs (D-02); stays open until those pairs are supplied. |
-| FR-NAME-03 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
-| FR-NAME-04 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
-| FR-NAME-05 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
+| FR-NAME-03 | S-09 | src/adapters/tmux.rs; src/ports/backend.rs | tests/component_tmux.rs; tests/it_tmux_adapter.rs (ignored, real tmux) | covered | set-option argv on FakeProcess; real options read back, windows added. set-option uses `=<name>:` (proposal P-18). |
+| FR-NAME-04 | S-09 | src/domain/sessions.rs; src/adapters/tmux.rs | tests/component_tmux.rs; tests/it_tmux_adapter.rs (ignored, real tmux) | covered | `managed()` keeps only marked sessions; real server session without the marker is filtered out. |
+| FR-NAME-05 | S-09 | src/adapters/tmux.rs | tests/it_tmux_adapter.rs (ignored, real tmux); src/adapters/tmux.rs (unit) | covered | A session given `@ledge_managed 1` by hand (tmux CLI) is listed as managed; no `@ledge_dir` gives no directory (A-05). |
 | FR-SCOPE-01 | S-04 | domain/projects.rs | domain/projects.rs | covered |  |
 | FR-SCOPE-02 | S-04 | domain/sessions.rs | domain/sessions.rs | open | Directory membership only. The managed filter and session directory come with the session slices. |
 | FR-DOC-01 | S-26 |  |  | open |  |

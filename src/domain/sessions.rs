@@ -1,8 +1,55 @@
-//! Group selection for session actions (FR-SCOPE-02). Pure. S-04 covers only the directory step: the
-//! managed filter and the session directory (`@ledge_dir`, then `session_path`, A-37) come with the
-//! session slices.
+//! Session records and group selection for session actions (FR-SCOPE-02, FR-NAME-04, A-37). Pure.
+//! `SessionInfo` is the record of one `list-sessions` line; the port `ports::backend` re-exports it.
 
 use super::path::AbsPath;
+
+/// FR-NAME-03..05, architecture 7.1: one tmux session as listed by the backend. `managed` is the
+/// `@ledge_managed` marker, `profile` and `dir` are the `@ledge_profile` and `@ledge_dir` options
+/// (`None` when unset), `path` is tmux's `session_path`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionInfo {
+    pub name: String,
+    pub windows: u32,
+    pub attached: bool,
+    pub activity: i64,
+    pub managed: bool,
+    pub profile: Option<String>,
+    pub dir: Option<String>,
+    pub path: Option<String>,
+}
+
+/// FR-NAME-04: a session that carries the managed marker. Only this type reaches lists, pickers,
+/// kill, labels and checks (architecture 5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagedSession(SessionInfo);
+
+impl ManagedSession {
+    pub fn info(&self) -> &SessionInfo {
+        &self.0
+    }
+}
+
+/// FR-NAME-04: keeps the sessions that carry the managed marker, in the order given.
+pub fn managed(all: Vec<SessionInfo>) -> Vec<ManagedSession> {
+    all.into_iter()
+        .filter(|session| session.managed)
+        .map(ManagedSession)
+        .collect()
+}
+
+/// A-37: the session directory is `@ledge_dir` when set, else tmux's `session_path`. `None` when neither.
+pub fn session_directory(session: &SessionInfo) -> Option<&str> {
+    session
+        .dir
+        .as_deref()
+        .or(session.path.as_deref())
+        .filter(|dir| !dir.is_empty())
+}
+
+/// FR-PLAT-01, architecture 7.2: tmux 3.2 is the minimum. `version` is `(major, minor)`.
+pub fn tmux_version_supported(version: (u32, u32)) -> bool {
+    version >= (3, 2)
+}
 
 /// FR-SCOPE-02: the indexes of the sessions whose directory is the group entry or lies inside it, by whole
 /// components. A session with no directory (`None`) is in no group. The caller passes managed sessions only

@@ -1,9 +1,11 @@
 //! Shared test fakes and helpers (docs/testing.md "Test layout"). S-01 adds `fake_env` and `temp`;
-//! S-07 adds `fake_terminal`; S-08 adds `fake_signals`; the other fakes arrive with the slices that
-//! first use them.
+//! S-07 adds `fake_terminal`; S-08 adds `fake_signals`; S-09 adds `fake_process` and `fake_backend`; the
+//! other fakes arrive with the slices that first use them.
 #![allow(dead_code)]
 
+pub mod fake_backend;
 pub mod fake_env;
+pub mod fake_process;
 pub mod fake_signals;
 pub mod fake_terminal;
 pub mod temp;

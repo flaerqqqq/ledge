@@ -158,7 +158,7 @@ have no FR-IDs state why.
 - branch: slice/08-terminal-engine
 
 ### S-09 tmux adapter and managed marker
-- status: in-progress
+- status: done
 - deps: S-01
 - FR-IDs: FR-PLAT-01, FR-OPEN-09, FR-NAME-03, FR-NAME-04, FR-NAME-05
 - scope: `adapters/tmux.rs` (`TmuxBackend`, every command of architecture 7.1 and the error mapping of 7.2),
@@ -174,7 +174,7 @@ have no FR-IDs state why.
 - branch: slice/09-tmux-adapter
 
 ### S-10 Building a session from a profile
-- status: blocked
+- status: in-progress
 - deps: S-02, S-09
 - FR-IDs: FR-OPEN-07, FR-PROF-03, FR-PROF-04, FR-PROF-05, FR-PROF-07, FR-PROF-08
 - scope: `app/build.rs`, `app/mod.rs` (`Ctx`), `domain/naming.rs` (collision rule use).
