@@ -161,8 +161,8 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CMD-04 | S-17 |  |  | open |  |
 | FR-CMD-05 | S-17 |  |  | open |  |
 | FR-CMD-06 | S-17 |  |  | open |  |
-| FR-CMD-07 | S-00 | src/main.rs (report, main); src/error.rs (LedgeError Display); src/messages.rs (cancelled) | src/main.rs (report, 5 tests); tests/messages_verbatim.rs; tests/crate_targets.rs; tests/gate_scripts.rs | covered | S-00 acceptance (no FR of its own) also in tests/gate_scripts.rs. |
-| FR-CMD-08 | S-13 |  |  | open |  |
+| FR-CMD-07 | S-00 | src/main.rs (report, main); src/error.rs (LedgeError Display); src/messages.rs (cancelled) | src/main.rs (report, 5 tests); tests/messages_verbatim.rs; tests/crate_targets.rs; tests/gate_scripts.rs | covered | Also covers S-00 acceptance for the gate and layer scripts (tests/gate_scripts.rs), which the backlog lists under this slice. |
+| FR-CMD-08 | S-13 | src/messages.rs (cancelled) | src/main.rs (cancelled test); tests/messages_verbatim.rs | open | S-00 implements only the "Cancelled." text (messages::cancelled, report). The rest of FR-CMD-08 is S-13; status stays open until then. |
 | FR-CMD-09 | S-17 |  |  | open | No runtime program besides tmux uses this message; helper only (proposal P-2). |
 | FR-CMD-10 | S-17 |  |  | open |  |
 | FR-CMD-11 | S-17 |  |  | open |  |

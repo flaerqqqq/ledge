@@ -194,6 +194,18 @@ layer, so `adapters::terminal` depends on `tui` for that one trait. The rule tha
 
 Composition: only `main.rs` names concrete adapter types. `cli::run` takes a `&Ctx` built in `main`.
 
+### 3.1 Known limits of `scripts/check_layers.sh` (accepted at S-00)
+
+The layer check is a grep-based backstop, not a proof. The compiler and review are the primary
+guard. Accepted limits:
+- Relative paths (`super::super::ports::fs`) are not checked. Only `crate::` paths and `std::` paths are matched.
+- Spaces around `::` (`use std :: fs`) and `use ::std::fs` are not caught.
+- `//` inside string literals is stripped; `/* ... */` block comments are not stripped.
+- An unterminated brace group at end of file is ignored (the gate builds first, so this cannot compile).
+
+Follow-up (owner: next slice that touches `scripts/check_layers.sh`): fix the brace-form
+`signals::` false positive in the tui rule, and reject `super::super::` chains into forbidden layers.
+
 ## 4. Trait boundaries for testability
 
 All ports take `&self`. Fakes that record calls use `RefCell` inside the fake (tests are single

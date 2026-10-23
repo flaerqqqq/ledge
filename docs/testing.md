@@ -34,7 +34,7 @@ Owner: user. Finalised by the architect in Phase 0 (gate A; gate B waived). The 
    "Messages" and D-11..D-17 and each `[new]` message in architecture section 8.3. A message change breaks this
    file on purpose.
 6. **Checks.** `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build --locked`,
-   `cargo test --locked`, `scripts/check_layers.sh`, and (from S-27) `scripts/test_install.sh`.
+   `cargo test --locked`, `scripts/check_layers.sh`, and (from S-27) `scripts/test_install.sh`. `shellcheck` is expected on the factory machine and is skipped with a notice elsewhere.
 
 ## tmux isolation (FR-NAME-02 tests, quality section)
 - Env var for the separate server name: `LEDGE_TMUX_SERVER` (kept as the architect's name; architecture 7.1).
