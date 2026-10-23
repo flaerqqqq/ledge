@@ -1,5 +1,6 @@
 //! Pure domain logic, no I/O (architecture 2). S-01 adds the path, naming and location modules; S-02 adds
-//! config and profile; S-03 adds history and bookmarks.
+//! config and profile; S-03 adds history and bookmarks;
+//! S-04 adds projects and group selection.
 
 pub mod bookmarks;
 pub mod config;
@@ -8,3 +9,5 @@ pub mod location;
 pub mod naming;
 pub mod path;
 pub mod profile;
+pub mod projects;
+pub mod sessions;

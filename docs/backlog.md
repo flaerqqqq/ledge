@@ -92,7 +92,7 @@ have no FR-IDs state why.
 - branch: slice/03-history-bookmark-stores
 
 ### S-04 Projects, scope and current directory row
-- status: in-progress
+- status: done
 - deps: S-02
 - FR-IDs: FR-PICK-01, FR-PICK-02, FR-PICK-03, FR-PICK-04, FR-PICK-05, FR-CONF-07, FR-SCOPE-01, FR-SCOPE-02
 - scope: `domain/projects.rs` (listing from a list of child names, sort, current-directory row, `project_containing`,
@@ -106,7 +106,7 @@ have no FR-IDs state why.
 - branch: slice/04-projects-scope
 
 ### S-05 Tree construction (bookmark and session trees)
-- status: blocked
+- status: in-progress
 - deps: S-04
 - FR-IDs: FR-TREE-01, FR-TREE-02, FR-TREE-03, FR-TREE-04, FR-TREE-11, FR-SESS-06, FR-SESS-07
 - scope: `domain/tree.rs` (both builders, `TreeRow` with `openable`, `connector`, `dimmed`, `depth`).

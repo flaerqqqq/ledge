@@ -33,11 +33,11 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-OPEN-09 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-OPEN-10 | S-11 |  |  | open |  |
 | FR-OPEN-11 | S-11 |  |  | open |  |
-| FR-PICK-01 | S-04 |  |  | open |  |
-| FR-PICK-02 | S-04 |  |  | open |  |
-| FR-PICK-03 | S-04 |  |  | open |  |
-| FR-PICK-04 | S-04 |  |  | open |  |
-| FR-PICK-05 | S-04 |  |  | open |  |
+| FR-PICK-01 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
+| FR-PICK-02 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
+| FR-PICK-03 | S-04 | domain/projects.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
+| FR-PICK-04 | S-04 | domain/projects.rs | domain/projects.rs | open | Current row first is tested in domain. Preselection is the picker model's job (S-07, S-13). |
+| FR-PICK-05 | S-04 | domain/projects.rs | domain/projects.rs | open | Row data (current flag, path of a non-project) is tested. The '*' cell and path text are rendered in S-07 and S-13. |
 | FR-PICK-06 | S-13 |  |  | open |  |
 | FR-PICK-07 | S-13 |  |  | open | Live marker from fake backend; real tmux via integration. |
 | FR-PICK-08 | S-13 |  |  | open |  |
@@ -138,15 +138,15 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CONF-04 | S-02 | domain/config.rs | domain/config.rs; tests/component_config.rs | covered |  |
 | FR-CONF-05 | S-02 | domain/config.rs; app/store.rs | domain/config.rs; tests/component_config.rs | covered |  |
 | FR-CONF-06 | S-02 | app/store.rs | tests/component_config.rs | covered |  |
-| FR-CONF-07 | S-04 |  |  | open |  |
+| FR-CONF-07 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-CONF-08 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-NAME-01 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered | Vectors provisional until user supplies reference pairs (D-02). |
 | FR-NAME-02 | S-01 | domain/naming.rs | domain/naming.rs | open | Vectors provisional until user supplies reference pairs (D-02); stays open until those pairs are supplied. |
 | FR-NAME-03 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-NAME-04 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-NAME-05 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
-| FR-SCOPE-01 | S-04 |  |  | open |  |
-| FR-SCOPE-02 | S-04 |  |  | open |  |
+| FR-SCOPE-01 | S-04 | domain/projects.rs | domain/projects.rs | covered |  |
+| FR-SCOPE-02 | S-04 | domain/sessions.rs | domain/sessions.rs | open | Directory membership only. The managed filter and session directory come with the session slices. |
 | FR-DOC-01 | S-26 |  |  | open |  |
 | FR-DOC-02 | S-26 |  |  | open |  |
 | FR-DOC-03 | S-26 |  |  | open |  |
