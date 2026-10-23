@@ -103,3 +103,14 @@ Format:
 - change: replace the scope line with: "`ports/fs.rs`, `ports/env.rs` (traits only), `adapters/fs.rs`, `adapters/env.rs`, `domain/path.rs`, `domain/naming.rs`, `domain/location.rs`; `md-5` dependency added here; `tests/support/fake_env.rs`, `tests/support/temp.rs`. The clock, process, console and signals ports are created by the slices that first use them (see P-6)."
 - why: no S-01 acceptance criterion needs the clock, process, console or signals ports, and the scope line lists them as created here. Narrowing it keeps S-01 to FR-PLAT-02, FR-CONF-08, FR-OPEN-05, FR-OPEN-06, FR-NAME-01, FR-NAME-02.
 - status: Open
+
+### P-9 Messages S-02 needs beyond the architecture 8.3 table
+- from: implementer / slice S-02
+- doc: docs/architecture.md (section 8.3 table, section 9.2) and requirements.md (Messages)
+- change: add these messages, each class error, all in `messages.rs` and in `tests/messages_verbatim.rs`:
+  "config is invalid (expected 'default_profile' to be a string): <file>" (trigger: `default_profile` present and not a string, architecture 9.2);
+  "could not read config '<file>': <detail>" (trigger: `config.json` exists but cannot be read);
+  "could not read profile '<name>' at <path>: <detail>" (trigger: profile file exists but cannot be read).
+  Also note in architecture 8.3 that "could not create config '<path>': <detail>" is used for the config folder and the profiles folder as well as the file.
+- why: architecture 9.2 requires a type check on `default_profile` and the table in 8.3 has no text for it; the read failures of an existing file need a message that names the situation (conventions, Errors: an io::Error is never shown raw). S-02 scope names the config and profile messages. Added [new] strings are a message change, so the user should confirm them with P-3.
+- status: Open

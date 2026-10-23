@@ -117,12 +117,12 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-ACT-11 | S-19 |  |  | open |  |
 | FR-ACT-12 | S-15 |  |  | open |  |
 | FR-ACT-13 | S-14 |  |  | open |  |
-| FR-PROF-01 | S-02 |  |  | open |  |
-| FR-PROF-02 | S-02 |  |  | open |  |
+| FR-PROF-01 | S-02 | app/store.rs; domain/profile.rs | tests/component_config.rs | covered |  |
+| FR-PROF-02 | S-02 | domain/profile.rs | domain/profile.rs; tests/component_config.rs | covered |  |
 | FR-PROF-03 | S-10 |  |  | open |  |
 | FR-PROF-04 | S-10 |  |  | open |  |
 | FR-PROF-05 | S-10 |  |  | open |  |
-| FR-PROF-06 | S-02 |  |  | open |  |
+| FR-PROF-06 | S-02 | domain/profile.rs | domain/profile.rs; tests/component_config.rs | covered |  |
 | FR-PROF-07 | S-10 |  |  | open |  |
 | FR-PROF-08 | S-10 |  |  | open |  |
 | FR-PROF-09 | S-11 |  |  | open |  |
@@ -132,12 +132,12 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PROF-13 | S-15 |  |  | open |  |
 | FR-PROF-14 | S-14 |  |  | open |  |
 | FR-PROF-15 | S-14 |  |  | open |  |
-| FR-CONF-01 | S-02 |  |  | open |  |
-| FR-CONF-02 | S-02 |  |  | open |  |
-| FR-CONF-03 | S-02 |  |  | open |  |
-| FR-CONF-04 | S-02 |  |  | open |  |
-| FR-CONF-05 | S-02 |  |  | open |  |
-| FR-CONF-06 | S-02 |  |  | open |  |
+| FR-CONF-01 | S-02 | app/store.rs; domain/config.rs | domain/config.rs; tests/component_config.rs | covered | Default text compared literally; the trailing newline after the architecture 9.2 block is an assumption. |
+| FR-CONF-02 | S-02 | domain/config.rs; app/store.rs | domain/config.rs; tests/component_config.rs | covered |  |
+| FR-CONF-03 | S-02 | domain/config.rs | domain/config.rs; tests/component_config.rs | covered |  |
+| FR-CONF-04 | S-02 | domain/config.rs | domain/config.rs; tests/component_config.rs | covered |  |
+| FR-CONF-05 | S-02 | domain/config.rs; app/store.rs | domain/config.rs; tests/component_config.rs | covered |  |
+| FR-CONF-06 | S-02 | app/store.rs | tests/component_config.rs | covered |  |
 | FR-CONF-07 | S-04 |  |  | open |  |
 | FR-CONF-08 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-NAME-01 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered | Vectors provisional until user supplies reference pairs (D-02). |

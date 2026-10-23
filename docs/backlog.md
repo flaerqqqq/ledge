@@ -63,7 +63,7 @@ have no FR-IDs state why.
 - branch: slice/01-paths-naming
 
 ### S-02 Configuration and profile files
-- status: ready
+- status: done
 - deps: S-01
 - FR-IDs: FR-CONF-01, FR-CONF-02, FR-CONF-03, FR-CONF-04, FR-CONF-05, FR-CONF-06, FR-PROF-01, FR-PROF-02, FR-PROF-06
 - scope: `domain/config.rs`, `domain/profile.rs`, `app/store.rs` (config load and create), `messages.rs` (config and
@@ -79,7 +79,7 @@ have no FR-IDs state why.
 - branch: slice/02-config-profiles
 
 ### S-03 History and bookmark stores
-- status: blocked
+- status: in-progress
 - deps: S-01
 - FR-IDs: FR-HIST-01, FR-HIST-02, FR-BM-01
 - scope: `domain/history.rs`, `domain/bookmarks.rs` (list rules and file format only), `app/store.rs` (history and
