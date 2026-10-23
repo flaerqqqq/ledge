@@ -180,3 +180,18 @@ Format:
   FR-TUI-04 requires a footer that lists the keys. Architecture 6.2 follows FR-TUI-04. S-07 does not set the history footer
   (the footer strings come from the picker services in later slices), so no code depends on the choice yet.
 - status: Open
+
+### P-16 Message for terminal read and write failures
+- from: implementer / slice S-08
+- doc: docs/architecture.md (section 8.3, Messages)
+- change: add to the `[new]` table: `could not use the terminal: <detail>` | error | drawing or reading the terminal fails (FR-TUI-06). Add it to the `[new]` list with a single function `messages::terminal_failed(detail)`.
+- why: an `io::Error` must never be shown raw, and 8.3 has no text for a failed terminal call. The engine (`run_picker`) and `CrosstermFactory::open` return this text. Implemented as written in `messages.rs` and checked in `tests/messages_verbatim.rs`.
+- status: Open
+
+### P-17 run_picker takes the color switch as a parameter
+- from: implementer / slice S-08
+- doc: docs/architecture.md (section 6.4)
+- change: the engine signature becomes `run_picker(model, handler, term, signals, color: bool)`, where `color` is `render::color_enabled(NO_COLOR, TERM)` computed by the caller (app). Section 6.4 has no `color` argument.
+- why: the tui layer may not read the environment (section 3), and the color rule (FR-TUI-09, A-04) is already a pure function that the caller evaluates. Without the argument the engine cannot draw in color. The loop and the drop-based restore are as in 6.4.
+- status: Open
+

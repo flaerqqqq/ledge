@@ -144,7 +144,7 @@ have no FR-IDs state why.
 - branch: slice/07-picker-model
 
 ### S-08 Terminal engine and restore
-- status: in-progress
+- status: done
 - deps: S-07
 - FR-IDs: FR-TUI-01, FR-TUI-06
 - scope: `tui/engine.rs` (`run_picker`, `PickerHandler`, `Step`, `PickerResult`), `adapters/terminal.rs` (`CrosstermTerminal`,
@@ -158,7 +158,7 @@ have no FR-IDs state why.
 - branch: slice/08-terminal-engine
 
 ### S-09 tmux adapter and managed marker
-- status: blocked
+- status: in-progress
 - deps: S-01
 - FR-IDs: FR-PLAT-01, FR-OPEN-09, FR-NAME-03, FR-NAME-04, FR-NAME-05
 - scope: `adapters/tmux.rs` (`TmuxBackend`, every command of architecture 7.1 and the error mapping of 7.2),

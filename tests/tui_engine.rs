@@ -1,12 +1,13 @@
-//! TUI model tests (docs/testing.md level 3, S-07 part): keys, layout, resize, dimming and cues,
-//! driven through `FakeTerminal` (ratatui `TestBackend`). `run_picker` (S-08) is not here yet, so
-//! `drive` below is the same loop without the engine: keys go through `keys::map` and the model,
-//! resizes set the list height, and every input is followed by a draw.
+//! TUI model tests (docs/testing.md level 3): keys, layout, resize, dimming and cues, driven through
+//! `FakeTerminal` (ratatui `TestBackend`). `drive` is the model part of the loop without the engine
+//! (S-07). The engine tests at the end run `run_picker` itself (S-08): restore, interrupts, errors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod support;
 
+use ledge::error::{LedgeError, Outcome};
 use ledge::tui::columns::ColumnSpec;
+use ledge::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use ledge::tui::keys::{self, Action};
 use ledge::tui::picker::{self, Chrome, Effect, PickerModel, PickerRow};
 use ledge::tui::render::{self, icon};
@@ -15,6 +16,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Color, Modifier};
 use ratatui::Frame;
 use std::time::Duration;
+use support::fake_signals::FakeSignals;
 use support::fake_terminal::FakeTerminal;
 
 const PROJECT_FOOTER: &str = "enter open · ^r rebuild · ^p profile · ^x kill";
@@ -407,4 +409,238 @@ fn picker_stays_open_with_rows_and_closes_when_empty_unless_staying_open() {
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut staying, &mut term, false);
     assert!(term.lines()[0].contains("▸ Names"));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Engine (S-08): run_picker drives the loop, restores the terminal on every return path (FR-TUI-06)
+// ---------------------------------------------------------------------------------------------
+
+/// Records what the engine asks of the handler and answers with scripted steps.
+struct Recorder {
+    acts: usize,
+    chooses: Vec<usize>,
+    act_step: Step,
+    reload_error: Option<String>,
+    rows: usize,
+}
+
+impl Recorder {
+    fn new(rows: usize) -> Self {
+        Self {
+            acts: 0,
+            chooses: Vec::new(),
+            act_step: Step::Continue {
+                status: None,
+                reload: false,
+            },
+            reload_error: None,
+            rows,
+        }
+    }
+}
+
+impl PickerHandler<usize> for Recorder {
+    fn choose(&mut self, row: &usize) -> Step {
+        self.chooses.push(*row);
+        Step::Accept
+    }
+
+    fn act(&mut self, _action: Action, _row: Option<&usize>) -> Step {
+        self.acts += 1;
+        self.act_step.clone()
+    }
+
+    fn reload(&mut self) -> Result<Vec<ledge::tui::picker::PickerRow<usize>>, LedgeError> {
+        match &self.reload_error {
+            Some(text) => Err(LedgeError::Fatal(text.clone())),
+            None => Ok(named_rows(self.rows)),
+        }
+    }
+}
+
+fn engine_model(rows: usize) -> PickerModel<usize> {
+    let chrome = Chrome::new(
+        "Projects & Submodules",
+        icon::PROJECTS,
+        vec![ColumnSpec::text("Name"), ColumnSpec::text("Session")],
+        "enter open",
+    );
+    PickerModel::new(named_rows(rows), chrome)
+}
+
+/// Runs the engine on a 80x24 FakeTerminal with the scripted inputs. Returns the result, the
+/// handler, and the restore record of the terminal.
+fn run_engine(
+    rows: usize,
+    inputs: Vec<Input>,
+    handler: &mut Recorder,
+    signals: &FakeSignals,
+) -> (
+    Result<PickerResult<usize>, LedgeError>,
+    std::rc::Rc<std::cell::RefCell<support::fake_terminal::Record>>,
+) {
+    let term = FakeTerminal::new(80, 24, inputs).unwrap();
+    let record = term.record();
+    let result = run_picker(engine_model(rows), handler, Box::new(term), signals, false);
+    (result, record)
+}
+
+// FR-TUI-01: the engine draws the picker (label, header, rows) before it returns
+#[test]
+fn engine_draws_the_picker_before_returning() {
+    let mut handler = Recorder::new(3);
+    let (result, record) = run_engine(
+        3,
+        vec![key(KeyCode::Esc)],
+        &mut handler,
+        &FakeSignals::none(),
+    );
+    assert_eq!(result.unwrap(), PickerResult::Cancelled);
+    let screen = record.borrow().lines.join("\n");
+    assert!(screen.contains("Projects & Submodules"), "{screen}");
+    assert!(screen.contains("row00"), "{screen}");
+    assert!(screen.contains("row02"), "{screen}");
+}
+
+// FR-TUI-06: enter returns the selected row after the terminal is restored
+#[test]
+fn enter_chooses_the_selected_row_and_restores_once() {
+    let mut handler = Recorder::new(3);
+    let (result, record) = run_engine(
+        3,
+        vec![key(KeyCode::Down), key(KeyCode::Enter)],
+        &mut handler,
+        &FakeSignals::none(),
+    );
+    assert_eq!(result.unwrap(), PickerResult::Chosen(1));
+    assert_eq!(handler.chooses, vec![1]);
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// FR-TUI-06: escape cancels and the terminal is restored
+#[test]
+fn escape_cancels_and_restores_once() {
+    let mut handler = Recorder::new(3);
+    let (result, record) = run_engine(
+        3,
+        vec![key(KeyCode::Esc)],
+        &mut handler,
+        &FakeSignals::none(),
+    );
+    assert_eq!(result.unwrap(), PickerResult::Cancelled);
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// A-08: ctrl-c is a cancel (a key in raw mode), not an interrupt; exit is a normal return
+#[test]
+fn ctrl_c_is_a_cancel_and_restores_once() {
+    let mut handler = Recorder::new(3);
+    let (result, record) = run_engine(3, vec![ctrl('c')], &mut handler, &FakeSignals::none());
+    assert_eq!(result.unwrap(), PickerResult::Cancelled);
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// FR-TUI-06: a handler error returns through the drop path, so the terminal is restored
+#[test]
+fn handler_error_returns_error_and_restores_once() {
+    let mut handler = Recorder::new(3);
+    handler.act_step = Step::Continue {
+        status: None,
+        reload: true,
+    };
+    handler.reload_error = Some("boom".to_string());
+    let (result, record) = run_engine(3, vec![ctrl('r')], &mut handler, &FakeSignals::none());
+    assert_eq!(result.unwrap_err(), LedgeError::Fatal("boom".to_string()));
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// FR-TUI-06: a terminal read failure returns an error and the terminal is restored
+#[test]
+fn terminal_failure_returns_error_and_restores_once() {
+    let mut handler = Recorder::new(3);
+    let (result, record) = run_engine(3, Vec::new(), &mut handler, &FakeSignals::none());
+    assert!(result.is_err(), "a picker that never closes must fail");
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// FR-TUI-06: an interrupt returns Closed(Interrupted(code)) after the restore, and no later key is read
+// (SIGINT 130, SIGHUP 129, SIGTERM 143: architecture 8.2)
+#[test]
+fn interrupt_returns_its_exit_code_after_restore() {
+    for code in [130, 129, 143] {
+        let mut handler = Recorder::new(3);
+        handler.act_step = Step::Continue {
+            status: None,
+            reload: false,
+        };
+        let inputs = vec![ctrl('r'); 5];
+        let (result, record) = run_engine(
+            3,
+            inputs,
+            &mut handler,
+            &FakeSignals::interrupt_on_call(3, code),
+        );
+        assert_eq!(
+            result.unwrap(),
+            PickerResult::Closed(Outcome::Interrupted(code)),
+            "exit code {code}"
+        );
+        assert_eq!(handler.acts, 2, "keys after the interrupt are not read");
+        assert_eq!(record.borrow().restores, 1, "restore for code {code}");
+    }
+}
+
+// FR-TUI-06: an interrupt before any key is read still restores
+#[test]
+fn interrupt_before_any_key_restores_once() {
+    let mut handler = Recorder::new(3);
+    let (result, record) = run_engine(
+        3,
+        vec![key(KeyCode::Enter)],
+        &mut handler,
+        &FakeSignals::interrupt_on_call(1, 130),
+    );
+    assert_eq!(
+        result.unwrap(),
+        PickerResult::Closed(Outcome::Interrupted(130))
+    );
+    assert!(handler.chooses.is_empty());
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// FR-TUI-06: a handler step that closes the picker returns its outcome and restores
+#[test]
+fn close_step_returns_the_outcome_and_restores_once() {
+    let mut handler = Recorder::new(3);
+    handler.act_step = Step::Close(Outcome::Info("done".to_string()));
+    let (result, record) = run_engine(3, vec![ctrl('x')], &mut handler, &FakeSignals::none());
+    assert_eq!(
+        result.unwrap(),
+        PickerResult::Closed(Outcome::Info("done".to_string()))
+    );
+    assert_eq!(record.borrow().restores, 1);
+}
+
+// FR-TUI-05: a resize keeps the selected row visible inside the engine loop (40x8 gives 2 list rows)
+#[test]
+fn resize_keeps_the_selected_row_visible_in_the_engine() {
+    let mut handler = Recorder::new(20);
+    let term = FakeTerminal::new(
+        80,
+        24,
+        vec![key(KeyCode::End), Input::Resize(40, 8), key(KeyCode::Esc)],
+    )
+    .unwrap();
+    let record = term.record();
+    let result = run_picker(
+        engine_model(20),
+        &mut handler,
+        Box::new(term),
+        &FakeSignals::none(),
+        false,
+    );
+    assert_eq!(result.unwrap(), PickerResult::Cancelled);
+    let screen = record.borrow().lines.join("\n");
+    assert!(screen.contains("row19"), "{screen}");
+    assert_eq!(record.borrow().restores, 1);
 }

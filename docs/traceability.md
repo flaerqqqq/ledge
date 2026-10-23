@@ -12,12 +12,12 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 |---|---|---|---|---|---|
 | FR-PLAT-01 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-PLAT-02 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
-| FR-TUI-01 | S-08 |  |  | open |  |
+| FR-TUI-01 | S-08 | src/tui/engine.rs; src/adapters/terminal.rs | tests/tui_engine.rs; src/adapters/terminal.rs (unit) | covered | The picker is drawn by `run_picker` on a fake terminal. Real drawing on a tty is in the FR-TUI-06 manual check. |
 | FR-TUI-02 | S-06 | src/tui/fuzzy.rs | src/tui/fuzzy.rs (unit tests) | covered |  |
 | FR-TUI-03 | S-07 | src/tui/keys.rs; src/tui/picker.rs | src/tui/keys.rs, src/tui/picker.rs (unit); tests/tui_engine.rs | covered |  |
 | FR-TUI-04 | S-07 | src/tui/render.rs | tests/tui_engine.rs | covered | Label, icon, header, prompt, status and footer text. Footer strings come from the caller (S-13 onward). |
 | FR-TUI-05 | S-07 | src/tui/picker.rs; src/tui/columns.rs; src/tui/render.rs | src/tui/picker.rs, src/tui/columns.rs (unit); tests/tui_engine.rs; tests/messages_verbatim.rs | covered | Resize and 40x8 minimum, on TestBackend. Real terminal resize is checked with the S-08 engine. |
-| FR-TUI-06 | S-08 |  |  | open | Restore on error checked with fake terminal; real signal path is manual. |
+| FR-TUI-06 | S-08 | src/tui/engine.rs; src/adapters/terminal.rs; src/adapters/signals.rs; src/main.rs | tests/tui_engine.rs; src/adapters/signals.rs, src/adapters/terminal.rs (unit) | covered | Headless: the terminal is dropped (restore counted by FakeTerminal) on accept, cancel, interrupt (130, 129, 143 via FakeSignals), handler error and terminal error. Manual: the real raw-mode and alternate-screen restore and real SIGINT/SIGHUP/SIGTERM delivery, with the panic hook; reason: needs a real tty and OS signals, which tests do not have. |
 | FR-TUI-07 | S-07 | src/tui/keys.rs | src/tui/keys.rs (unit); tests/tui_engine.rs | covered | One key map for all pickers. Footers of the screen tables are set by later picker slices. |
 | FR-TUI-08 | S-07 | src/tui/render.rs; src/tui/picker.rs | tests/tui_engine.rs | covered | Text cue and dim style automated on TestBackend; color appearance is manual. |
 | FR-TUI-09 | S-07 | src/tui/render.rs | src/tui/render.rs (unit); tests/tui_engine.rs | covered | Text cues, reverse video and NO_COLOR/TERM=dumb rule automated; color appearance is manual. |

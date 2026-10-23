@@ -118,3 +118,21 @@ fn terminal_too_small_text_is_verbatim() {
         "Terminal too small: need at least 40x8."
     );
 }
+
+// FR-TUI-01, architecture 8.3 [new]: a picker started without a tty
+#[test]
+fn terminal_required_text_is_verbatim() {
+    assert_eq!(
+        messages::terminal_required(),
+        "a terminal is required for this picker."
+    );
+}
+
+// FR-TUI-06, architecture 8.3 [new] (proposal P-16): the terminal cannot be drawn or read
+#[test]
+fn terminal_failed_text_is_verbatim() {
+    assert_eq!(
+        messages::terminal_failed("Broken pipe (os error 32)"),
+        "could not use the terminal: Broken pipe (os error 32)"
+    );
+}

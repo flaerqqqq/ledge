@@ -34,6 +34,7 @@ fn run() -> Result<Outcome> {
 }
 
 fn main() {
+    ledge::adapters::terminal::install_panic_hook();
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();
     let code = report(run(), &mut stdout.lock(), &mut stderr.lock());

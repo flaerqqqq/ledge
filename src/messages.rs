@@ -66,3 +66,13 @@ pub fn could_not_read_profile(name: &str, path: &str, detail: &str) -> String {
 pub fn terminal_too_small() -> &'static str {
     "Terminal too small: need at least 40x8."
 }
+
+/// FR-TUI-01, architecture 8.3 [new]: a picker is started and stdout is not a tty.
+pub fn terminal_required() -> &'static str {
+    "a terminal is required for this picker."
+}
+
+/// FR-TUI-06, architecture 8.3 [new] (proposal P-16): drawing or reading the terminal failed.
+pub fn terminal_failed(detail: &str) -> String {
+    format!("could not use the terminal: {detail}")
+}
