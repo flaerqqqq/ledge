@@ -28,7 +28,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-OPEN-04 | S-17 |  |  | open |  |
 | FR-OPEN-05 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered |  |
 | FR-OPEN-06 | S-01 | domain/naming.rs | domain/naming.rs | covered |  |
-| FR-OPEN-07 | S-10 |  |  | open |  |
+| FR-OPEN-07 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Create only when no session of the name exists; existing unmanaged reused, managed with another @ledge_dir refused (D-14). Ctx not created yet (proposal P-20).
 | FR-OPEN-08 | S-11 |  |  | open | Expected manual: attach and switch need a real client and tty; argv covered by adapter test. |
 | FR-OPEN-09 | S-09 | src/adapters/tmux.rs | tests/it_tmux_adapter.rs (ignored, real tmux) | covered | With no server, list is empty; the first create starts the server (real tmux, isolated server name). |
 | FR-OPEN-10 | S-11 |  |  | open |  |
@@ -119,12 +119,12 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-ACT-13 | S-14 |  |  | open |  |
 | FR-PROF-01 | S-02 | app/store.rs; domain/profile.rs | tests/component_config.rs | covered |  |
 | FR-PROF-02 | S-02 | domain/profile.rs | domain/profile.rs; tests/component_config.rs | covered |  |
-| FR-PROF-03 | S-10 |  |  | open |  |
-| FR-PROF-04 | S-10 |  |  | open |  |
-| FR-PROF-05 | S-10 |  |  | open |  |
+| FR-PROF-03 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Windows created in profile order, duplicate names allowed.
+| FR-PROF-04 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Command typed per window via send_line (FakeBackend records typed lines).
+| FR-PROF-05 | S-10 | src/app/build.rs | tests/component_build.rs | covered | First window is the session's first and is selected last.
 | FR-PROF-06 | S-02 | domain/profile.rs | domain/profile.rs; tests/component_config.rs | covered |  |
-| FR-PROF-07 | S-10 |  |  | open |  |
-| FR-PROF-08 | S-10 |  |  | open |  |
+| FR-PROF-07 | S-10 | src/app/build.rs | tests/component_build.rs | covered | @ledge_profile records the profile name; basic for the single-window layout.
+| FR-PROF-08 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Profile applied at creation only; reopening a session with another profile changes nothing.
 | FR-PROF-09 | S-11 |  |  | open |  |
 | FR-PROF-10 | S-11 |  |  | open |  |
 | FR-PROF-11 | S-11 |  |  | open |  |

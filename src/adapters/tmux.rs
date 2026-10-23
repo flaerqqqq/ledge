@@ -7,10 +7,9 @@ use crate::ports::env::Env;
 use crate::ports::process::{Captured, ProcessRunner};
 use std::io;
 
-/// FR-NAME-03, architecture 7.3: the managed marker and the profile and directory options.
-pub const OPT_MANAGED: &str = "@ledge_managed";
-pub const OPT_PROFILE: &str = "@ledge_profile";
-pub const OPT_DIR: &str = "@ledge_dir";
+/// FR-NAME-03, architecture 7.3: the option names live with the port so `app` can use them without the
+/// adapter. Re-exported here for the tmux adapter tests.
+pub use crate::ports::backend::{OPT_DIR, OPT_MANAGED, OPT_PROFILE};
 
 /// Architecture 7.1: the `list-sessions` format, eight tab-separated fields in the order `parse_session_line`
 /// reads them.

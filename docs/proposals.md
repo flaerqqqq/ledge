@@ -209,3 +209,10 @@ Format:
 - change: (a) `ProcessRunner` in S-09 has `find_program`, `capture` and `inherit`. `spawn_detached` is not added here; S-12 adds it with the editor launch, its first user (P-6 rule). (b) The test layout gains `tests/component_tmux.rs` (fake-process argv of the tmux commands, FR-PLAT-01, FR-NAME-03/04); the table in testing.md does not list it.
 - why: P-6 says each port is created by its first user, so a method with no caller in S-09 is deferred the same way. The argv checks belong with the other component tests and need `FakeProcess` from tests/support.
 - status: Open
+
+### P-20 S-10 build module: Ctx, option constants in the port, test file name
+- from: implementer / slice S-10
+- doc: docs/architecture.md (section 2 module tree, section 4 `Ctx`, section 7.1), docs/testing.md (test layout)
+- change: (a) `app::build` takes `&dyn SessionBackend` (and `&AbsPath`, `&Profile`) as parameters. `app::Ctx` is not created in S-10: it bundles all ports and arrives with the open flow (S-11), the first caller that needs more than the backend. (b) The option names `@ledge_managed`, `@ledge_profile`, `@ledge_dir` move from `adapters/tmux.rs` to `ports/backend.rs` (`OPT_MANAGED`, `OPT_PROFILE`, `OPT_DIR`); `adapters/tmux.rs` re-exports them, so `tests/component_tmux.rs` is unchanged. Reason: `scripts/check_layers.sh` forbids `app` from naming `adapters`. (c) The test layout gains `tests/component_build.rs` (FR-OPEN-07, FR-PROF-03..08, FR-NAME-03, D-14, A-07 over `FakeBackend`); the table in testing.md lists `component_open.rs` for FR-OPEN and does not list this file. (d) The messages `could not create session '<name>': <detail>`, `... name already used by <dir>` and `Required tool 'tmux' is not installed.` are functions in `messages.rs` with checks in `tests/messages_verbatim.rs`.
+- why: the build flow needs only the backend port; creating `Ctx` now would wire unused ports (P-6 rule). The layer check makes the constants a port concern. Test file naming follows P-19.
+- status: Open

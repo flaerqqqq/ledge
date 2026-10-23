@@ -81,3 +81,19 @@ pub fn terminal_failed(detail: &str) -> String {
 pub fn tmux_version_too_old(found: &str) -> String {
     format!("tmux 3.2 or later is required; found {found}.")
 }
+
+/// FR-OPEN-07, FR-PLAT-01, architecture 8.2: a session build failed. `detail` is the backend text.
+pub fn could_not_create_session(name: &str, detail: &str) -> String {
+    format!("could not create session '{name}': {detail}")
+}
+
+/// FR-OPEN-07, D-14: a managed session of the same name records another directory. The whole line is
+/// `could not create session '<name>': name already used by <dir>`.
+pub fn session_name_used(name: &str, dir: &str) -> String {
+    could_not_create_session(name, &format!("name already used by {dir}"))
+}
+
+/// FR-CMD-10: tmux is not on PATH.
+pub fn tmux_not_installed() -> &'static str {
+    "Required tool 'tmux' is not installed."
+}

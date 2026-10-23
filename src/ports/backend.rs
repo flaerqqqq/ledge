@@ -12,6 +12,11 @@ pub enum BackendError {
     Failed { detail: String },
 }
 
+/// FR-NAME-03, architecture 7.3: the managed marker and the profile and directory session options.
+pub const OPT_MANAGED: &str = "@ledge_managed";
+pub const OPT_PROFILE: &str = "@ledge_profile";
+pub const OPT_DIR: &str = "@ledge_dir";
+
 /// FR-OPEN-07, architecture 4: the parameters of a new session. The first window is named `window_name`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewSession {

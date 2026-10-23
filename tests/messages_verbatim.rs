@@ -145,3 +145,30 @@ fn tmux_version_too_old_text_is_verbatim() {
         "tmux 3.2 or later is required; found 3.1."
     );
 }
+
+// FR-OPEN-07, architecture 8.2: the session build failure with the backend detail
+#[test]
+fn could_not_create_session_text_is_verbatim() {
+    assert_eq!(
+        messages::could_not_create_session("my_app-d7d2", "duplicate session"),
+        "could not create session 'my_app-d7d2': duplicate session"
+    );
+}
+
+// FR-OPEN-07, D-14: a managed session of the name records another directory
+#[test]
+fn session_name_used_text_is_verbatim() {
+    assert_eq!(
+        messages::session_name_used("my_app-d7d2", "/home/u/other"),
+        "could not create session 'my_app-d7d2': name already used by /home/u/other"
+    );
+}
+
+// FR-CMD-10: tmux is missing
+#[test]
+fn tmux_not_installed_text_is_verbatim() {
+    assert_eq!(
+        messages::tmux_not_installed(),
+        "Required tool 'tmux' is not installed."
+    );
+}

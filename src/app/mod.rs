@@ -5,6 +5,7 @@ use crate::domain::projects::{project_list, Project};
 use crate::ports::fs::FileSystem;
 use std::path::Path;
 
+pub mod build;
 pub mod store;
 
 /// FR-PICK-01, FR-CONF-07: the projects of the search paths, read through `fs`. A search path that cannot be

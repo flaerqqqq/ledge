@@ -30,6 +30,7 @@ pub struct FakeBackend {
     sessions: RefCell<Vec<Session>>,
     current: RefCell<Option<String>>,
     attached: RefCell<Option<String>>,
+    selected: RefCell<Option<String>>,
     next_window: Cell<u32>,
     failures: RefCell<Vec<(String, String)>>,
     version: Cell<(u32, u32)>,
@@ -78,6 +79,36 @@ impl FakeBackend {
     pub fn option(&self, session: &str, option: &str) -> Option<String> {
         self.session(session)
             .and_then(|s| s.options.get(option).cloned())
+    }
+
+    /// Name of the window made current by `select_window`, if any (test inspection).
+    pub fn selected_window_name(&self) -> Option<String> {
+        let selected = self.selected.borrow().clone()?;
+        self.sessions
+            .borrow()
+            .iter()
+            .flat_map(|s| s.windows.iter())
+            .find(|w| w.id == selected)
+            .map(|w| w.name.clone())
+    }
+
+    /// Windows of a session in order: name and the lines typed into each (test inspection).
+    pub fn windows_with_typed(&self, session: &str) -> Vec<(String, Vec<String>)> {
+        self.session(session)
+            .map(|s| {
+                s.windows
+                    .iter()
+                    .map(|w| (w.name.clone(), w.typed.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Directories the windows of a session were created in, in order (test inspection).
+    pub fn window_dirs(&self, session: &str) -> Vec<String> {
+        self.session(session)
+            .map(|s| s.windows.iter().map(|w| w.dir.clone()).collect())
+            .unwrap_or_default()
     }
 
     /// The session attached to by `attach`, if any (test inspection).
@@ -223,6 +254,7 @@ impl SessionBackend for FakeBackend {
             .iter()
             .any(|s| s.windows.iter().any(|w| w.id == window));
         if known {
+            *self.selected.borrow_mut() = Some(window.to_string());
             Ok(())
         } else {
             Err(BackendError::Failed {

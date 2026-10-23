@@ -174,7 +174,7 @@ have no FR-IDs state why.
 - branch: slice/09-tmux-adapter
 
 ### S-10 Building a session from a profile
-- status: in-progress
+- status: done
 - deps: S-02, S-09
 - FR-IDs: FR-OPEN-07, FR-PROF-03, FR-PROF-04, FR-PROF-05, FR-PROF-07, FR-PROF-08
 - scope: `app/build.rs`, `app/mod.rs` (`Ctx`), `domain/naming.rs` (collision rule use).
@@ -189,7 +189,7 @@ have no FR-IDs state why.
 - branch: slice/10-build-session
 
 ### S-11 Open flow: directory checks, history, attach or switch, profile precedence at open
-- status: blocked
+- status: in-progress
 - deps: S-10, S-03
 - FR-IDs: FR-OPEN-03, FR-OPEN-08, FR-OPEN-10, FR-OPEN-11, FR-PROF-09, FR-PROF-10, FR-PROF-11, FR-PROF-12
 - scope: `app/open.rs`, `domain/profile_rules.rs` (open precedence: no-profile > `--profile` > default > basic).
