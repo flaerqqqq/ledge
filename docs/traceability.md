@@ -13,7 +13,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PLAT-01 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-PLAT-02 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-TUI-01 | S-08 |  |  | open |  |
-| FR-TUI-02 | S-06 |  |  | open |  |
+| FR-TUI-02 | S-06 | src/tui/fuzzy.rs | src/tui/fuzzy.rs (unit tests) | covered |  |
 | FR-TUI-03 | S-07 |  |  | open |  |
 | FR-TUI-04 | S-07 |  |  | open |  |
 | FR-TUI-05 | S-07 |  |  | open |  |

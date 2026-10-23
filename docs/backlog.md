@@ -119,7 +119,7 @@ have no FR-IDs state why.
 - branch: slice/05-trees
 
 ### S-06 Fuzzy matcher
-- status: in-progress
+- status: done
 - deps: S-00
 - FR-IDs: FR-TUI-02
 - scope: `tui/fuzzy.rs`.
@@ -130,7 +130,7 @@ have no FR-IDs state why.
 - branch: slice/06-fuzzy
 
 ### S-07 Picker model, keys and rendering (headless)
-- status: blocked
+- status: in-progress
 - deps: S-06
 - FR-IDs: FR-TUI-03, FR-TUI-04, FR-TUI-05, FR-TUI-07, FR-TUI-08, FR-TUI-09, FR-TUI-10
 - scope: `tui/picker.rs`, `tui/keys.rs`, `tui/columns.rs`, `tui/render.rs`, `tui/terminal.rs` (trait only, no adapter yet),
