@@ -29,7 +29,7 @@ have no FR-IDs state why.
 ## Slices
 
 ### S-00 Skeleton and gate
-- status: ready
+- status: done
 - deps: none
 - FR-IDs: FR-CMD-07
 - scope: `Cargo.toml` (package `ledge`, four dependencies pinned as in architecture section 10 are added in the
@@ -46,7 +46,7 @@ have no FR-IDs state why.
 - branch: slice/00-skeleton
 
 ### S-01 Ports, real adapters for files and environment, paths and session naming
-- status: blocked
+- status: done
 - deps: S-00
 - FR-IDs: FR-PLAT-02, FR-CONF-08, FR-OPEN-05, FR-OPEN-06, FR-NAME-01, FR-NAME-02
 - scope: `ports/fs.rs`, `ports/env.rs`, `ports/clock.rs`, `ports/process.rs`, `ports/console.rs`, `ports/signals.rs`
@@ -63,7 +63,7 @@ have no FR-IDs state why.
 - branch: slice/01-paths-naming
 
 ### S-02 Configuration and profile files
-- status: blocked
+- status: ready
 - deps: S-01
 - FR-IDs: FR-CONF-01, FR-CONF-02, FR-CONF-03, FR-CONF-04, FR-CONF-05, FR-CONF-06, FR-PROF-01, FR-PROF-02, FR-PROF-06
 - scope: `domain/config.rs`, `domain/profile.rs`, `app/store.rs` (config load and create), `messages.rs` (config and

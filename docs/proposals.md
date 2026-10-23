@@ -65,3 +65,41 @@ Format:
 - why: each of these is needed by a requirement that has no message (analysis F-07, F-26, F-27, F-24), and the Messages section is the
   only place where the user can see exact wording.
 - status: Open
+
+### P-4 Domain layer may use crate::error and crate::messages
+- from: implementer / slice S-01
+- doc: docs/architecture.md (section 3, layer table, domain row)
+- change: in the domain row, "May use" column, replace the cell with:
+  `core types and collections (`String`, `Vec`, `Option`), `serde_json` (Value), `md5`, `crate::error` (`LedgeError`, `Result`, `Outcome`), `crate::messages``
+  and add after the table: "Domain may use `crate::error` and `crate::messages`: both are plain data and constant strings with no I/O."
+  `scripts/check_layers.sh` already does not forbid them.
+- why: domain code returns `LedgeError` and user-facing text from `messages`; the table as written forbids what the code needs (S-01 domain/path.rs, domain/naming.rs, domain/location.rs). Touches section 3 layering rules.
+- status: Open
+
+### P-5 Crate name md-5 in the domain row
+- from: implementer / slice S-01
+- doc: docs/architecture.md (section 3, layer table, domain row)
+- change: replace `md5` with `md-5` in the domain row "May use" cell (the dependency name in Cargo.toml and section 10 is `md-5`; the Rust path stays `md5`).
+- why: the crate that the S-01 scope adds is `md-5 = "0.10"`; naming the crate by its import path misleads readers about the dependency (FR-NAME-01, D-14).
+- status: Open
+
+### P-6 Port creation order: each port is created by its first user
+- from: implementer / slice S-01
+- doc: docs/architecture.md (section 4, port table, after the table)
+- change: add this paragraph: "Port creation order: S-01 creates `Env` and `FileSystem` with their real adapters and fakes. Each other port is created by the first slice that uses it: `Signals` by S-08, `ProcessRunner` by S-09, `Console` by S-11 (it emits the history warning through `Console::err`, FR-OPEN-11; S-12 emits the editor warnings, FR-LAUNCH-03), `Clock` by S-16 (age text, FR-SESS-03)."
+- why: S-01 acceptance criteria need only Env and FileSystem; creating the other ports earlier adds traits and fakes with no test that uses them. Touches the port table in section 4 and slice order in docs/backlog.md.
+- status: Open
+
+### P-7 Backlog S-17 needs S-09 as a dependency
+- from: implementer / slice S-01
+- doc: docs/backlog.md (S-17 entry)
+- change: `- deps: S-01` becomes `- deps: S-01, S-09`.
+- why: S-17 uses `ProcessRunner::find_program` for the tmux and command presence checks (FR-CMD-09, FR-CMD-10, tmux version check), and `ProcessRunner` is created by S-09 (see P-6). The reviewer found the missing dependency.
+- status: Open
+
+### P-8 Backlog S-01 scope lists only what S-01 creates
+- from: implementer / slice S-01
+- doc: docs/backlog.md (S-01 entry, scope line)
+- change: replace the scope line with: "`ports/fs.rs`, `ports/env.rs` (traits only), `adapters/fs.rs`, `adapters/env.rs`, `domain/path.rs`, `domain/naming.rs`, `domain/location.rs`; `md-5` dependency added here; `tests/support/fake_env.rs`, `tests/support/temp.rs`. The clock, process, console and signals ports are created by the slices that first use them (see P-6)."
+- why: no S-01 acceptance criterion needs the clock, process, console or signals ports, and the scope line lists them as created here. Narrowing it keeps S-01 to FR-PLAT-02, FR-CONF-08, FR-OPEN-05, FR-OPEN-06, FR-NAME-01, FR-NAME-02.
+- status: Open

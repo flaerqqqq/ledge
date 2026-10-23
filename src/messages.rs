@@ -5,3 +5,8 @@
 pub fn cancelled() -> &'static str {
     "Cancelled."
 }
+
+/// FR-PLAT-02, architecture 9.1: no usable XDG value and no `HOME`.
+pub fn home_not_set() -> &'static str {
+    "HOME is not set."
+}

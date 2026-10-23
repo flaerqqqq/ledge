@@ -1,1 +1,5 @@
-//! Pure domain logic, no I/O (architecture 2). Empty until its slice.
+//! Pure domain logic, no I/O (architecture 2). S-01 adds the path, naming and location modules.
+
+pub mod location;
+pub mod naming;
+pub mod path;

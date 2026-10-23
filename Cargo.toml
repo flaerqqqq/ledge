@@ -6,6 +6,7 @@ rust-version = "1.80"
 publish = false
 
 [dependencies]
+md-5 = "0.10"
 
 [lints.rust]
 unsafe_code = "forbid"

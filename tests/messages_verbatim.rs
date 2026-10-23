@@ -10,3 +10,9 @@ use ledge::messages;
 fn cancelled_text_is_verbatim() {
     assert_eq!(messages::cancelled(), "Cancelled.");
 }
+
+// FR-PLAT-02, architecture 9.1: no usable XDG value and no HOME
+#[test]
+fn home_not_set_text_is_verbatim() {
+    assert_eq!(messages::home_not_set(), "HOME is not set.");
+}

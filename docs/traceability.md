@@ -11,7 +11,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-ID | Slice | Code | Tests | Status | Note |
 |---|---|---|---|---|---|
 | FR-PLAT-01 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
-| FR-PLAT-02 | S-01 |  |  | open |  |
+| FR-PLAT-02 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-TUI-01 | S-08 |  |  | open |  |
 | FR-TUI-02 | S-06 |  |  | open |  |
 | FR-TUI-03 | S-07 |  |  | open |  |
@@ -26,8 +26,8 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-OPEN-02 | S-17 |  |  | open |  |
 | FR-OPEN-03 | S-11 |  |  | open |  |
 | FR-OPEN-04 | S-17 |  |  | open |  |
-| FR-OPEN-05 | S-01 |  |  | open |  |
-| FR-OPEN-06 | S-01 |  |  | open |  |
+| FR-OPEN-05 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered |  |
+| FR-OPEN-06 | S-01 | domain/naming.rs | domain/naming.rs | covered |  |
 | FR-OPEN-07 | S-10 |  |  | open |  |
 | FR-OPEN-08 | S-11 |  |  | open | Expected manual: attach and switch need a real client and tty; argv covered by adapter test. |
 | FR-OPEN-09 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
@@ -139,9 +139,9 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CONF-05 | S-02 |  |  | open |  |
 | FR-CONF-06 | S-02 |  |  | open |  |
 | FR-CONF-07 | S-04 |  |  | open |  |
-| FR-CONF-08 | S-01 |  |  | open |  |
-| FR-NAME-01 | S-01 |  |  | open | Vectors provisional until user supplies reference pairs (D-02). |
-| FR-NAME-02 | S-01 |  |  | open | Vectors provisional until user supplies reference pairs (D-02). |
+| FR-CONF-08 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
+| FR-NAME-01 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered | Vectors provisional until user supplies reference pairs (D-02). |
+| FR-NAME-02 | S-01 | domain/naming.rs | domain/naming.rs | open | Vectors provisional until user supplies reference pairs (D-02); stays open until those pairs are supplied. |
 | FR-NAME-03 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-NAME-04 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
 | FR-NAME-05 | S-09 |  |  | open | Integration (ignored) against isolated tmux server. |
