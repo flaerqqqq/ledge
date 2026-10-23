@@ -79,25 +79,25 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-EDIT-09 | S-21 |  |  | open |  |
 | FR-EDIT-10 | S-21 |  |  | open |  |
 | FR-EDIT-11 | S-20 |  |  | open |  |
-| FR-TREE-01 | S-05 |  |  | open |  |
-| FR-TREE-02 | S-05 |  |  | open |  |
-| FR-TREE-03 | S-05 |  |  | open |  |
-| FR-TREE-04 | S-05 |  |  | open |  |
+| FR-TREE-01 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
+| FR-TREE-02 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
+| FR-TREE-03 | S-05 | domain/tree.rs | domain/tree.rs | covered | Shared parent is a gray connector row, listed once (A-13). |
+| FR-TREE-04 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
 | FR-TREE-05 | S-24 |  |  | open |  |
 | FR-TREE-06 | S-24 |  |  | open |  |
 | FR-TREE-07 | S-24 |  |  | open |  |
 | FR-TREE-08 | S-24 |  |  | open |  |
 | FR-TREE-09 | S-17 |  |  | open |  |
 | FR-TREE-10 | S-17 |  |  | open |  |
-| FR-TREE-11 | S-05 |  |  | open |  |
+| FR-TREE-11 | S-05 | domain/tree.rs | domain/tree.rs | covered | Domain flag only (`openable`). Enter handling in the tree picker is wired in a later slice. |
 | FR-TREE-12 | S-22 |  |  | open |  |
 | FR-SESS-01 | S-16 |  |  | open |  |
 | FR-SESS-02 | S-16 |  |  | open |  |
 | FR-SESS-03 | S-16 |  |  | open |  |
 | FR-SESS-04 | S-16 |  |  | open | Expected manual: attach and switch need a real client and tty; argv covered by adapter test. |
 | FR-SESS-05 | S-17 |  |  | open |  |
-| FR-SESS-06 | S-05 |  |  | open |  |
-| FR-SESS-07 | S-05 |  |  | open |  |
+| FR-SESS-06 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
+| FR-SESS-07 | S-05 | domain/tree.rs | domain/tree.rs | covered | Label of a gray project root is `session_name` of its path. |
 | FR-SESS-08 | S-23 |  |  | open |  |
 | FR-SESS-09 | S-25 |  |  | open |  |
 | FR-SESS-10 | S-25 |  |  | open |  |

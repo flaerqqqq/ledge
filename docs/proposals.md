@@ -133,3 +133,17 @@ Format:
   docs/conventions.md (Git).
 - why: conventions give `slice/<id>-<name>`; the branch already checked out for this slice uses the other spelling.
 - status: Open
+
+### P-12 Tree rules the spec does not state (bookmark equal to a project, row order)
+- from: implementer / slice S-05
+- doc: docs/architecture.md (section 5 and A-13) and requirements.md (Bookmark tree and session tree)
+- change: add to A-13: (a) a bookmark whose path equals a project path is that project's root row, kind Bookmark, openable and not dimmed (it is not a gray root); (b) rows of a tree are in tree preorder: the blocks are ordered by root path, and inside a block siblings and their subtrees are ordered by path components (`a/x` before `a-b`), not by characters; the caller does not sort.
+- why: domain/tree.rs needs both rules. A-13 says the bookmark-tree root is gray and not openable, which does not cover a bookmark equal to a project (FR-BM-02 refuses adding a project, so this only comes from an edited file). Row order is not stated anywhere (requirements: "The list opens with the tree top-down and does not sort."). Tests: domain/tree.rs, bookmark_equal_to_project_is_its_own_openable_root and rows_follow_tree_order_by_path_components.
+- status: Open
+
+### P-13 S-05 branch name in the backlog
+- from: implementer / slice S-05
+- doc: docs/backlog.md (S-05 `branch:` line)
+- change: `slice/05-trees` becomes `slice/S-05-trees`, the branch in use and the form in docs/conventions.md (Git).
+- why: same as P-11 for S-03; the branch already checked out for this slice uses the other spelling.
+- status: Open

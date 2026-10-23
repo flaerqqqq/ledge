@@ -106,7 +106,7 @@ have no FR-IDs state why.
 - branch: slice/04-projects-scope
 
 ### S-05 Tree construction (bookmark and session trees)
-- status: in-progress
+- status: done
 - deps: S-04
 - FR-IDs: FR-TREE-01, FR-TREE-02, FR-TREE-03, FR-TREE-04, FR-TREE-11, FR-SESS-06, FR-SESS-07
 - scope: `domain/tree.rs` (both builders, `TreeRow` with `openable`, `connector`, `dimmed`, `depth`).
@@ -119,7 +119,7 @@ have no FR-IDs state why.
 - branch: slice/05-trees
 
 ### S-06 Fuzzy matcher
-- status: blocked
+- status: in-progress
 - deps: S-00
 - FR-IDs: FR-TUI-02
 - scope: `tui/fuzzy.rs`.
