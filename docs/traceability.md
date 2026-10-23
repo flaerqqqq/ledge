@@ -46,15 +46,15 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PICK-11 | S-17 |  |  | open |  |
 | FR-PICK-12 | S-13 |  |  | open |  |
 | FR-PICK-13 | S-13 |  |  | open |  |
-| FR-HIST-01 | S-03 |  |  | open |  |
-| FR-HIST-02 | S-03 |  |  | open |  |
+| FR-HIST-01 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
+| FR-HIST-02 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
 | FR-HIST-03 | S-18 |  |  | open |  |
 | FR-HIST-04 | S-13 |  |  | open |  |
 | FR-HIST-05 | S-13 |  |  | open |  |
 | FR-HIST-06 | S-18 |  |  | open |  |
 | FR-HIST-07 | S-18 |  |  | open |  |
 | FR-HIST-08 | S-18 |  |  | open |  |
-| FR-BM-01 | S-03 |  |  | open |  |
+| FR-BM-01 | S-03 | domain/bookmarks.rs; app/store.rs | domain/bookmarks.rs; tests/component_store.rs | covered |  |
 | FR-BM-02 | S-18 |  |  | open |  |
 | FR-BM-03 | S-18 |  |  | open |  |
 | FR-BM-04 | S-18 |  |  | open |  |

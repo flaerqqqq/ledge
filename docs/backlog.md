@@ -79,7 +79,7 @@ have no FR-IDs state why.
 - branch: slice/02-config-profiles
 
 ### S-03 History and bookmark stores
-- status: in-progress
+- status: done
 - deps: S-01
 - FR-IDs: FR-HIST-01, FR-HIST-02, FR-BM-01
 - scope: `domain/history.rs`, `domain/bookmarks.rs` (list rules and file format only), `app/store.rs` (history and
@@ -92,7 +92,7 @@ have no FR-IDs state why.
 - branch: slice/03-history-bookmark-stores
 
 ### S-04 Projects, scope and current directory row
-- status: blocked
+- status: in-progress
 - deps: S-02
 - FR-IDs: FR-PICK-01, FR-PICK-02, FR-PICK-03, FR-PICK-04, FR-PICK-05, FR-CONF-07, FR-SCOPE-01, FR-SCOPE-02
 - scope: `domain/projects.rs` (listing from a list of child names, sort, current-directory row, `project_containing`,

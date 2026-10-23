@@ -48,11 +48,38 @@ impl AbsPath {
                 .is_some_and(|rest| rest.starts_with('/'))
     }
 }
+/// architecture 9.4, A-09, D-06: the paths of a cache file, one per line. Each line loses its trailing
+/// whitespace; empty lines and lines that are not absolute are skipped; the rest are cleaned, and a path
+/// that repeats keeps its first occurrence.
+pub fn parse_cache_lines(text: &str) -> Vec<AbsPath> {
+    let mut paths: Vec<AbsPath> = Vec::new();
+    for line in text.lines() {
+        let line = line.trim_end();
+        if !line.starts_with('/') {
+            continue;
+        }
+        let path = AbsPath::clean(line, &AbsPath::root());
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
+}
+
+/// architecture 9.1: the text written to a cache file, one path per line, each line ended by a newline.
+/// An empty list gives an empty text.
+pub fn cache_lines_text(paths: &[AbsPath]) -> String {
+    paths
+        .iter()
+        .map(|path| format!("{}\n", path.as_str()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::AbsPath;
+    use super::{cache_lines_text, parse_cache_lines, AbsPath};
 
     fn abs(text: &str) -> AbsPath {
         AbsPath::clean(text, &AbsPath::root())
@@ -169,5 +196,43 @@ mod tests {
     fn inside_is_false_after_dot_dot_leaves_base() {
         let escaped = AbsPath::clean("/p/app/../ap/x", &AbsPath::root());
         assert!(!escaped.is_inside(&abs("/p/app")));
+    }
+
+    // architecture 9.4, A-09: lines that are not absolute paths are skipped; empty lines too
+    #[test]
+    fn cache_lines_skip_relative_and_empty_lines() {
+        let paths = parse_cache_lines("/a\n\nrelative/b\n  /c\n/d\n");
+        assert_eq!(texts(&paths), vec!["/a", "/d"]);
+    }
+
+    // D-06: a repeated path keeps its first occurrence, and differing trailing slashes are the same path
+    #[test]
+    fn cache_lines_keep_first_of_duplicates_after_cleaning() {
+        let paths = parse_cache_lines("/b/\n/a\n/b\n/a/\n");
+        assert_eq!(texts(&paths), vec!["/b", "/a"]);
+    }
+
+    // architecture 9.4: trailing whitespace is trimmed from each line before use
+    #[test]
+    fn cache_lines_trim_trailing_whitespace() {
+        let paths = parse_cache_lines("/a \t\r\n/b\n");
+        assert_eq!(texts(&paths), vec!["/a", "/b"]);
+    }
+
+    // architecture 9.1: one path per line, each ended by a newline, in the given order
+    #[test]
+    fn cache_lines_text_writes_one_path_per_line_in_order() {
+        let paths = vec![abs("/b"), abs("/a/c")];
+        assert_eq!(cache_lines_text(&paths), "/b\n/a/c\n");
+    }
+
+    // architecture 9.1: an empty list writes an empty text
+    #[test]
+    fn cache_lines_text_of_empty_list_is_empty() {
+        assert_eq!(cache_lines_text(&[]), "");
+    }
+
+    fn texts(paths: &[AbsPath]) -> Vec<&str> {
+        paths.iter().map(AbsPath::as_str).collect()
     }
 }

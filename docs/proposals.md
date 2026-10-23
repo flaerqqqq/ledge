@@ -114,3 +114,22 @@ Format:
   Also note in architecture 8.3 that "could not create config '<path>': <detail>" is used for the config folder and the profiles folder as well as the file.
 - why: architecture 9.2 requires a type check on `default_profile` and the table in 8.3 has no text for it; the read failures of an existing file need a message that names the situation (conventions, Errors: an io::Error is never shown raw). S-02 scope names the config and profile messages. Added [new] strings are a message change, so the user should confirm them with P-3.
 - status: Open
+
+### P-10 S-03 failed-write test: reword the acceptance to the temp-file step
+- from: implementer / slice S-03
+- doc: docs/backlog.md (S-03 acceptance)
+- change: replace "tested by a write that fails after the temp file and leaves the old file" with "tested by a write that
+  fails at the temp-file step (the temp file cannot be created) and leaves the old file unchanged".
+- why: with `RealFs` and no fake file system, a failure after the temp file exists cannot be produced while the target
+  still holds an old file (rename fails only when the target is a folder). The S-03 test (tests/component_store.rs,
+  failed_history_write_leaves_old_file_unchanged) forces the failure with a folder at the temp-file name (architecture 9.3
+  name, `.history.tmp-<pid>`). A seam in `FileSystem` for a rename failure would also work, but adds a port method (architecture 4).
+- status: Open
+
+### P-11 S-03 branch name in the backlog
+- from: implementer / slice S-03
+- doc: docs/backlog.md (S-03 `branch:` line)
+- change: `slice/03-history-bookmark-stores` becomes `slice/S-03-history-bookmarks`, the branch in use and the example in
+  docs/conventions.md (Git).
+- why: conventions give `slice/<id>-<name>`; the branch already checked out for this slice uses the other spelling.
+- status: Open

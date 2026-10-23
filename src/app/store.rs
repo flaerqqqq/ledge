@@ -1,8 +1,10 @@
-//! Configuration and profile files: load, create on first run, read a named profile (architecture 9.2,
-//! D-05). Reads and creates go through the ports; the parsing is in `domain::config` and
-//! `domain::profile`.
+//! Configuration, profile, history and bookmark files: load, create on first run, read a named profile,
+//! read and write the cache files (architecture 9.2 to 9.4, D-05). Reads and writes go through the ports;
+//! the parsing is in `domain::config`, `domain::profile`, `domain::history` and `domain::bookmarks`.
 
+use crate::domain::bookmarks::Bookmarks;
 use crate::domain::config::{self, Config, DEFAULT_CONFIG_TEXT};
+use crate::domain::history::History;
 use crate::domain::location::Dirs;
 use crate::domain::path::AbsPath;
 use crate::domain::profile::{Profile, ProfileName};
@@ -10,10 +12,13 @@ use crate::error::{LedgeError, Result};
 use crate::messages;
 use crate::ports::env::Env;
 use crate::ports::fs::FileSystem;
+use std::io;
 use std::path::{Path, PathBuf};
 
 const CONFIG_FILE: &str = "config.json";
 const PROFILES_FOLDER: &str = "profiles";
+const HISTORY_FILE: &str = "history";
+const BOOKMARKS_FILE: &str = "bookmarks";
 
 /// FR-CONF-01, FR-CONF-06, FR-CONF-02, D-05, architecture 9.2: loads `config.json` from the config
 /// folder, creating the file with the default content when it is missing and the profiles folder
@@ -89,6 +94,36 @@ pub fn load_profile(fs: &dyn FileSystem, dirs: &Dirs, name: &str) -> Result<Prof
             &error.to_string(),
         ))),
     }
+}
+
+/// FR-HIST-01, FR-HIST-02, architecture 9.4: reads the history file from the cache folder. A missing
+/// file gives an empty history.
+pub fn load_history(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<History> {
+    let text = fs.read_text(&cache_file(dirs, HISTORY_FILE))?;
+    Ok(History::parse(text.as_deref().unwrap_or("")))
+}
+
+/// FR-HIST-01, D-05: writes the whole history to the cache folder through an atomic write. The caller
+/// wraps an error with the message that names the situation.
+pub fn save_history(fs: &dyn FileSystem, dirs: &Dirs, history: &History) -> io::Result<()> {
+    fs.write_atomic(&cache_file(dirs, HISTORY_FILE), &history.to_file_text())
+}
+
+/// FR-BM-01, architecture 9.4: reads the bookmarks file from the cache folder. A missing file gives an
+/// empty list.
+pub fn load_bookmarks(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<Bookmarks> {
+    let text = fs.read_text(&cache_file(dirs, BOOKMARKS_FILE))?;
+    Ok(Bookmarks::parse(text.as_deref().unwrap_or("")))
+}
+
+/// FR-BM-01, D-05: writes the whole bookmark list to the cache folder through an atomic write.
+pub fn save_bookmarks(fs: &dyn FileSystem, dirs: &Dirs, bookmarks: &Bookmarks) -> io::Result<()> {
+    fs.write_atomic(&cache_file(dirs, BOOKMARKS_FILE), &bookmarks.to_file_text())
+}
+
+/// Architecture 9.1: the path of a file in the cache folder.
+fn cache_file(dirs: &Dirs, name: &str) -> PathBuf {
+    PathBuf::from(dirs.cache.as_str()).join(name)
 }
 
 fn not_found(name: &str, path: &Path) -> LedgeError {
