@@ -61,3 +61,8 @@ pub fn profile_invalid_shape(name: &str) -> String {
 pub fn could_not_read_profile(name: &str, path: &str, detail: &str) -> String {
     format!("could not read profile '{name}' at {path}: {detail}")
 }
+
+/// FR-TUI-05, architecture 8.3 [new] and A-06: the terminal is below 40x8 (status line, F-12).
+pub fn terminal_too_small() -> &'static str {
+    "Terminal too small: need at least 40x8."
+}

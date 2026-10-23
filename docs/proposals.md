@@ -147,3 +147,36 @@ Format:
 - change: `slice/05-trees` becomes `slice/S-05-trees`, the branch in use and the form in docs/conventions.md (Git).
 - why: same as P-11 for S-03; the branch already checked out for this slice uses the other spelling.
 - status: Open
+
+### P-14 Picker model fields added in S-07 (architecture 6.1, 6.2, 4)
+- from: implementer / slice S-07
+- doc: docs/architecture.md (sections 4, 6.1, 6.2, 6.4)
+- change: record the S-07 shapes that the code uses, in place of the older wording:
+  (a) `PickerRow` has `preselect: bool` (the row FR-PICK-04 starts on; 6.1 refers to it but the field list omits it).
+  (b) Chrome keeps the column titles in `columns: Vec<ColumnSpec>`, where `ColumnSpec` is `{title, fixed_width, path}`
+      (the marker column is `fixed_width` 2; `path` marks the column cut from the left), in place of `headers`.
+  (c) Chrome adds `missing_column: Option<usize>` (where the ` (missing)` cue goes) and `stay_open_when_empty: bool`
+      (session switcher and session tree, D-12). `search_column` and `empty_message` are as in 6.1.
+  (d) `PickerModel::apply(Action) -> Effect`, with `Effect = Handled | Choose | Cancel | Act(Action)`. An enter with no
+      visible row is `Cancel` (F-14). `Action` is one flat enum in `tui::keys` (movement, filter edits, choose, cancel,
+      and the eight row and node operations of 6.3).
+  (e) List height is the terminal height minus 6 (border 2, prompt, header, status, footer); below 40x8 only the
+      too-small line is drawn. `render::draw(model, area, frame, color)` takes the color switch from
+      `render::color_enabled(NO_COLOR, TERM)`.
+  (f) `tui::terminal` holds `Input { Key(KeyEvent), Resize(u16, u16) }`, `TerminalSession::{poll(timeout), draw(&mut dyn FnMut(&mut Frame))}`
+      and `TerminalFactory::open()`. The key type is ratatui's crossterm re-export, so no second crossterm dependency.
+  (g) Shrink order: the last column is cut to 6 first (12 when it is also the search column), then the search column
+      to 12, then the other columns to 4, right to left. Column gap is 1 cell.
+- why: the code needs these fields to make the 6.1 rules testable (preselection, the switcher staying open, the
+  missing cue, fixed marker width). The rules themselves do not change. S-08 builds `run_picker` on these shapes.
+- status: Open
+
+### P-15 History picker footer: requirements.md and architecture 6.2 differ
+- from: implementer / slice S-07
+- doc: requirements.md (Screens and interactions, History picker)
+- change: say the history footer is "enter open · ^r rebuild · ^p profile · ^x kill" (architecture 6.2 and A-03), or keep
+  "enter open" and accept that FR-TUI-04 (a footer listing its keys) is then met only in part.
+- why: requirements.md gives the history footer as "enter open" while it also says "Same keys as the project picker", and
+  FR-TUI-04 requires a footer that lists the keys. Architecture 6.2 follows FR-TUI-04. S-07 does not set the history footer
+  (the footer strings come from the picker services in later slices), so no code depends on the choice yet.
+- status: Open

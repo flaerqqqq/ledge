@@ -109,3 +109,12 @@ fn could_not_read_profile_text_is_verbatim() {
         "could not read profile 'dev' at /c/ledge/profiles/dev.json: Is a directory (os error 21)"
     );
 }
+
+// FR-TUI-05, architecture 8.3 [new] (A-06): the terminal is below 40x8
+#[test]
+fn terminal_too_small_text_is_verbatim() {
+    assert_eq!(
+        messages::terminal_too_small(),
+        "Terminal too small: need at least 40x8."
+    );
+}

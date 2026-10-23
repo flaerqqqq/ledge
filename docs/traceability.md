@@ -14,14 +14,14 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PLAT-02 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-TUI-01 | S-08 |  |  | open |  |
 | FR-TUI-02 | S-06 | src/tui/fuzzy.rs | src/tui/fuzzy.rs (unit tests) | covered |  |
-| FR-TUI-03 | S-07 |  |  | open |  |
-| FR-TUI-04 | S-07 |  |  | open |  |
-| FR-TUI-05 | S-07 |  |  | open |  |
+| FR-TUI-03 | S-07 | src/tui/keys.rs; src/tui/picker.rs | src/tui/keys.rs, src/tui/picker.rs (unit); tests/tui_engine.rs | covered |  |
+| FR-TUI-04 | S-07 | src/tui/render.rs | tests/tui_engine.rs | covered | Label, icon, header, prompt, status and footer text. Footer strings come from the caller (S-13 onward). |
+| FR-TUI-05 | S-07 | src/tui/picker.rs; src/tui/columns.rs; src/tui/render.rs | src/tui/picker.rs, src/tui/columns.rs (unit); tests/tui_engine.rs; tests/messages_verbatim.rs | covered | Resize and 40x8 minimum, on TestBackend. Real terminal resize is checked with the S-08 engine. |
 | FR-TUI-06 | S-08 |  |  | open | Restore on error checked with fake terminal; real signal path is manual. |
-| FR-TUI-07 | S-07 |  |  | open |  |
-| FR-TUI-08 | S-07 |  |  | open | Text cues automated; color appearance is manual. |
-| FR-TUI-09 | S-07 |  |  | open | Text cues automated; color appearance is manual. |
-| FR-TUI-10 | S-07 |  |  | open |  |
+| FR-TUI-07 | S-07 | src/tui/keys.rs | src/tui/keys.rs (unit); tests/tui_engine.rs | covered | One key map for all pickers. Footers of the screen tables are set by later picker slices. |
+| FR-TUI-08 | S-07 | src/tui/render.rs; src/tui/picker.rs | tests/tui_engine.rs | covered | Text cue and dim style automated on TestBackend; color appearance is manual. |
+| FR-TUI-09 | S-07 | src/tui/render.rs | src/tui/render.rs (unit); tests/tui_engine.rs | covered | Text cues, reverse video and NO_COLOR/TERM=dumb rule automated; color appearance is manual. |
+| FR-TUI-10 | S-07 | src/tui/picker.rs | src/tui/picker.rs (unit); tests/tui_engine.rs | covered | Model side only: should_close and reload. The action wiring that calls reload comes with the picker services. |
 | FR-OPEN-01 | S-17 |  |  | open |  |
 | FR-OPEN-02 | S-17 |  |  | open |  |
 | FR-OPEN-03 | S-11 |  |  | open |  |
