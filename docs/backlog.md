@@ -144,7 +144,7 @@ have no FR-IDs state why.
 - branch: slice/07-picker-model
 
 ### S-08 Terminal engine and restore
-- status: blocked
+- status: in-progress
 - deps: S-07
 - FR-IDs: FR-TUI-01, FR-TUI-06
 - scope: `tui/engine.rs` (`run_picker`, `PickerHandler`, `Step`, `PickerResult`), `adapters/terminal.rs` (`CrosstermTerminal`,
