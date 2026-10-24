@@ -610,7 +610,7 @@ have no FR-IDs state why.
 - branch: slice/S-52-edit-hidden-toggle
 
 ### S-53 Hidden folders are gray in the bookmark edit window
-- status: in-progress
+- status: done
 - deps: S-52
 - FR-IDs: FR-TUI-08 (dimmed rows), FR-EDIT-01; no requirement change
 - scope: src/app/bookmark_cmd.rs (edit rows: dimmed for names starting with '.'), tests/tui_edit_window.rs

@@ -12,7 +12,9 @@ use ledge::domain::path::AbsPath;
 use ledge::domain::profile::Profile;
 use ledge::error::Outcome;
 use ledge::tui::terminal::Input;
+use ledge::tui::theme::{Theme, Token};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::{Color, Modifier};
 use std::fs;
 use std::path::PathBuf;
 use support::ctx::Harness;
@@ -743,4 +745,67 @@ fn dot_in_the_search_bar_types_a_dot() {
     let lines = screen(&h);
     assert!(lines.iter().any(|line| line.contains("/.")), "{lines:#?}");
     assert!(!screen_has(&h, ".config"), "{lines:#?}");
+}
+
+/// The style of the first character of `needle` on its screen row: its foreground colour and modifiers.
+fn style_of_name(h: &Harness, needle: &str) -> (Option<Color>, Modifier) {
+    let lines = screen(h);
+    let y = lines
+        .iter()
+        .position(|line| line.contains(needle))
+        .unwrap_or_else(|| panic!("no row with {needle:?} in {lines:#?}"));
+    let column = column_of(&lines[y], needle);
+    let record = h.terminal.last_record().expect("a terminal was opened");
+    let record = record.borrow();
+    let buffer = record.buffer.as_ref().expect("a frame was drawn");
+    let cell = buffer
+        .cell((column as u16, y as u16))
+        .expect("the name is on the screen");
+    (Some(cell.fg), cell.modifier)
+}
+
+// S-53, FR-TUI-08: with hidden folders shown, a folder whose name starts with a dot is dimmed like a missing row
+#[test]
+fn hidden_folder_is_dimmed_when_shown() {
+    let h = Harness::new("tui_edit-hidden-dimmed");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    h.terminal.script(vec![dot(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+
+    let (fg, modifier) = style_of_name(&h, ".config");
+    let missing = Theme::default().color(Token::Missing);
+    assert_eq!(fg, Some(missing), "the dimmed row takes the missing token");
+    assert!(modifier.contains(Modifier::DIM), "{modifier:?}");
+}
+
+// S-53: a normal folder in the same window is not dimmed
+#[test]
+fn normal_folder_is_not_dimmed_next_to_a_hidden_one() {
+    let h = Harness::new("tui_edit-hidden-normal-not-dimmed");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    h.terminal.script(vec![dot(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+
+    let (_, modifier) = style_of_name(&h, "docs");
+    assert!(!modifier.contains(Modifier::DIM), "{modifier:?}");
+}
+
+// S-53: without colour the dimmed row keeps its name on screen and gets no dim modifier
+#[test]
+fn hidden_folder_keeps_its_name_without_color() {
+    let mut h = Harness::new("tui_edit-hidden-no-color");
+    h.terminal.set_size(80, 24);
+    h.env = h.env.clone().with_var("NO_COLOR", "1");
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    h.terminal.script(vec![dot(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+
+    assert!(screen_has(&h, ".config"), "{:#?}", screen(&h));
+    let (_, modifier) = style_of_name(&h, ".config");
+    assert!(!modifier.contains(Modifier::DIM), "{modifier:?}");
 }

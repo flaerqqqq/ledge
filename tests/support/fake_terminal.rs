@@ -30,6 +30,8 @@ pub struct Record {
     pub draws: usize,
     /// The last drawn screen, one string per row.
     pub lines: Vec<String>,
+    /// The last drawn buffer, with the style of every cell (S-53: colour and modifiers).
+    pub buffer: Option<Buffer>,
 }
 
 pub struct FakeTerminal {
@@ -116,6 +118,7 @@ impl TerminalSession for FakeTerminal {
         let mut record = self.record.borrow_mut();
         record.draws += 1;
         record.lines = lines;
+        record.buffer = Some(self.buffer().clone());
         Ok(())
     }
 }

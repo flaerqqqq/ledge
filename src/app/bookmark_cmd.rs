@@ -314,7 +314,7 @@ impl PickerHandler<EditRow> for EditHandler<'_, '_> {
 /// directory tree: the branch glyphs come from the depth (`rows` sets them as the lead), then the folder name, then `+`
 /// or `-` after it (FR-EDIT-04). A folder without subfolders has no marker after the name. Column 1 is the bookmark
 /// mark, column 2 and 3 the managed session's name and profile (empty without a session, as the project picker), column
-/// 4 the direct subfolder count, and column 5 the path (shown at 120 cells and up).
+/// 4 the direct subfolder count, and column 5 the path (shown at 120 cells and up). A hidden folder is dimmed (S-53).
 fn edit_row(
     row: &EditRow,
     live: Option<&SessionInfo>,
@@ -340,6 +340,8 @@ fn edit_row(
     // P-68: the folder path identifies the row when the hidden folders appear or disappear.
     picker_row.key = Some(row.path.as_str().to_string());
     picker_row.depth = row.depth;
+    // S-53, FR-TUI-08: a hidden folder (name starts with a dot) is dimmed; the rest of the row is the same.
+    picker_row.dimmed = row.name.starts_with('.');
     picker_row.marked = row.bookmarked;
     picker_row.session_cell = live_cell(live);
     picker_row
