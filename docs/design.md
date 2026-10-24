@@ -11,6 +11,14 @@ meaning are all text.
 
 ---
 
+
+## 0. Decision record
+
+- 2026-10-24: the user asked for implementation of the design. Recommendations in section 8 are taken as
+  accepted: P-58 (confirm destructive keys), P-59 (F1 panel, marker legend, footer fit, no-op messages),
+  P-60 (`theme` and `theme_colors` config keys). Item 4 (pearl contrast): Kanso values kept, bold for the
+  low-contrast states. Proposals stay Open in docs/proposals.md until the user moves them into requirements.md.
+
 ## 1. Problems today
 
 What the user sees now, from `src/tui/render.rs`, `columns.rs`, `picker.rs`, `keys.rs` and the windows in
