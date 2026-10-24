@@ -340,3 +340,15 @@ Format:
   (e) `bm edit DIR --session-scope` is not rejected at parse time; no FR gives a message for it, and S-21 (FR-EDIT-09) owns that rule.
 - why: each choice is the smallest one that passes the S-17 tests in tests/component_cli.rs and the unit tests in src/cli/parse.rs. None changes an accepted decision (D-11, D-12, D-13, D-16).
 - status: Open
+
+### P-35 S-18 history and bookmark texts and rules the spec leaves open
+- from: implementer / slice S-18
+- doc: requirements.md (Messages, FR-HIST-06, FR-BM-08), docs/architecture.md (8.3, 9.4, A-19) and docs/backlog.md (S-18 scope)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) three [new] error texts, each with a function in `messages.rs` and a literal test in `tests/messages_verbatim.rs`: `could not clear history: <detail>` (`history clean` cannot delete the file; error, exit 1); `could not read bookmarks: <detail>` and `could not write bookmarks: <detail>` (the bookmarks file cannot be read or written; error, exit 1). They follow the wording of `could not read history: <detail>` (P-24). No text in the spec names these failures.
+  (b) the `bm list` row is the status word padded to 16 columns, then the path, one bookmark per line in stored order (`ok              /p/app/src`). FR-BM-08 gives the words but no layout. The status precedence is: a directory that does not exist is `missing`; one that exists and lies in no project is `outside project`; otherwise `ok`. A bookmark that equals a project counts as inside it for the list (FR-BM-02 refuses adding one, so this only comes from an edited file).
+  (c) the checks of `bm add`, in order: the directory must exist (`Directory '<dir>' not found.`, A-19, argument echoed as typed); an already bookmarked directory gives `Already bookmarked: <path>` and changes nothing, even when a project rule would now refuse it; then the project rules (FR-BM-04 before FR-BM-03).
+  (d) `history list` marks no entry as missing (FR-HIST-03 gives no cue) and prints `No history.` for a missing file as well as an empty one (D-12).
+  (e) `history clean` and `bm add`, `bm remove`, `bm list` are now built, so the proposed text of P-32 (a) no longer covers them; P-32 itself is not changed and stays open for the other commands.
+- why: each choice is the smallest one that passes the S-18 tests in tests/component_history.rs, tests/component_bookmarks.rs, the unit tests in domain/bookmarks.rs and domain/path.rs, and the literal checks of tests/messages_verbatim.rs. None changes an accepted decision (D-06, D-12, D-16, A-14, A-19).
+- status: Open

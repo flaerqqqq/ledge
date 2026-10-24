@@ -48,22 +48,22 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PICK-13 | S-13 | src/app/pickers.rs; src/messages.rs (projects_label) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | Label names the profile that applies: --profile, or default_profile (proposal P-25). Basic and --no-profile give the plain label. |
 | FR-HIST-01 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
 | FR-HIST-02 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
-| FR-HIST-03 | S-18 |  |  | open |  |
+| FR-HIST-03 | S-18 | src/app/history_cmd.rs; src/domain/path.rs (display_with_home); src/messages.rs (no_history) | tests/component_history.rs; src/domain/path.rs (unit); tests/messages_verbatim.rs | covered | One entry per line, newest first, home shown as ~, No history. when empty or missing. |
 | FR-HIST-04 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Newest first, label and footer on screen, enter opens the chosen entry. Footer follows architecture 6.2 (proposal P-15 still open). Manual: the look on a real terminal (testing.md, look and feel). |
 | FR-HIST-05 | S-13 | src/app/pickers.rs; src/messages.rs (no_history_cache) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | No history file: the message, stop, no window. |
-| FR-HIST-06 | S-18 |  |  | open |  |
-| FR-HIST-07 | S-18 |  |  | open |  |
-| FR-HIST-08 | S-18 |  |  | open |  |
+| FR-HIST-06 | S-18 | src/app/history_cmd.rs; src/messages.rs (history_cleared) | tests/component_history.rs; tests/messages_verbatim.rs | covered | clean deletes the file and prints the success text. A failed delete uses the proposed text of proposal P-35. |
+| FR-HIST-07 | S-18 | src/app/history_cmd.rs; src/messages.rs (no_history_cache) | tests/component_history.rs; tests/messages_verbatim.rs | covered | No file: the message, no file created. |
+| FR-HIST-08 | S-18 | src/app/history_cmd.rs | tests/component_history.rs | covered | clean does not read or write the bookmarks file. |
 | FR-BM-01 | S-03 | domain/bookmarks.rs; app/store.rs | domain/bookmarks.rs; tests/component_store.rs | covered |  |
-| FR-BM-02 | S-18 |  |  | open |  |
-| FR-BM-03 | S-18 |  |  | open |  |
-| FR-BM-04 | S-18 |  |  | open |  |
-| FR-BM-05 | S-18 |  |  | open |  |
-| FR-BM-06 | S-18 |  |  | open |  |
-| FR-BM-07 | S-18 |  |  | open |  |
-| FR-BM-08 | S-18 |  |  | open |  |
-| FR-BM-09 | S-18 |  |  | open |  |
-| FR-BM-10 | S-18 |  |  | open |  |
+| FR-BM-02 | S-18 | src/domain/bookmarks.rs (check_candidate); src/app/bookmark_cmd.rs | src/domain/bookmarks.rs (unit); tests/component_bookmarks.rs | covered | Strictly inside a project, whole components (A-14). |
+| FR-BM-03 | S-18 | src/domain/bookmarks.rs; src/app/bookmark_cmd.rs; src/messages.rs (bookmark_outside_project) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | The search path itself is refused as outside. |
+| FR-BM-04 | S-18 | src/domain/bookmarks.rs; src/app/bookmark_cmd.rs; src/messages.rs (bookmark_is_project) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered |  |
+| FR-BM-05 | S-18 | src/app/bookmark_cmd.rs; src/domain/bookmarks.rs (add); src/messages.rs (bookmarked) | tests/component_bookmarks.rs; src/domain/bookmarks.rs (unit); tests/messages_verbatim.rs | covered |  |
+| FR-BM-06 | S-18 | src/app/bookmark_cmd.rs; src/messages.rs (already_bookmarked) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | Checked before the project rules (proposal P-35 c). |
+| FR-BM-07 | S-18 | src/cli/parse.rs (BmAdd dir); src/app/bookmark_cmd.rs | tests/component_bookmarks.rs; src/cli/parse.rs (unit) | covered | Two directories: bm add takes at most one directory. |
+| FR-BM-08 | S-18 | src/domain/bookmarks.rs (status); src/app/bookmark_cmd.rs; src/messages.rs (bookmark_list_row, status words) | src/domain/bookmarks.rs (unit); tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | Row layout and status precedence are proposal P-35 (b). |
+| FR-BM-09 | S-18 | src/app/bookmark_cmd.rs; src/messages.rs (removed_bookmark) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | A bookmark of a gone directory is removed by its path (D-06). |
+| FR-BM-10 | S-18 | src/app/bookmark_cmd.rs; src/cli/parse.rs; src/messages.rs (not_a_bookmark) | tests/component_bookmarks.rs; src/cli/parse.rs (unit); tests/messages_verbatim.rs | covered |  |
 | FR-BM-11 | S-19 |  |  | open |  |
 | FR-BM-12 | S-19 |  |  | open |  |
 | FR-BM-13 | S-19 |  |  | open |  |

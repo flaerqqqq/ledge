@@ -297,7 +297,7 @@ have no FR-IDs state why.
 - branch: slice/17-cli
 
 ### S-18 History and bookmark commands (file-only)
-- status: in-progress
+- status: done
 - deps: S-03, S-04, S-17
 - FR-IDs: FR-HIST-03, FR-HIST-06, FR-HIST-07, FR-HIST-08, FR-BM-02, FR-BM-03, FR-BM-04, FR-BM-05, FR-BM-06, FR-BM-07, FR-BM-08, FR-BM-09, FR-BM-10
 - scope: `app/history_cmd.rs` (list, clean), `app/bookmark_cmd.rs` (add, remove, list), `domain/bookmarks.rs` (status and rules).
@@ -312,7 +312,7 @@ have no FR-IDs state why.
 - branch: slice/18-history-bookmark-commands
 
 ### S-19 Bookmark picker
-- status: blocked
+- status: in-progress
 - deps: S-15, S-18
 - FR-IDs: FR-BM-11, FR-BM-12, FR-BM-13, FR-ACT-11
 - scope: `app/pickers.rs` (bookmark picker), `app/bookmark_cmd.rs` (pick), bookmark picker screen in `tui`.

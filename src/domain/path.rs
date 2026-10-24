@@ -36,6 +36,21 @@ impl AbsPath {
         &self.0
     }
 
+    /// FR-HIST-03: the path text with the home folder shown as `~`. `home` is the cleaned home folder, or `None`
+    /// when HOME is not set. Only whole components are replaced (`/home/u2` is not under `/home/u`).
+    pub fn display_with_home(&self, home: Option<&AbsPath>) -> String {
+        let Some(home) = home.filter(|home| home.0 != "/") else {
+            return self.0.clone();
+        };
+        if self.0 == home.0 {
+            return "~".to_string();
+        }
+        match self.0.strip_prefix(home.0.as_str()) {
+            Some(rest) if rest.starts_with('/') => format!("~{rest}"),
+            _ => self.0.clone(),
+        }
+    }
+
     /// A-14, D-06: true when `self` equals `base` or lies inside it by whole path components.
     /// `/p/app` is not inside `/p/ap`.
     pub fn is_inside(&self, base: &AbsPath) -> bool {
@@ -230,6 +245,35 @@ mod tests {
     #[test]
     fn cache_lines_text_of_empty_list_is_empty() {
         assert_eq!(cache_lines_text(&[]), "");
+    }
+
+    // FR-HIST-03: the home folder itself and paths under it show as ~
+    #[test]
+    fn display_shows_home_as_tilde() {
+        let home = abs("/home/u");
+        assert_eq!(abs("/home/u").display_with_home(Some(&home)), "~");
+        assert_eq!(
+            abs("/home/u/code/app").display_with_home(Some(&home)),
+            "~/code/app"
+        );
+    }
+
+    // FR-HIST-03: only whole components of the home folder are replaced
+    #[test]
+    fn display_keeps_paths_that_only_start_with_home_text() {
+        let home = abs("/home/u");
+        assert_eq!(
+            abs("/home/u2/x").display_with_home(Some(&home)),
+            "/home/u2/x"
+        );
+        assert_eq!(abs("/srv/x").display_with_home(Some(&home)), "/srv/x");
+    }
+
+    // FR-HIST-03: without a known home folder the path is shown as it is
+    #[test]
+    fn display_without_home_is_the_path() {
+        assert_eq!(abs("/home/u/x").display_with_home(None), "/home/u/x");
+        assert_eq!(abs("/x").display_with_home(Some(&abs("/"))), "/x");
     }
 
     fn texts(paths: &[AbsPath]) -> Vec<&str> {

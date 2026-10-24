@@ -369,3 +369,71 @@ pub fn could_not_register_signals(detail: &str) -> String {
 pub fn could_not_read_tmux_version(detail: &str) -> String {
     format!("could not read the tmux version: {detail}")
 }
+
+/// FR-HIST-06, Messages: the history file was deleted by `history clean`; info, exit 0.
+pub fn history_cleared() -> &'static str {
+    "Project history cache clear successfully."
+}
+
+/// FR-BM-05, Messages: a bookmark was added; info, exit 0.
+pub fn bookmarked(path: &str) -> String {
+    format!("Bookmarked {path}")
+}
+
+/// FR-BM-06, Messages: the directory is already bookmarked and nothing changes; info, exit 0.
+pub fn already_bookmarked(path: &str) -> String {
+    format!("Already bookmarked: {path}")
+}
+
+/// FR-BM-09, Messages: a bookmark was removed; info, exit 0.
+pub fn removed_bookmark(path: &str) -> String {
+    format!("Removed bookmark {path}")
+}
+
+/// FR-BM-10, Messages: removing a directory that is not bookmarked; error.
+pub fn not_a_bookmark(path: &str) -> String {
+    format!("'{path}' is not a bookmark.")
+}
+
+/// FR-BM-08, Messages: `bm list` with no bookmarks; info, exit 0.
+pub fn no_bookmarks() -> &'static str {
+    "No bookmarks."
+}
+
+/// FR-BM-04, Messages: a project cannot be bookmarked; error.
+pub fn bookmark_is_project(path: &str) -> String {
+    format!("{path} is a project; open it with 'ledge project pick'.")
+}
+
+/// FR-BM-03, Messages: a directory outside every project cannot be bookmarked; error.
+pub fn bookmark_outside_project(path: &str) -> String {
+    format!("{path} is not inside a project. Bookmarks go inside a directory from search_paths.")
+}
+
+/// FR-BM-08, Messages: the status word of a bookmark row, "ok".
+pub const BOOKMARK_STATUS_OK: &str = "ok";
+/// FR-BM-08, Messages: the status word of a bookmark whose directory is gone.
+pub const BOOKMARK_STATUS_MISSING: &str = "missing";
+/// FR-BM-08, Messages: the status word of a bookmark outside every project.
+pub const BOOKMARK_STATUS_OUTSIDE: &str = "outside project";
+
+/// FR-BM-08, proposal P-35 [new, not yet accepted]: one row of `bm list`, the status word then the path,
+/// the status padded to 16 columns.
+pub fn bookmark_list_row(status: &str, path: &str) -> String {
+    format!("{status:<16}{path}")
+}
+
+/// Proposal P-35 [new, not yet accepted]: `history clean` cannot delete the history file; error.
+pub fn could_not_clear_history(detail: &str) -> String {
+    format!("could not clear history: {detail}")
+}
+
+/// Proposal P-35 [new, not yet accepted]: the bookmarks file exists but cannot be read; error.
+pub fn could_not_read_bookmarks(detail: &str) -> String {
+    format!("could not read bookmarks: {detail}")
+}
+
+/// Proposal P-35 [new, not yet accepted]: the bookmarks file cannot be written; error.
+pub fn could_not_write_bookmarks(detail: &str) -> String {
+    format!("could not write bookmarks: {detail}")
+}

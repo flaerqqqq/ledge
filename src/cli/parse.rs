@@ -58,8 +58,14 @@ pub enum Command {
     SsSwitch(Options),
     HistoryList,
     HistoryClean,
-    BmAdd,
-    BmRemove,
+    /// FR-BM-05, FR-BM-07: `bm add [DIR]`; no directory means the working directory.
+    BmAdd {
+        dir: Option<String>,
+    },
+    /// FR-BM-09, FR-BM-10: `bm remove DIR`.
+    BmRemove {
+        dir: String,
+    },
     BmList,
     BmPick,
     BmEdit,
@@ -82,8 +88,8 @@ impl Command {
             Command::SsSwitch(_) => "ss",
             Command::HistoryList => "history list",
             Command::HistoryClean => "history clean",
-            Command::BmAdd => "bm add",
-            Command::BmRemove => "bm remove",
+            Command::BmAdd { .. } => "bm add",
+            Command::BmRemove { .. } => "bm remove",
             Command::BmList => "bm list",
             Command::BmEdit => "bm edit",
             Command::BmTree => "bm tree",
@@ -354,13 +360,15 @@ fn bm(words: &[String], opts: &[Opt]) -> Result<Command, String> {
             if tail.len() > 1 {
                 return Err(messages::bm_add_takes_at_most_one_directory().to_string());
             }
-            Ok(Command::BmAdd)
+            Ok(Command::BmAdd {
+                dir: tail.first().cloned(),
+            })
         }
         "remove" => {
             check(opts, NONE)?;
-            match tail.len() {
-                0 => Err(messages::bookmark_remove_requires_directory().to_string()),
-                1 => Ok(Command::BmRemove),
+            match tail {
+                [] => Err(messages::bookmark_remove_requires_directory().to_string()),
+                [dir] => Ok(Command::BmRemove { dir: dir.clone() }),
                 _ => Err(messages::command_not_available("bm remove")),
             }
         }
@@ -603,7 +611,31 @@ mod tests {
             parse(&argv(&["bm", "remove"])),
             Err("bookmark remove requires a directory.".to_string())
         );
-        assert_eq!(parse(&argv(&["bm", "remove", "/a"])), Ok(Command::BmRemove));
+        assert_eq!(
+            parse(&argv(&["bm", "remove", "/a"])),
+            Ok(Command::BmRemove {
+                dir: "/a".to_string()
+            })
+        );
+    }
+
+    // FR-BM-07: bm add takes one directory or none (the working directory); two are refused
+    #[test]
+    fn bm_add_takes_at_most_one_directory() {
+        assert_eq!(
+            parse(&argv(&["bm", "add"])),
+            Ok(Command::BmAdd { dir: None })
+        );
+        assert_eq!(
+            parse(&argv(&["bm", "add", "/a"])),
+            Ok(Command::BmAdd {
+                dir: Some("/a".to_string())
+            })
+        );
+        assert_eq!(
+            parse(&argv(&["bm", "add", "/a", "/b"])),
+            Err("bm add takes at most one directory.".to_string())
+        );
     }
 
     // FR-CMD-03: an unknown sub-command names the group

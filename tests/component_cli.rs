@@ -392,8 +392,8 @@ fn commands_not_built_yet_fail_with_a_plain_error() {
         "'doctor' is not available yet."
     );
     assert_eq!(
-        fatal(run(&args(&["bm", "list"]), &h.ctx())),
-        "'bm list' is not available yet."
+        fatal(run(&args(&["bm", "pick"]), &h.ctx())),
+        "'bm pick' is not available yet."
     );
 }
 
@@ -427,4 +427,32 @@ fn binary_unknown_group_command_exits_one() {
         "Error: Unknown history command: nope (run 'ledge history' for the list).\n"
     );
     assert!(output.stdout.is_empty());
+}
+
+// FR-HIST-03, FR-HIST-07: the built binary runs the history commands with no tmux, from its folders (temp here)
+#[test]
+fn binary_history_commands_run_without_tmux() {
+    let tree = support::temp::TempTree::new("cli-binary-history");
+    let root = tree.path().display().to_string();
+    let run_with = |words: &[&str]| {
+        binary()
+            .args(words)
+            .env("HOME", format!("{root}/home"))
+            .env("XDG_CONFIG_HOME", format!("{root}/config"))
+            .env("XDG_CACHE_HOME", format!("{root}/cache"))
+            .output()
+            .expect("binary runs")
+    };
+    let list = run_with(&["history", "list"]);
+    assert_eq!(list.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(list.stdout).expect("UTF-8"),
+        "No history.\n"
+    );
+    let clean = run_with(&["history", "clean"]);
+    assert_eq!(clean.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(clean.stdout).expect("UTF-8"),
+        "No history cache found.\n"
+    );
 }

@@ -15,7 +15,9 @@ use crate::tui::terminal::TerminalFactory;
 use std::path::Path;
 
 pub mod actions;
+pub mod bookmark_cmd;
 pub mod build;
+pub mod history_cmd;
 pub mod launch;
 pub mod open;
 pub mod pickers;

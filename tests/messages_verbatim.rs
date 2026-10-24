@@ -522,3 +522,87 @@ fn proposed_texts_are_verbatim() {
         "could not read the tmux version: garbage"
     );
 }
+
+// FR-HIST-06, Messages: the history was cleared
+#[test]
+fn history_cleared_text_is_verbatim() {
+    assert_eq!(
+        messages::history_cleared(),
+        "Project history cache clear successfully."
+    );
+}
+
+// FR-BM-05, FR-BM-06, FR-BM-09, FR-BM-10, Messages: bookmark add, repeat, remove and unknown remove
+#[test]
+fn bookmark_result_texts_are_verbatim() {
+    assert_eq!(messages::bookmarked("/p/app/src"), "Bookmarked /p/app/src");
+    assert_eq!(
+        messages::already_bookmarked("/p/app/src"),
+        "Already bookmarked: /p/app/src"
+    );
+    assert_eq!(
+        messages::removed_bookmark("/p/app/src"),
+        "Removed bookmark /p/app/src"
+    );
+    assert_eq!(
+        messages::not_a_bookmark("/p/app/src"),
+        "'/p/app/src' is not a bookmark."
+    );
+}
+
+// FR-BM-08, Messages: the empty bookmark list
+#[test]
+fn no_bookmarks_text_is_verbatim() {
+    assert_eq!(messages::no_bookmarks(), "No bookmarks.");
+}
+
+// FR-BM-03, FR-BM-04, Messages: bookmark refusals
+#[test]
+fn bookmark_refusal_texts_are_verbatim() {
+    assert_eq!(
+        messages::bookmark_is_project("/p/app"),
+        "/p/app is a project; open it with 'ledge project pick'."
+    );
+    assert_eq!(
+        messages::bookmark_outside_project("/q/x"),
+        "/q/x is not inside a project. Bookmarks go inside a directory from search_paths."
+    );
+}
+
+// FR-BM-08, Messages: the status words of the list
+#[test]
+fn bookmark_status_words_are_verbatim() {
+    assert_eq!(messages::BOOKMARK_STATUS_OK, "ok");
+    assert_eq!(messages::BOOKMARK_STATUS_MISSING, "missing");
+    assert_eq!(messages::BOOKMARK_STATUS_OUTSIDE, "outside project");
+}
+
+// FR-BM-08, proposal P-35 [new, not yet accepted]: the list row is the status padded to 16 columns, then the path
+#[test]
+fn bookmark_list_row_is_verbatim() {
+    assert_eq!(
+        messages::bookmark_list_row("ok", "/p/app/src"),
+        "ok              /p/app/src"
+    );
+    assert_eq!(
+        messages::bookmark_list_row("outside project", "/q/x"),
+        "outside project /q/x"
+    );
+}
+
+// Proposal P-35 [new, not yet accepted]: history, bookmark read and write failures
+#[test]
+fn proposed_history_and_bookmark_error_texts_are_verbatim() {
+    assert_eq!(
+        messages::could_not_clear_history("denied"),
+        "could not clear history: denied"
+    );
+    assert_eq!(
+        messages::could_not_read_bookmarks("denied"),
+        "could not read bookmarks: denied"
+    );
+    assert_eq!(
+        messages::could_not_write_bookmarks("denied"),
+        "could not write bookmarks: denied"
+    );
+}
