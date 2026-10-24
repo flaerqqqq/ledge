@@ -428,3 +428,13 @@ Format:
 - change: `tui::engine` gains `Step::ProfileNode` (returned by `act`) and `PickerResult::ProfileNode(T)`, the node version of the existing `Step::Profile` and `PickerResult::Profile`. The caller asks one profile and rebuilds every session under the row's node. The architecture 6.4 text does not list these variants; the file is not edited here, so the architecture is left as it is until the user accepts this change.
 - why: `Profile(T)` hands the row back for a one-session rebuild and carries no action, so the caller cannot tell alt-p from ctrl-p. Adding a variant is the smallest change that keeps the picker loop and the handler separate.
 - status: Open
+
+### P-43 S-23 ss tree: open options accepted, editor not used by the window
+- from: implementer / slice S-23
+- doc: docs/architecture.md (2.3 grammar: `ledge ss tree [OPEN-OPTS]`), docs/backlog.md (S-23), requirements.md (FR-SESS-06..08, Screens and interactions)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) `Command::SsTree(Options)` keeps the open options from the parser. `ss tree` passes `options.profile` to `pickers::session_tree_picker` (the enter-open flow uses the profile). `--editor`, `--code` and `--idea` are accepted by the parser and not used by the tree window, the same choice as P-36 for `bm pick`. The window opens no editor on enter.
+  (b) The session tree window shows every managed session (all trees). The scope options of FR-TREE-05..08 are not in the S-23 backlog scope (they are S-24), so `ss tree` takes no `--session-scope` (the parser refuses it as an unknown option).
+  (c) Enter on a gray folder without a session opens its directory under the session name it would get (FR-SESS-07, FR-SESS-08). A gray folder is openable only in the session tree (A-13), so it does not depend on a session existing.
+- why: each choice keeps the grammar of architecture 2.3 and the S-22 window. Tests: tests/tui_trees.rs and tests/component_cli.rs cover the enter path and the empty window.
+- status: Open

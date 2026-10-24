@@ -373,3 +373,49 @@ fn trees_show_their_given_footers() {
         "bookmark tree footer"
     );
 }
+
+// FR-SESS-07, FR-SESS-08: a gray folder without a session shows the session name it would get
+#[test]
+fn gray_folder_shows_the_session_name_it_would_get() {
+    let h = Harness::new("tui_trees-gray-name");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains(&name_of(&app))),
+        "gray root shows its would-be name: {lines:#?}"
+    );
+}
+
+// FR-SESS-07, FR-SESS-08: enter on a gray folder without a session opens that folder under its would-be name
+#[test]
+fn enter_on_a_gray_folder_opens_it_under_its_would_be_name() {
+    let h = Harness::new("tui_trees-gray-enter");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    // Row 0 is the gray project root (openable in the session tree); row 1 is the connector, row 2 the session.
+    h.terminal.script(vec![enter()]);
+    let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Done));
+    assert_eq!(h.backend.attached_to(), Some(name_of(&app)));
+    assert!(exists(&h, &name_of(&app)), "the folder got its session");
+}
+
+// FR-SESS-08: enter on a deeper session entry opens that session's own directory
+#[test]
+fn enter_on_a_deep_session_entry_opens_its_directory() {
+    let h = Harness::new("tui_trees-deep-enter");
+    let f = session_fixture(&h);
+    // Screens: enter opens only when the directory exists, so the session's folder must be on disk.
+    fs::create_dir_all(f.api.as_str()).expect("create api folder");
+    h.terminal.script(vec![down(), enter()]);
+    let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Done));
+    assert_eq!(h.backend.attached_to(), Some(name_of(&f.api)));
+}

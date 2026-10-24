@@ -362,7 +362,7 @@ have no FR-IDs state why.
 - branch: slice/22-node-actions
 
 ### S-23 Session tree command
-- status: in-progress
+- status: done
 - deps: S-22, S-11
 - FR-IDs: FR-SESS-08
 - scope: `app/session_cmd.rs` (`ss tree`), session tree screen (6.2, 6.3 table), `ss tree` in `cli` wiring.
@@ -373,7 +373,7 @@ have no FR-IDs state why.
 - branch: slice/23-session-tree
 
 ### S-24 Bookmark tree command
-- status: blocked
+- status: in-progress
 - deps: S-22, S-18
 - FR-IDs: FR-TREE-05, FR-TREE-06, FR-TREE-07, FR-TREE-08, FR-ACT-10
 - scope: `app/bookmark_cmd.rs` (`bm tree`), bookmark tree screen, `domain/tree.rs` (scope selection).

@@ -98,7 +98,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-SESS-05 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-SESS-06 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
 | FR-SESS-07 | S-05 | domain/tree.rs | domain/tree.rs | covered | Label of a gray project root is `session_name` of its path. |
-| FR-SESS-08 | S-23 |  |  | open |  |
+| FR-SESS-08 | S-23 | src/app/pickers.rs (session_tree_picker, TreeHandler::choose); src/cli/mod.rs (SsTree); src/cli/parse.rs (SsTree options) | tests/tui_trees.rs; tests/component_cli.rs; src/cli/parse.rs (unit) | covered | Enter on a session row opens its directory; enter on a gray folder without a session opens it under the session name it would get (FR-SESS-07); connectors do not open (FR-TREE-11). `ss tree` takes the open options and no directory; `--editor` is parsed and not used by the window (proposal P-43). Manual: the real look of the session tree (indent, gray folders, footer) on a tty; the tests check the screen buffer, not a real terminal (docs/testing.md, manual list). |
 | FR-SESS-09 | S-25 |  |  | open |  |
 | FR-SESS-10 | S-25 |  |  | open |  |
 | FR-SESS-11 | S-25 |  |  | open |  |

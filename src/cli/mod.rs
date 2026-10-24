@@ -10,6 +10,7 @@ use crate::app::history_cmd;
 use crate::app::open::open_dir_with_editor;
 use crate::app::pickers::{
     bookmark_picker, history_picker_with_editor, project_picker_with_editor, session_switcher,
+    session_tree_picker,
 };
 use crate::app::Ctx;
 use crate::domain::profile_rules::ProfileOpt;
@@ -50,6 +51,10 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
         Command::SsSwitch(_) => {
             require_tmux(ctx)?;
             session_switcher(ctx)
+        }
+        Command::SsTree(options) => {
+            require_tmux(ctx)?;
+            session_tree_picker(ctx, &options.profile)
         }
         Command::HistoryList => history_cmd::list(ctx),
         Command::HistoryClean => history_cmd::clean(ctx),

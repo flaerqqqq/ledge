@@ -5,13 +5,20 @@
 
 mod support;
 
+use ledge::app::build::ensure_session;
 use ledge::cli::run;
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
+use ledge::domain::profile::{Profile, ProfileName};
 use ledge::error::{LedgeError, Outcome, Result};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::process::Command;
 use support::ctx::Harness;
 use support::fake_process::FakeProcess;
+
+fn key(code: KeyCode) -> ledge::tui::terminal::Input {
+    ledge::tui::terminal::Input::Key(KeyEvent::new(code, KeyModifiers::NONE))
+}
 
 fn args(words: &[&str]) -> Vec<String> {
     words.iter().map(|word| word.to_string()).collect()
@@ -464,5 +471,46 @@ fn binary_history_commands_run_without_tmux() {
     assert_eq!(
         String::from_utf8(clean.stdout).expect("UTF-8"),
         "No history cache found.\n"
+    );
+}
+
+// FR-SESS-06, FR-SESS-08: `ss tree` opens the session tree window; enter opens the chosen session's directory
+#[test]
+fn ss_tree_opens_the_session_tree_and_enter_opens_the_entry() {
+    let h = Harness::new("cli-ss-tree-open");
+    let dir = AbsPath::clean(&h.project("app"), &AbsPath::root());
+    let profile = Profile::parse(
+        &ProfileName::parse("dev").expect("name"),
+        r#"{"windows": [{"name": "shell"}]}"#,
+    )
+    .expect("profile");
+    ensure_session(&h.backend, &dir, &profile).expect("session");
+    h.terminal.script(vec![key(KeyCode::Enter)]);
+    let outcome = run(&args(&["ss", "tree"]), &h.ctx());
+    assert_eq!(outcome, Ok(Outcome::Done));
+    assert_eq!(h.terminal.opened(), 1);
+    assert_eq!(h.backend.attached_to(), Some(session_name(&dir)));
+}
+
+// D-12, FR-SESS-06: with no managed sessions `ss tree` says so and the window stays open
+#[test]
+fn ss_tree_with_no_sessions_says_so_and_stays_open() {
+    let h = Harness::new("cli-ss-tree-empty");
+    h.terminal.script(vec![key(KeyCode::Esc)]);
+    assert_eq!(
+        run(&args(&["ss", "tree"]), &h.ctx()),
+        Ok(Outcome::Cancelled)
+    );
+    assert_eq!(h.terminal.opened(), 1, "the window opened and stayed open");
+    let lines = h
+        .terminal
+        .last_record()
+        .expect("a window opened")
+        .borrow()
+        .lines
+        .clone();
+    assert!(
+        lines.iter().any(|line| line.contains("No ledge sessions.")),
+        "empty tree says so: {lines:#?}"
     );
 }

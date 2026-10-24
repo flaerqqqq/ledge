@@ -75,7 +75,8 @@ pub enum Command {
     },
     BmTree,
     SsList,
-    SsTree,
+    /// FR-SESS-06: `ss tree`, the session tree window; takes the open options (P-36 applies: the editor is not used).
+    SsTree(Options),
     SsKill,
     Doctor,
 }
@@ -98,7 +99,7 @@ impl Command {
             Command::BmEdit { .. } => "bm edit",
             Command::BmTree => "bm tree",
             Command::SsList => "ss list",
-            Command::SsTree => "ss tree",
+            Command::SsTree(_) => "ss tree",
             Command::SsKill => "ss kill",
             Command::Doctor => "doctor",
         }
@@ -431,8 +432,7 @@ fn ss(words: &[String], opts: &[Opt]) -> Result<Command, String> {
             if words.len() > 1 {
                 return Err(messages::ss_tree_takes_no_directory().to_string());
             }
-            options(opts)?;
-            Ok(Command::SsTree)
+            Ok(Command::SsTree(options(opts)?))
         }
         Some("kill") => {
             check(opts, NONE)?;
@@ -574,6 +574,22 @@ mod tests {
         assert_eq!(
             parse(&argv(&["ss", "tree", "/a"])),
             Err("ss tree takes no directory argument.".to_string())
+        );
+    }
+
+    // FR-SESS-06: `ss tree` takes the open options and no directory
+    #[test]
+    fn ss_tree_takes_the_open_options() {
+        assert_eq!(
+            parse(&argv(&["ss", "tree"])),
+            Ok(Command::SsTree(Options::default()))
+        );
+        assert_eq!(
+            parse(&argv(&["ss", "tree", "--profile", "web"])),
+            Ok(Command::SsTree(Options {
+                profile: ProfileOpt::Named("web".to_string()),
+                ..Options::default()
+            }))
         );
     }
 
