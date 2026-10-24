@@ -405,6 +405,16 @@ fn profile_row_labels_are_verbatim() {
     assert_eq!(messages::profile_default("web"), "[Default: web]");
 }
 
+// FR-PROF-13 (S-45, P-64): the profile picker preview texts
+#[test]
+fn profile_preview_texts_are_verbatim() {
+    assert_eq!(messages::PREVIEW_LABEL, "Preview");
+    assert_eq!(messages::BUILT_IN, "built-in");
+    assert_eq!(messages::window_count(1), "1 window");
+    assert_eq!(messages::window_count(5), "5 windows");
+    assert_eq!(messages::more_windows(3), "+ 3 more");
+}
+
 // FR-PROF-13, architecture 6.2: the profile picker border label and key footer
 #[test]
 fn profile_picker_label_and_footer_are_verbatim() {

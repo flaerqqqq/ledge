@@ -757,6 +757,243 @@ fn profile_that_fails_to_load_reports_in_the_status_line() {
     assert_eq!(live_names(&h), vec![name_of(&app)]);
 }
 
+const FIVE_PROFILE: &str = r#"{"windows": [{"name": "Code", "command": "nvim ."}, {"name": "Terminal"}, {"name": "AI", "command": "claude"}, {"name": "Run", "command": "npm run dev"}, {"name": "Infra", "command": "terraform plan"}]}"#;
+const SEVEN_PROFILE: &str = r#"{"windows": [{"name": "w1"}, {"name": "w2"}, {"name": "w3"}, {"name": "w4"}, {"name": "w5"}, {"name": "w6"}, {"name": "w7"}]}"#;
+
+/// The last screen of the nested profile picker (the second picker opened in a ctrl-p flow).
+fn profile_picker_screen(h: &Harness) -> Vec<String> {
+    h.terminal.records()[1].borrow().lines.clone()
+}
+
+/// HOME is the temp folder, so the profile folder under the config folder shows as `~/...` (FR-HIST-03).
+fn home_is_the_temp_folder(h: &mut Harness) {
+    let root = h.root().display().to_string();
+    h.env = h.env.clone().with_var("HOME", &root);
+}
+
+// FR-PROF-13 (S-45): the preview of the highlighted profile shows its title, its file with ~ and the window count,
+// then one line per window with its command; the footer is the profile picker's
+#[test]
+fn profile_preview_shows_title_source_count_and_windows_of_the_highlighted_profile() {
+    let mut h = Harness::new("tui_profile-preview-dev");
+    search_config(&h);
+    home_is_the_temp_folder(&mut h);
+    h.write_profile("dev", FIVE_PROFILE);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let screen = profile_picker_screen(&h);
+    let file = PathBuf::from(h.dirs.config.as_str())
+        .join("profiles")
+        .join("dev.json");
+    let shown = format!(
+        "~/{}",
+        file.strip_prefix(h.root())
+            .expect("profile under the temp folder")
+            .display()
+    );
+    assert!(line_with(&screen, "Preview · dev").contains("Preview · dev"));
+    assert!(
+        line_with(&screen, &shown).contains(&format!("{shown} · 5 windows")),
+        "{screen:#?}"
+    );
+    assert!(line_with(&screen, "nvim .").contains("Code"), "{screen:#?}");
+    assert!(
+        line_with(&screen, "Terminal").contains("Terminal"),
+        "{screen:#?}"
+    );
+    assert!(line_with(&screen, "claude").contains("AI"), "{screen:#?}");
+    assert!(
+        line_with(&screen, "npm run dev").contains("Run"),
+        "{screen:#?}"
+    );
+    assert!(
+        line_with(&screen, "terraform plan").contains("Infra"),
+        "{screen:#?}"
+    );
+    assert!(line_with(&screen, "enter choose · esc cancel").starts_with('╰'));
+}
+
+// FR-PROF-13 (S-45): the built-in basic profile has no file; its preview says so and shows its one window
+#[test]
+fn profile_preview_of_basic_is_built_in_with_one_window() {
+    let mut h = Harness::new("tui_profile-preview-basic");
+    search_config(&h);
+    h.write_profile("dev", FIVE_PROFILE);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let screen = profile_picker_screen(&h);
+    assert!(line_with(&screen, "Preview · basic").contains("Preview · basic"));
+    assert!(line_with(&screen, "built-in · 1 window").contains("built-in · 1 window"));
+    assert!(
+        line_with(&screen, "Terminal").contains("Terminal"),
+        "{screen:#?}"
+    );
+}
+
+// FR-PROF-13 (S-45): a profile whose file is invalid keeps its row; its preview shows the error text
+#[test]
+fn profile_preview_of_a_broken_file_shows_the_error_and_the_row_stays() {
+    let mut h = Harness::new("tui_profile-preview-broken");
+    search_config(&h);
+    h.write_profile("broken", "{");
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let screen = profile_picker_screen(&h);
+    assert!(line_with(&screen, "Preview · broken").contains("Preview · broken"));
+    assert!(
+        line_with(&screen, "profile 'broken' is invalid JSON")
+            .contains("profile 'broken' is invalid JSON"),
+        "{screen:#?}"
+    );
+    assert!(line_with(&screen, "broken.json").contains("broken.json"));
+}
+
+// FR-PROF-13 (S-45): a broken profile row is still chosen by enter, and the failure is reported as before
+#[test]
+fn broken_profile_row_stays_selectable_and_enter_reports_its_error() {
+    let mut h = Harness::new("tui_profile-preview-broken-enter");
+    search_config(&h);
+    h.write_profile("broken", "{");
+    let app = h.project("app");
+    live(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), enter()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let parent = h.terminal.records()[2].borrow().lines.clone();
+    assert!(line_with(&parent, "profile 'broken' is invalid JSON").contains("invalid JSON"));
+    assert_eq!(windows_of(&h, &app), vec!["Terminal".to_string()]);
+}
+
+// FR-PROF-13 (S-45): more windows than the preview has lines show the first ones and "+ N more" last
+#[test]
+fn profile_preview_with_more_windows_than_lines_ends_with_plus_n_more() {
+    let mut h = Harness::new("tui_profile-preview-more");
+    search_config(&h);
+    h.write_profile("dev", SEVEN_PROFILE);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let screen = profile_picker_screen(&h);
+    assert!(line_with(&screen, "7 windows").contains("7 windows"));
+    let last_shown = row_index(&screen, "w4");
+    assert_eq!(
+        row_index(&screen, "+ 3 more"),
+        last_shown + 1,
+        "{screen:#?}"
+    );
+    assert!(
+        !screen.iter().any(|line| line.contains("w5")),
+        "{screen:#?}"
+    );
+}
+
+// FR-PROF-13 (S-45): at 17 rows only 10 list rows would remain with the preview, so the preview is dropped and the
+// list keeps its rows
+#[test]
+fn profile_preview_is_dropped_when_fewer_than_three_list_rows_would_remain() {
+    let mut h = Harness::new("tui_profile-preview-small");
+    search_config(&h);
+    h.write_profile("dev", FIVE_PROFILE);
+    h.terminal.set_size(80, 17);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let screen = profile_picker_screen(&h);
+    assert!(
+        !screen.iter().any(|line| line.contains("Preview ·")),
+        "{screen:#?}"
+    );
+    assert!(line_with(&screen, "basic").contains("basic"));
+    assert!(line_with(&screen, "dev").contains("dev"));
+}
+
+// FR-PROF-13 (S-45): at 18 rows three list rows remain, so the preview is drawn
+#[test]
+fn profile_preview_is_kept_when_three_list_rows_remain() {
+    let mut h = Harness::new("tui_profile-preview-fits");
+    search_config(&h);
+    h.write_profile("dev", FIVE_PROFILE);
+    h.terminal.set_size(80, 18);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let screen = profile_picker_screen(&h);
+    assert!(line_with(&screen, "Preview · basic").contains("Preview · basic"));
+}
+
+// FR-PROF-13 (S-45): enter on a previewed profile still rebuilds the session with that profile
+#[test]
+fn enter_on_the_previewed_profile_rebuilds_with_it() {
+    let mut h = Harness::new("tui_profile-preview-enter");
+    search_config(&h);
+    h.write_profile("dev", FIVE_PROFILE);
+    let app = h.project("app");
+    live(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), enter()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(
+        windows_of(&h, &app),
+        ["Code", "Terminal", "AI", "Run", "Infra"]
+            .map(String::from)
+            .to_vec()
+    );
+    assert_eq!(profile_of(&h, &app), Some("dev".to_string()));
+}
+
+// A-08 (S-45): escape on a previewed profile changes nothing, and the parent's footer is unchanged
+#[test]
+fn escape_on_the_previewed_profile_changes_nothing() {
+    let mut h = Harness::new("tui_profile-preview-escape");
+    search_config(&h);
+    h.write_profile("dev", FIVE_PROFILE);
+    let app = h.project("app");
+    live(&h, &app);
+    let profile_before = profile_of(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(windows_of(&h, &app), vec!["Terminal".to_string()]);
+    assert_eq!(profile_of(&h, &app), profile_before);
+    assert!(line_with(&screen(&h), PROJECT_FOOTER).starts_with('╰'));
+}
+
 // FR-PICK-05: the extra row of a current directory under HOME shows the home folder as "~"
 #[test]
 fn non_project_current_directory_under_home_shows_tilde() {

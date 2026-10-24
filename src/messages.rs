@@ -251,6 +251,26 @@ pub const PROFILES_LABEL: &str = "Profiles";
 /// Architecture 6.2 and A-03: the key footer of the profile picker.
 pub const PROFILE_PICKER_FOOTER: &str = "enter choose · esc cancel";
 
+/// FR-PROF-13 (S-45, P-64): the source of the built-in profile `basic` in the preview of the profile picker.
+pub const BUILT_IN: &str = "built-in";
+
+/// FR-PROF-13 (S-45, P-64): the title of the preview section of the profile picker, `Preview · <name>`.
+pub const PREVIEW_LABEL: &str = "Preview";
+
+/// FR-PROF-13 (S-45, P-64): the window count of a profile in the preview: `1 window`, `N windows`.
+pub fn window_count(count: usize) -> String {
+    if count == 1 {
+        "1 window".to_string()
+    } else {
+        format!("{count} windows")
+    }
+}
+
+/// FR-PROF-13 (S-45, P-64): the last line of a preview whose profile has more windows than the preview has lines.
+pub fn more_windows(count: usize) -> String {
+    format!("+ {count} more")
+}
+
 /// FR-SESS-12: a managed session was killed by `ss kill` (info, exit 0).
 pub fn killed_session(name: &str) -> String {
     format!("Killed session '{name}'.")

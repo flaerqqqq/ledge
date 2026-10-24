@@ -36,6 +36,31 @@ pub struct Details {
     pub profile: String,
 }
 
+/// FR-PROF-13 (S-45, P-64): rows of the preview section of the profile picker: a rule, the title, the source line and
+/// the window lines.
+pub const PREVIEW_ROWS: u16 = 8;
+
+/// FR-PROF-13 (S-45): the preview is drawn only when at least this many list rows remain beside it.
+const MIN_PREVIEW_LIST_ROWS: usize = 3;
+
+/// One window of a profile preview: its name and its command (empty when it has none).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreviewWindow {
+    pub name: String,
+    pub command: String,
+}
+
+/// The preview of a profile in the profile picker (FR-PROF-13, P-64): the title, where the profile comes from
+/// (`built-in`, or its file with `~`), its windows, or the error that keeps it from loading.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Preview {
+    pub title: String,
+    pub source: String,
+    pub windows: Vec<PreviewWindow>,
+    /// The text of the error of a profile that does not load; the window lines are then empty.
+    pub error: Option<String>,
+}
+
 /// What the session cell of a row names (design 6.1, 9 step 4b): a live session, the `(no session)` placeholder, or
 /// nothing that is coloured by row state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -75,6 +100,8 @@ pub struct PickerRow<T> {
     pub preselect: bool,
     /// Facts for the Details section (option B 2.1). `None` for a row that has none.
     pub details: Option<Details>,
+    /// Preview of the row in the profile picker (FR-PROF-13). `None` for a row that has none.
+    pub preview: Option<Preview>,
 }
 
 impl<T> PickerRow<T> {
@@ -92,6 +119,7 @@ impl<T> PickerRow<T> {
             marked: false,
             preselect: false,
             details: None,
+            preview: None,
         }
     }
 }
@@ -109,6 +137,8 @@ pub struct Chrome {
     pub tree_column: Option<usize>,
     /// Column that carries the session colour of `PickerRow::session_cell` (design 6.1).
     pub session_column: Option<usize>,
+    /// The picker draws the preview of the selected row under the list (FR-PROF-13), when the window is tall enough.
+    pub preview: bool,
     pub footer: String,
     /// Footer of a window with no rows, when it differs (design 3.2: `esc close`, P-59).
     pub empty_footer: Option<String>,
@@ -128,6 +158,7 @@ impl Chrome {
             missing_column: None,
             tree_column: Some(0),
             session_column: None,
+            preview: false,
             footer: footer.to_string(),
             empty_footer: None,
             empty_message: None,
@@ -240,6 +271,25 @@ impl<T> PickerModel<T> {
     /// at 120 cells and up and some row has details; the list height depends on it (`list_height`).
     pub fn shows_details(&self, width: u16) -> bool {
         width >= WIDE_WIDTH && self.rows.iter().any(|row| row.details.is_some())
+    }
+
+    /// FR-PROF-13 (S-45): whether the preview is drawn in a window `term_height` rows high and `width` cells wide. It is
+    /// drawn when the picker has previews and at least `MIN_PREVIEW_LIST_ROWS` list rows remain beside it.
+    pub fn shows_preview(&self, term_height: u16, width: u16) -> bool {
+        self.chrome.preview
+            && list_height(term_height, self.shows_details(width))
+                >= usize::from(PREVIEW_ROWS) + MIN_PREVIEW_LIST_ROWS
+    }
+
+    /// The list rows of a window `term_height` rows high and `width` cells wide: `list_height`, less the preview rows
+    /// when the preview is drawn (`shows_preview`).
+    pub fn list_rows(&self, term_height: u16, width: u16) -> usize {
+        let rows = list_height(term_height, self.shows_details(width));
+        if self.shows_preview(term_height, width) {
+            rows - usize::from(PREVIEW_ROWS)
+        } else {
+            rows
+        }
     }
 
     /// Sets the status line to an information text (or clears it).
@@ -603,6 +653,19 @@ mod tests {
     }
 
     // FR-TUI-05: the list height follows the terminal height and never goes below zero
+    #[test]
+    fn preview_takes_its_rows_only_when_three_list_rows_remain() {
+        let mut model = PickerModel::new(flat(&["a", "b"]), chrome());
+        assert_eq!(model.list_rows(24, 80), 17);
+        model.chrome.preview = true;
+        assert_eq!(model.list_rows(24, 80), 9);
+        assert!(model.shows_preview(24, 80));
+        assert_eq!(model.list_rows(18, 80), 3);
+        assert!(model.shows_preview(18, 80));
+        assert_eq!(model.list_rows(17, 80), 10);
+        assert!(!model.shows_preview(17, 80));
+    }
+
     #[test]
     fn list_height_is_the_terminal_height_minus_the_chrome() {
         assert_eq!(list_height(8, false), 1);

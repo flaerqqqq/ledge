@@ -6,7 +6,7 @@ use crate::error::{LedgeError, Outcome};
 use crate::messages;
 use crate::ports::signals::Signals;
 use crate::tui::keys::{self, Action};
-use crate::tui::picker::{self, Effect, PickerModel, PickerRow};
+use crate::tui::picker::{Effect, PickerModel, PickerRow};
 use crate::tui::render;
 use crate::tui::terminal::TerminalSession;
 use crate::tui::theme::Theme;
@@ -201,8 +201,8 @@ fn draw<T>(
         // The edit window has no prompt row unless its search bar is open or a match is kept (architecture 6.2),
         // so its list gets the prompt row and its rule back (two rows) without it.
         let no_prompt = if model.has_prompt() { 0 } else { 2 };
-        let details = model.shows_details(area.width);
-        model.set_list_height(picker::list_height(area.height, details) + no_prompt);
+        let rows = model.list_rows(area.height, area.width);
+        model.set_list_height(rows + no_prompt);
         render::draw(model, area, frame, theme, color);
     })
 }

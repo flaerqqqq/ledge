@@ -547,7 +547,7 @@ have no FR-IDs state why.
 - branch: slice/S-44-edit-window-columns
 
 ### S-45 Profile preview in the profile picker
-- status: in-progress
+- status: done
 - deps: S-15, S-30
 - FR-IDs: FR-PROF-13 (proposal P-64; the user owns requirements.md)
 - scope: src/tui/picker.rs (Preview model, PickerRow.preview, Chrome.preview, list height), src/tui/render.rs (draw_preview), src/app/pickers.rs (pick_profile builds previews), src/messages.rs (new texts), tests/tui_project_picker.rs, tests/tui_engine.rs, tests/tui_switcher.rs, tests/tui_trees.rs, tests/support/ctx.rs (broken profile fixture)

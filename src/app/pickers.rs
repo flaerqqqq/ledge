@@ -33,7 +33,9 @@ use crate::ports::backend::BackendError;
 use crate::tui::columns::ColumnSpec;
 use crate::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use crate::tui::keys::Action;
-use crate::tui::picker::{Chrome, Details, PickerModel, PickerRow, SessionCell};
+use crate::tui::picker::{
+    Chrome, Details, PickerModel, PickerRow, Preview, PreviewWindow, SessionCell,
+};
 use crate::tui::render;
 use crate::tui::theme::{self, ColourLevel};
 use std::path::Path;
@@ -441,7 +443,15 @@ fn pick_profile(ctx: &Ctx<'_>, current: Option<&str>) -> Result<PickerResult<Str
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     let files = store::profile_files(ctx.fs, &ctx.dirs);
     let choices = profile_choices(&files, current, config.default_profile.as_deref());
-    let rows: Vec<PickerRow<String>> = choices.iter().map(profile_row).collect();
+    let home = home_of(ctx);
+    let rows: Vec<PickerRow<String>> = choices
+        .iter()
+        .map(|choice| {
+            let mut row = profile_row(choice);
+            row.preview = Some(profile_preview(ctx, &choice.name, home.as_ref()));
+            row
+        })
+        .collect();
     let model = PickerModel::new(rows.clone(), profile_chrome());
     let mut handler = ProfileHandler { rows };
     run_in_terminal(ctx, model, &mut handler)
@@ -484,13 +494,49 @@ fn profile_row(choice: &ProfileChoice) -> PickerRow<String> {
     PickerRow::new(vec![text], &choice.name, choice.name.clone())
 }
 
-/// Architecture 6.2: the profile picker chrome.
+/// FR-PROF-13, P-64: the preview of profile `name`. `basic` is built in and has no file, so its source is the built-in
+/// text. Another profile's source is its file with the home folder as `~`; its windows are its loaded profile, or the
+/// error that keeps it from loading.
+fn profile_preview(ctx: &Ctx<'_>, name: &str, home: Option<&AbsPath>) -> Preview {
+    let is_basic = ProfileName::parse(name).is_some_and(|profile| profile.is_basic());
+    let source = if is_basic {
+        messages::BUILT_IN.to_string()
+    } else {
+        let path = store::profile_path(&ctx.dirs, name);
+        AbsPath::clean(&path.display().to_string(), &AbsPath::root()).display_with_home(home)
+    };
+    match store::load_profile(ctx.fs, &ctx.dirs, name) {
+        Ok(profile) => Preview {
+            title: name.to_string(),
+            source,
+            windows: profile
+                .windows
+                .iter()
+                .map(|window| PreviewWindow {
+                    name: window.name.clone(),
+                    command: window.command.clone().unwrap_or_default(),
+                })
+                .collect(),
+            error: None,
+        },
+        Err(LedgeError::Fatal(text)) => Preview {
+            title: name.to_string(),
+            source,
+            windows: Vec::new(),
+            error: Some(text),
+        },
+    }
+}
+
+/// Architecture 6.2: the profile picker chrome. Its rows carry a preview (FR-PROF-13, P-64).
 fn profile_chrome() -> Chrome {
-    Chrome::new(
+    let mut chrome = Chrome::new(
         messages::PROFILES_LABEL,
         vec![ColumnSpec::text(messages::HEADER_PROFILE)],
         messages::PROFILE_PICKER_FOOTER,
-    )
+    );
+    chrome.preview = true;
+    chrome
 }
 
 /// FR-PICK-13, D-13: the name of the non-basic profile the open uses, or `None` for the basic layout.

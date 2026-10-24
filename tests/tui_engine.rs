@@ -9,7 +9,9 @@ use ledge::error::{LedgeError, Outcome};
 use ledge::tui::columns::ColumnSpec;
 use ledge::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use ledge::tui::keys::{self, Action};
-use ledge::tui::picker::{self, Chrome, Details, Effect, PickerModel, PickerRow, SessionCell};
+use ledge::tui::picker::{
+    Chrome, Details, Effect, PickerModel, PickerRow, Preview, PreviewWindow, SessionCell,
+};
 use ledge::tui::render;
 use ledge::tui::terminal::{Input, TerminalSession};
 use ledge::tui::theme::{parse_hex, resolve, ColourLevel, Theme, Token};
@@ -52,19 +54,14 @@ fn drive_themed(
 ) -> Vec<Effect> {
     let mut effects = Vec::new();
     let area = term.buffer().area;
-    model.set_list_height(picker::list_height(
-        area.height,
-        model.shows_details(area.width),
-    ));
+    model.set_list_height(model.list_rows(area.height, area.width));
     draw_themed(model, term, theme, color);
     let mut polls = 0;
     while let Some(input) = term.poll(Duration::from_millis(100)).unwrap() {
         polls += 1;
         assert!(polls < 1000, "the scripted run did not end");
         match &input {
-            Input::Resize(width, height) => {
-                model.set_list_height(picker::list_height(*height, model.shows_details(*width)))
-            }
+            Input::Resize(width, height) => model.set_list_height(model.list_rows(*height, *width)),
             Input::Key(_) => {
                 if let Some(action) = keys::map(&input) {
                     effects.push(model.apply(action));
@@ -888,6 +885,85 @@ fn path_column_and_details_section_show_at_120_cells() {
     drive(&mut model, &mut term, false);
     assert!(line_containing(&term, "Details · api-gateway").is_some());
     assert!(line_containing(&term, "Session   none").is_some());
+}
+
+/// Profile picker rows with a preview: a profile with two windows, and a broken one with its error.
+fn profile_preview_rows() -> Vec<PickerRow<usize>> {
+    let mut dev = PickerRow::new(vec!["dev".into()], "dev", 0);
+    dev.preview = Some(Preview {
+        title: "dev".into(),
+        source: "~/cfg/profiles/dev.json".into(),
+        windows: vec![
+            PreviewWindow {
+                name: "editor".into(),
+                command: "nvim .".into(),
+            },
+            PreviewWindow {
+                name: "shell".into(),
+                command: String::new(),
+            },
+        ],
+        error: None,
+    });
+    let mut broken = PickerRow::new(vec!["broken".into()], "broken", 1);
+    broken.preview = Some(Preview {
+        title: "broken".into(),
+        source: "~/cfg/profiles/broken.json".into(),
+        windows: Vec::new(),
+        error: Some("profile 'broken' is invalid JSON: EOF".into()),
+    });
+    vec![dev, broken]
+}
+
+fn profile_preview_chrome() -> Chrome {
+    let mut chrome = Chrome::new(
+        "Profiles",
+        vec![ColumnSpec::text("Profile")],
+        "enter choose · esc cancel",
+    );
+    chrome.preview = true;
+    chrome
+}
+
+// FR-PROF-13 (S-45): the preview sits between the list and the status strip: a rule, the title, the source with the
+// window count, one line per window with its command; the error of a broken profile is in the error token
+#[test]
+fn preview_draws_rule_title_source_and_windows_above_the_status_strip() {
+    let mut model = PickerModel::new(profile_preview_rows(), profile_preview_chrome());
+    let mut term = FakeTerminal::new(80, 24, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let lines = term.lines();
+    // list 5..=13 (nine rows at 24 lines), the rule at 14, the title at 15, the source at 16, windows from 17
+    assert_eq!(term.cell(1, 14).unwrap().symbol(), "─", "{lines:#?}");
+    assert!(lines[15].contains("Preview · dev"), "{lines:#?}");
+    assert!(
+        lines[16].contains("~/cfg/profiles/dev.json · 2 windows"),
+        "{lines:#?}"
+    );
+    assert!(
+        lines[17].contains("editor") && lines[17].contains("nvim ."),
+        "{lines:#?}"
+    );
+    assert!(lines[18].contains("shell"), "{lines:#?}");
+    assert!(lines[22].contains("2 of 2"), "{lines:#?}");
+    assert!(lines[23].starts_with('╰'), "{lines:#?}");
+
+    let mut model = PickerModel::new(profile_preview_rows(), profile_preview_chrome());
+    let mut term = FakeTerminal::new(80, 24, vec![key(KeyCode::Down)]).unwrap();
+    drive(&mut model, &mut term, true);
+    let lines = term.lines();
+    assert!(lines[15].contains("Preview · broken"), "{lines:#?}");
+    assert!(
+        lines[16].contains("~/cfg/profiles/broken.json"),
+        "{lines:#?}"
+    );
+    assert!(!lines[16].contains("windows"), "{lines:#?}");
+    assert!(
+        lines[17].contains("profile 'broken' is invalid JSON: EOF"),
+        "{lines:#?}"
+    );
+    let theme = Theme::default();
+    assert_eq!(term.cell(2, 17).unwrap().fg, theme.color(Token::Error));
 }
 
 // design 2.1 (S-42): below 120 cells there is no Path column and no Details section; the list gets its rows back

@@ -6,7 +6,9 @@
 use crate::messages;
 use crate::tui::columns::{self, ColumnSpec, Cut, GAP};
 use crate::tui::fuzzy;
-use crate::tui::picker::{Chrome, PickerModel, PickerRow, SessionCell, DETAILS_ROWS, WIDE_WIDTH};
+use crate::tui::picker::{
+    Chrome, PickerModel, PickerRow, SessionCell, DETAILS_ROWS, PREVIEW_ROWS, WIDE_WIDTH,
+};
 use crate::tui::theme::{Theme, Token};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -94,17 +96,22 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     let details = model.shows_details(area.width);
     // Option B: the Details section (rule, title, four facts, rule) sits between the list and the status strip.
     let details_height = if details { DETAILS_ROWS } else { 0 };
+    // FR-PROF-13 (S-45): the preview of the selected profile sits under the list, when it is drawn.
+    let preview = model.shows_preview(area.height, area.width);
+    let preview_height = if preview { PREVIEW_ROWS } else { 0 };
     // The rule between the prompt row and the column titles is drawn only with the prompt row (P-61).
-    let [prompt, prompt_rule, header, rule, list, details_area, status] = Layout::vertical([
-        Constraint::Length(u16::from(prompted)),
-        Constraint::Length(u16::from(prompted)),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Min(0),
-        Constraint::Length(details_height),
-        Constraint::Length(1),
-    ])
-    .areas(inner);
+    let [prompt, prompt_rule, header, rule, list, preview_area, details_area, status] =
+        Layout::vertical([
+            Constraint::Length(u16::from(prompted)),
+            Constraint::Length(u16::from(prompted)),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(preview_height),
+            Constraint::Length(details_height),
+            Constraint::Length(1),
+        ])
+        .areas(inner);
     let band = surface_band(theme, color);
 
     // Prompt: "> " and the filter, cursor at its end (architecture 6.2 item 1). The edit window's search bar has the
@@ -161,6 +168,10 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
 
     let lines = list_lines(model, &widths, theme, color, full, shown);
     frame.render_widget(Paragraph::new(lines), list);
+
+    if preview {
+        draw_preview(frame, preview_area, model, theme, color, full);
+    }
 
     if details {
         draw_details(frame, details_area, model, theme, color, full);
@@ -255,8 +266,83 @@ fn draw_details<T>(
     draw_rule(frame, rows[6], full, theme, color);
 }
 
-/// Cells of the label column of the Details section (option B 2.1).
+/// Cells of the label column of the Details section (option B 2.1), and the name column of the preview's windows.
 const DETAIL_LABEL_WIDTH: usize = 10;
+
+/// FR-PROF-13 (S-45, P-64): the rows of the preview that are not window lines: the rule, the title and the source.
+const PREVIEW_HEADER_ROWS: usize = 3;
+
+/// FR-PROF-13 (S-45, P-64): the preview of the selected profile (`PREVIEW_ROWS` rows): a rule, `Preview · <name>`, the
+/// source with the window count, then one line per window with its command. A profile with more windows than the lines
+/// shows the first ones and `+ N more` last. An error is drawn in the error token instead of the windows.
+fn draw_preview<T>(
+    frame: &mut Frame,
+    area: Rect,
+    model: &PickerModel<T>,
+    theme: &Theme,
+    color: bool,
+    full: usize,
+) {
+    let rows = Layout::vertical([Constraint::Length(1); PREVIEW_ROWS as usize]).split(area);
+    draw_rule(frame, rows[0], full, theme, color);
+    let Some(preview) = model.selected_row().and_then(|row| row.preview.as_ref()) else {
+        return;
+    };
+    let label_style = paint(theme, Token::Text, color).add_modifier(Modifier::BOLD);
+    let value_style = paint(theme, Token::Text, color);
+    let muted_style = paint(theme, Token::TextMuted, color);
+    let title = Line::from(vec![
+        Span::raw(" ".repeat(MARGIN)),
+        Span::styled(messages::PREVIEW_LABEL.to_string(), label_style),
+        Span::styled(format!(" · {}", preview.title), value_style),
+    ]);
+    frame.render_widget(Paragraph::new(title), rows[1]);
+    let value_room = content_width(full);
+    let source = match preview.error {
+        Some(_) => preview.source.clone(),
+        None => format!(
+            "{} · {}",
+            preview.source,
+            messages::window_count(preview.windows.len())
+        ),
+    };
+    let source_line = Line::from(vec![
+        Span::raw(" ".repeat(MARGIN)),
+        Span::styled(columns::cut_start(&source, value_room), value_style),
+    ]);
+    frame.render_widget(Paragraph::new(source_line), rows[2]);
+    let lines = &rows[PREVIEW_HEADER_ROWS..];
+    if let Some(error) = &preview.error {
+        let error_style = paint(theme, Token::Error, color).add_modifier(Modifier::BOLD);
+        let line = Line::from(vec![
+            Span::raw(" ".repeat(MARGIN)),
+            Span::styled(columns::cut_end(error, value_room), error_style),
+        ]);
+        frame.render_widget(Paragraph::new(line), lines[0]);
+        return;
+    }
+    // The last line is `+ N more` when the windows do not fit.
+    let windows = &preview.windows;
+    let fits = windows.len() <= lines.len();
+    let shown = if fits { windows.len() } else { lines.len() - 1 };
+    let name_room = DETAIL_LABEL_WIDTH;
+    let command_room = value_room.saturating_sub(name_room);
+    for (line_area, window) in lines.iter().zip(windows.iter().take(shown)) {
+        let line = Line::from(vec![
+            Span::raw(" ".repeat(MARGIN)),
+            Span::styled(columns::fit(&window.name, name_room, false), value_style),
+            Span::styled(columns::cut_end(&window.command, command_room), muted_style),
+        ]);
+        frame.render_widget(Paragraph::new(line), *line_area);
+    }
+    if !fits {
+        let more = Line::from(vec![
+            Span::raw(" ".repeat(MARGIN)),
+            Span::styled(messages::more_windows(windows.len() - shown), muted_style),
+        ]);
+        frame.render_widget(Paragraph::new(more), lines[shown]);
+    }
+}
 
 /// The number of columns drawn at this window width: the wide-only columns (the Path column) are the last ones and
 /// are left out below `WIDE_WIDTH` (option B 2.1).
