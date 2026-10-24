@@ -19,7 +19,7 @@ use ledge::tui::terminal::Input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
 use std::path::PathBuf;
-use support::ctx::Harness;
+use support::ctx::{Harness, FIXED_NOW};
 
 const DEV: &str = r#"{"windows": [{"name": "editor", "command": "nvim"}, {"name": "shell"}]}"#;
 const WEB: &str = r#"{"windows": [{"name": "server", "command": "npm start"}, {"name": "logs"}]}"#;
@@ -854,5 +854,135 @@ fn session_tree_nests_the_p54_example_by_nearest_session() {
     assert!(
         !lines.iter().any(|line| line.contains("notes")),
         "a project without a session is not listed: {lines:#?}"
+    );
+}
+
+// FR-SESS-03, P-56: the session tree has an Activity column after Profile, and each session shows the age text the
+// switcher shows for it
+#[test]
+fn session_tree_has_an_activity_column_with_the_switcher_age() {
+    let h = Harness::new("tui_trees-activity-column");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    let api = abs(&format!("{}/api", app.as_str()));
+    let lib = abs(&h.project("lib"));
+    live(&h, &app, "dev", DEV);
+    live(&h, &api, "dev", DEV);
+    live(&h, &lib, "dev", DEV);
+    h.backend.set_activity(&name_of(&app), FIXED_NOW - 30);
+    h.backend.set_activity(&name_of(&api), FIXED_NOW - 300);
+    h.backend.set_activity(&name_of(&lib), FIXED_NOW - 7_200);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let header = line_with(&lines, "Activity");
+    assert!(
+        header.find("Profile") < header.find("Activity"),
+        "Activity after Profile: {header}"
+    );
+    for (dir, text) in [(&app, "just now"), (&api, "5m ago"), (&lib, "2h ago")] {
+        let row = line_with(&lines, &name_of(dir));
+        assert!(
+            row.contains(text),
+            "{} row lacks {text:?}: {row}",
+            dir.as_str()
+        );
+    }
+}
+
+// FR-SESS-03, P-56: a project placeholder row has no activity text
+#[test]
+fn placeholder_row_has_no_activity_text() {
+    let h = Harness::new("tui_trees-placeholder-activity");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    h.backend.set_activity(&name_of(&deep), FIXED_NOW - 30);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let row = line_with(&lines, "(no session)");
+    assert!(
+        !row.contains("ago") && !row.contains("just now"),
+        "the placeholder has no activity: {row}"
+    );
+}
+
+// FR-SESS-06, P-56: sessions that share a parent are listed most recent first, in the tree window
+#[test]
+fn siblings_under_a_project_are_listed_most_recent_first() {
+    let h = Harness::new("tui_trees-sibling-order");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    let server = abs(&format!("{}/server", app.as_str()));
+    let web = abs(&format!("{}/web", app.as_str()));
+    live(&h, &server, "dev", DEV);
+    live(&h, &web, "dev", DEV);
+    h.backend.set_activity(&name_of(&server), FIXED_NOW - 900);
+    h.backend.set_activity(&name_of(&web), FIXED_NOW - 50);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let index = |dir: &AbsPath| {
+        lines
+            .iter()
+            .position(|line| line.contains(&name_of(dir)))
+            .expect("row")
+    };
+    assert!(
+        index(&web) < index(&server),
+        "the more recent session first: {lines:#?}"
+    );
+}
+
+// FR-SESS-06, P-56: top-level projects are listed by their most recent session, first, even when the project
+// name sorts later
+#[test]
+fn top_level_projects_are_listed_most_recent_first() {
+    let h = Harness::new("tui_trees-project-order");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    let lib = abs(&h.project("lib"));
+    live(&h, &app, "dev", DEV);
+    live(&h, &lib, "dev", DEV);
+    h.backend.set_activity(&name_of(&app), FIXED_NOW - 7_200);
+    h.backend.set_activity(&name_of(&lib), FIXED_NOW - 30);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let index = |dir: &AbsPath| {
+        lines
+            .iter()
+            .position(|line| line.contains(&name_of(dir)))
+            .expect("row")
+    };
+    assert!(index(&lib) < index(&app), "lib first: {lines:#?}");
+}
+
+// FR-TREE-01, P-56: the bookmark tree has no Activity column; its header is unchanged
+#[test]
+fn bookmark_tree_has_no_activity_column() {
+    let h = Harness::new("tui_trees-bookmark-no-activity");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    live(&h, &app, "dev", DEV);
+    h.backend.set_activity(&name_of(&app), FIXED_NOW - 30);
+    write_bookmarks(&h, &[app.as_str()]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    assert!(
+        !lines.iter().any(|line| line.contains("Activity")),
+        "no Activity header: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("just now")),
+        "no activity text: {lines:#?}"
     );
 }

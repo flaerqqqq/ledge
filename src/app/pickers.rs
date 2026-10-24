@@ -555,6 +555,11 @@ fn profile_text(live: Option<&SessionInfo>) -> String {
         .unwrap_or_default()
 }
 
+/// FR-SESS-03, A-10, P-56: the activity text of a session at `now` (Unix seconds): the age text the switcher shows.
+fn activity_text(now: i64, activity: i64) -> String {
+    messages::activity_age(age(now, activity))
+}
+
 /// The last path component of a cleaned absolute path (FR-PICK-06).
 fn basename(path: &AbsPath) -> String {
     path.as_str()
@@ -691,7 +696,7 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
                 info.name.clone(),
                 project,
                 info.profile.clone().unwrap_or_default(),
-                messages::activity_age(age(now, info.activity)),
+                activity_text(now, info.activity),
             ];
             let mut row = PickerRow::new(cells, &info.name, info.name.clone());
             row.dimmed = dir
@@ -896,8 +901,8 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
             messages::no_ledge_sessions(),
         ),
     };
-    // FR-SESS-06, P-54, P-55: the session tree shows the session first and draws its tree on that column; the Project
-    // column comes after it, and the filter searches the value shown there.
+    // FR-SESS-06, P-54, P-55, P-56: the session tree shows the session first and draws its tree on that column; the
+    // Project column comes after it, then the profile and the activity; the filter searches the value shown in Project.
     let (columns, tree_column, search_column) = match kind {
         TreeKind::Bookmarks => (
             vec![
@@ -913,6 +918,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
                 ColumnSpec::text(messages::HEADER_SESSION),
                 ColumnSpec::text(messages::HEADER_PROJECT),
                 ColumnSpec::text(messages::HEADER_PROFILE),
+                ColumnSpec::text(messages::HEADER_ACTIVITY),
             ],
             0,
             1,
@@ -941,9 +947,10 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
         TreeKind::Sessions => (session_tree(&projects, &session_dirs(ctx, &sessions)), 0),
     };
     let home = home_of(ctx);
+    let now = ctx.clock.now_secs();
     let items = rows
         .into_iter()
-        .map(|row| tree_item(ctx, &sessions, kind, &projects, home.as_ref(), row))
+        .map(|row| tree_item(ctx, &sessions, kind, &projects, home.as_ref(), now, row))
         .collect();
     Ok((items, cursor))
 }
@@ -957,6 +964,7 @@ fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
             session_directory(info).map(|text| SessionDir {
                 name: info.name.clone(),
                 dir: AbsPath::clean(text, &ctx.cwd),
+                activity: info.activity,
             })
         })
         .collect()
@@ -965,15 +973,16 @@ fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
 /// One tree row as a picker row: the label is searched, the session and profile are shown, and a row that is not
 /// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08). In the bookmark tree the
 /// session of a row is the managed session of its directory, found by name as the project picker does (FR-TREE-13,
-/// FR-PICK-06); the session tree shows the session on its row (P-54) and the Project column of `project_text` (P-55),
-/// which the filter searches. A placeholder row (a project without its own session) carries its would-be name and
-/// `(no session)`, in gray.
+/// FR-PICK-06); the session tree shows the session on its row (P-54), the Project column of `project_text` (P-55),
+/// which the filter searches, and the activity age of the session (P-56). A placeholder row (a project without its
+/// own session) carries its would-be name and `(no session)`, in gray, and no activity.
 fn tree_item(
     ctx: &Ctx<'_>,
     sessions: &[ManagedSession],
     kind: TreeKind,
     projects: &[Project],
     home: Option<&AbsPath>,
+    now: i64,
     mut row: TreeRow<NodeKind>,
 ) -> TreeItem {
     let name = match kind {
@@ -995,12 +1004,20 @@ fn tree_item(
             row.label.clone(),
         ),
         TreeKind::Sessions => {
-            let session = match row.kind {
-                NodeKind::Placeholder => format!("{} {}", row.label, messages::no_session()),
-                _ => session_text(live),
+            let (session, activity) = match row.kind {
+                NodeKind::Placeholder => (
+                    format!("{} {}", row.label, messages::no_session()),
+                    String::new(),
+                ),
+                _ => (
+                    session_text(live),
+                    live.map(|info| activity_text(now, info.activity))
+                        .unwrap_or_default(),
+                ),
             };
             let project = project_text(projects, &row.path, home);
-            (vec![session, project.clone(), profile_text(live)], project)
+            let cells = vec![session, project.clone(), profile_text(live), activity];
+            (cells, project)
         }
     };
     let depth = row.depth;

@@ -457,7 +457,7 @@ have no FR-IDs state why.
 - branch: slice/S-34-session-project-column
 
 ### S-35 Session tree shows Activity and sorts siblings by activity
-- status: in-progress
+- status: done
 - deps: S-33, S-34, S-16
 - FR-IDs: FR-SESS-03 (activity text) and FR-SESS-06 (proposal P-56; the user owns requirements.md, and the Screens rule "does not sort" for the tree is superseded for the session tree only)
 - scope: src/domain/tree.rs (sibling order in session_tree), src/app/pickers.rs (Activity column for the session tree), src/messages.rs (no new text: the switcher's HEADER_ACTIVITY and activity_age are reused)

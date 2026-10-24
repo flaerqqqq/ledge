@@ -38,11 +38,13 @@ pub struct TreeRow<K> {
     pub dimmed: bool,
 }
 
-/// FR-SESS-06: a managed session and the directory it is shown under (`@ledge_dir`, then `session_path`).
+/// FR-SESS-06: a managed session and the directory it is shown under (`@ledge_dir`, then `session_path`), with its
+/// last activity in Unix seconds (P-56: the siblings of the session tree are ordered by it).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionDir {
     pub name: String,
     pub dir: AbsPath,
+    pub activity: i64,
 }
 
 /// FR-TREE-01..04, FR-TREE-11, FR-SCOPE-01, A-13: rows of the bookmark tree. One root per project that
@@ -152,34 +154,47 @@ fn root_only(dir: &AbsPath, projects: &[Project]) -> TreeView {
     }
 }
 
-/// FR-SESS-06, FR-SESS-07, P-54, FR-TREE-11, FR-SCOPE-01, A-13: rows of the session tree. Sessions nest by nearest
+/// FR-SESS-06, FR-SESS-07, P-54, P-56, FR-TREE-11, FR-SCOPE-01, A-13: rows of the session tree. Sessions nest by nearest
 /// ancestor session; a project with sessions but no session of its own gets one gray placeholder row above them.
 /// Folders without a session add no row. A session outside every project is its own root (A-13), and the sessions
-/// outside every project nest by nearest ancestor session among themselves.
+/// outside every project nest by nearest ancestor session among themselves. P-56: sessions that share a parent are
+/// listed most recent activity first, ties by name; the top-level projects (and the sessions outside every project)
+/// are listed by their most recent session, ties by tree order.
 pub fn session_tree(projects: &[Project], sessions: &[SessionDir]) -> Vec<TreeRow<NodeKind>> {
-    let mut groups: Groups<Member> = BTreeMap::new();
-    let mut outside: Vec<Member> = Vec::new();
+    let mut groups: Groups<SessionDir> = BTreeMap::new();
+    let mut outside: Vec<SessionDir> = Vec::new();
     for session in sessions {
-        let member = (session.dir.clone(), session.name.clone());
         match project_containing(&session.dir, projects) {
             Some(project) => groups
                 .entry(key_of(&project.path))
                 .or_insert_with(|| (project.path.clone(), Vec::new()))
                 .1
-                .push(member),
-            None => outside.push(member),
+                .push(session.clone()),
+            None => outside.push(session.clone()),
         }
     }
-    let mut blocks: Blocks = BTreeMap::new();
-    for (root, members) in groups.into_values() {
-        push_blocks(&mut blocks, session_rows(Some(&root), members));
-    }
-    push_blocks(&mut blocks, session_rows(None, outside));
-    blocks.into_values().flatten().collect()
+    let mut units: Vec<Unit> = groups
+        .into_values()
+        .map(|(root, members)| project_unit(&root, members))
+        .collect();
+    units.extend(outside_units(outside));
+    units.sort_by(|a, b| b.activity.cmp(&a.activity).then_with(|| a.key.cmp(&b.key)));
+    units.into_iter().flat_map(|unit| unit.rows).collect()
 }
 
-/// A managed session: its directory and its name.
-type Member = (AbsPath, String);
+/// A managed session with the sessions nested under it (P-54), siblings in the order of P-56.
+struct Node {
+    session: SessionDir,
+    children: Vec<Node>,
+}
+
+/// One top-level part of the session tree: a project with its sessions, or a session outside every project with the
+/// sessions under it. `activity` is the most recent activity of its sessions and `key` its tree position.
+struct Unit {
+    activity: i64,
+    key: Key,
+    rows: Vec<TreeRow<NodeKind>>,
+}
 
 /// Tree position of a directory: its path components. The `Ord` of a `Vec<String>` is the tree preorder.
 type Key = Vec<String>;
@@ -187,73 +202,127 @@ type Key = Vec<String>;
 /// The members of one project, by root key, with the project path.
 type Groups<T> = BTreeMap<Key, (AbsPath, Vec<T>)>;
 
-/// The rows of one block, keyed by the key of the block root, so blocks come out in tree order.
-type Blocks = BTreeMap<Key, Vec<TreeRow<NodeKind>>>;
-
-fn push_blocks(blocks: &mut Blocks, rows: Vec<(Key, TreeRow<NodeKind>)>) {
-    for (key, row) in rows {
-        blocks.entry(key).or_default().push(row);
+/// FR-SESS-06, P-54, P-56: the unit of one project: the placeholder (when no session is on the folder itself) and the
+/// sessions of the project in their nested order.
+fn project_unit(root: &AbsPath, members: Vec<SessionDir>) -> Unit {
+    let activity = members
+        .iter()
+        .map(|session| session.activity)
+        .max()
+        .unwrap_or_default();
+    // The project folder gets a placeholder row when none of its sessions is on the folder itself.
+    let placeholder = !members.iter().any(|session| session.dir == *root);
+    let mut rows = Vec::new();
+    if placeholder {
+        rows.push(TreeRow {
+            depth: 0,
+            label: session_name(root),
+            path: root.clone(),
+            kind: NodeKind::Placeholder,
+            openable: true,
+            session: None,
+            dimmed: true,
+        });
+    }
+    let top_depth = usize::from(placeholder);
+    for node in forest(members) {
+        push_rows(&node, top_depth, true, &mut rows);
+    }
+    Unit {
+        activity,
+        key: key_of(root),
+        rows,
     }
 }
 
-/// FR-SESS-06, P-54: the rows of the sessions of one project (`root` given) or of the sessions outside every
-/// project (`root` none), each with the key of its block root. Members sorted by path components are in tree
-/// order, so a parent comes before its children, and a parent is the nearest earlier member that is an ancestor.
-fn session_rows(root: Option<&AbsPath>, mut members: Vec<Member>) -> Vec<(Key, TreeRow<NodeKind>)> {
-    members.sort_by_key(|(path, _)| key_of(path));
-    // The project folder gets a placeholder row when none of its sessions is on the folder itself.
-    let placeholder = root.filter(|root| !members.iter().any(|(path, _)| path == *root));
-    let mut rows = Vec::new();
-    let mut depths: Vec<usize> = Vec::new();
-    let mut keys: Vec<Key> = Vec::new();
-    if let Some(root) = placeholder {
-        rows.push((
-            key_of(root),
-            TreeRow {
-                depth: 0,
-                label: session_name(root),
-                path: root.clone(),
-                kind: NodeKind::Placeholder,
-                openable: true,
-                session: None,
-                dimmed: true,
-            },
-        ));
-    }
-    let top_depth = usize::from(placeholder.is_some());
-    for (index, (path, name)) in members.iter().enumerate() {
+/// FR-SESS-06, P-56: each session outside every project is a unit of its own, with the sessions nested under it.
+fn outside_units(members: Vec<SessionDir>) -> Vec<Unit> {
+    forest(members)
+        .into_iter()
+        .map(|node| {
+            let mut rows = Vec::new();
+            push_rows(&node, 0, false, &mut rows);
+            Unit {
+                activity: node.session.activity,
+                key: key_of(&node.session.dir),
+                rows,
+            }
+        })
+        .collect()
+}
+
+/// FR-SESS-06, P-54, P-56: the sessions nested by nearest ancestor directory. Sessions sorted by path components come
+/// in tree order, so a parent is the nearest earlier session whose directory is an ancestor. The top-level sessions
+/// and the children of each session are ordered most recent activity first, ties by name.
+fn forest(mut members: Vec<SessionDir>) -> Vec<Node> {
+    members.sort_by_key(|session| key_of(&session.dir));
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); members.len()];
+    let mut top: Vec<usize> = Vec::new();
+    for index in 0..members.len() {
+        let dir = &members[index].dir;
         let parent = members[..index]
             .iter()
-            .rposition(|(other, _)| other != path && path.is_inside(other));
-        let (depth, key) = match parent {
-            Some(parent) => (depths[parent] + 1, keys[parent].clone()),
-            None => (top_depth, root.map_or_else(|| key_of(path), key_of)),
-        };
-        depths.push(depth);
-        keys.push(key.clone());
-        let label = match root {
-            Some(_) => path
-                .as_str()
-                .rsplit('/')
-                .find(|part| !part.is_empty())
-                .unwrap_or("/")
-                .to_string(),
-            None => path.as_str().to_string(),
-        };
-        rows.push((
-            key,
-            TreeRow {
-                depth,
-                label,
-                path: path.clone(),
-                kind: NodeKind::Session,
-                openable: true,
-                session: Some(name.clone()),
-                dimmed: false,
-            },
-        ));
+            .rposition(|other| other.dir != *dir && dir.is_inside(&other.dir));
+        match parent {
+            Some(parent) => children[parent].push(index),
+            None => top.push(index),
+        }
     }
-    rows
+    let mut nodes: Vec<Node> = top
+        .into_iter()
+        .map(|index| node_at(index, &members, &children))
+        .collect();
+    order_siblings(&mut nodes);
+    nodes
+}
+
+fn node_at(index: usize, members: &[SessionDir], children: &[Vec<usize>]) -> Node {
+    let mut nodes: Vec<Node> = children[index]
+        .iter()
+        .map(|&child| node_at(child, members, children))
+        .collect();
+    order_siblings(&mut nodes);
+    Node {
+        session: members[index].clone(),
+        children: nodes,
+    }
+}
+
+/// P-56: most recent activity first, ties by session name.
+fn order_siblings(nodes: &mut [Node]) {
+    nodes.sort_by(|a, b| {
+        b.session
+            .activity
+            .cmp(&a.session.activity)
+            .then_with(|| a.session.name.cmp(&b.session.name))
+    });
+}
+
+/// FR-SESS-06, P-54: the rows of a node and the nodes under it, depth first. A project's session is labelled with its
+/// folder name; a session outside every project with its path (A-13).
+fn push_rows(node: &Node, depth: usize, in_project: bool, rows: &mut Vec<TreeRow<NodeKind>>) {
+    let path = &node.session.dir;
+    let label = if in_project {
+        path.as_str()
+            .rsplit('/')
+            .find(|part| !part.is_empty())
+            .unwrap_or("/")
+            .to_string()
+    } else {
+        path.as_str().to_string()
+    };
+    rows.push(TreeRow {
+        depth,
+        label,
+        path: path.clone(),
+        kind: NodeKind::Session,
+        openable: true,
+        session: Some(node.session.name.clone()),
+        dimmed: false,
+    });
+    for child in &node.children {
+        push_rows(child, depth + 1, in_project, rows);
+    }
 }
 
 /// FR-TREE-01..03, FR-TREE-11, A-13: the rows under one project root of the bookmark tree. Every directory from the
@@ -345,9 +414,14 @@ mod tests {
     }
 
     fn session(name: &str, dir: &str) -> SessionDir {
+        session_at(name, dir, 0)
+    }
+
+    fn session_at(name: &str, dir: &str, activity: i64) -> SessionDir {
         SessionDir {
             name: name.to_string(),
             dir: abs(dir),
+            activity,
         }
     }
 
@@ -758,5 +832,111 @@ mod tests {
     fn no_sessions_gives_no_rows() {
         let projects = vec![project("/p/app")];
         assert!(session_tree(&projects, &[]).is_empty());
+    }
+
+    // FR-SESS-06, P-56: sessions that share a parent are listed most recent activity first
+    #[test]
+    fn siblings_are_listed_most_recent_first() {
+        let projects = vec![project("/p/app")];
+        let rows = session_tree(
+            &projects,
+            &[
+                session_at("a", "/p/app/a", 100),
+                session_at("b", "/p/app/b", 300),
+                session_at("c", "/p/app/c", 200),
+            ],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![
+                ("/p/app", 0, None),
+                ("/p/app/b", 1, Some("b")),
+                ("/p/app/c", 1, Some("c")),
+                ("/p/app/a", 1, Some("a")),
+            ]
+        );
+    }
+
+    // FR-SESS-06, P-56: siblings with equal activity are ordered by session name
+    #[test]
+    fn equal_activity_siblings_are_ordered_by_name() {
+        let projects = vec![project("/p/app")];
+        let rows = session_tree(
+            &projects,
+            &[
+                session_at("zulu", "/p/app/a", 100),
+                session_at("alpha", "/p/app/b", 100),
+            ],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![
+                ("/p/app", 0, None),
+                ("/p/app/b", 1, Some("alpha")),
+                ("/p/app/a", 1, Some("zulu")),
+            ]
+        );
+    }
+
+    // FR-SESS-06, P-54, P-56: the nesting is the same whatever the activity; only the order of siblings changes
+    #[test]
+    fn nesting_is_kept_and_children_are_ordered_by_activity() {
+        let projects = vec![project("/p/ledge")];
+        let rows = session_tree(
+            &projects,
+            &[
+                session_at("L", "/p/ledge", 10),
+                session_at("D", "/p/ledge/docs", 20),
+                session_at("A", "/p/ledge/docs/adr", 50),
+                session_at("S", "/p/ledge/src", 900),
+            ],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![
+                ("/p/ledge", 0, Some("L")),
+                ("/p/ledge/src", 1, Some("S")),
+                ("/p/ledge/docs", 1, Some("D")),
+                ("/p/ledge/docs/adr", 2, Some("A")),
+            ]
+        );
+    }
+
+    // FR-SESS-06, P-56: top-level projects are listed by their most recent session, first; each keeps its nesting
+    #[test]
+    fn top_level_projects_are_listed_by_their_most_recent_session() {
+        let projects = vec![project("/p/app"), project("/p/lib")];
+        let rows = session_tree(
+            &projects,
+            &[
+                session_at("a", "/p/app/x", 100),
+                session_at("l", "/p/lib", 500),
+            ],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![
+                ("/p/lib", 0, Some("l")),
+                ("/p/app", 0, None),
+                ("/p/app/x", 1, Some("a")),
+            ]
+        );
+    }
+
+    // FR-SESS-06, P-56: sessions outside every project are top-level rows, most recent first
+    #[test]
+    fn sessions_outside_every_project_are_ordered_by_activity() {
+        let projects = vec![project("/p/app")];
+        let rows = session_tree(
+            &projects,
+            &[
+                session_at("old", "/home/u/x", 10),
+                session_at("new", "/home/u/y", 99),
+            ],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![("/home/u/y", 0, Some("new")), ("/home/u/x", 0, Some("old"))]
+        );
     }
 }
