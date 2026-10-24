@@ -626,3 +626,12 @@ have no FR-IDs state why.
 - acceptance: in the session switcher and the session tree, typing filters by session name (the name shown in the Session column), not by the Project column; the Project column is unchanged; placeholder rows match their would-be session name; the bookmark tree and project picker are unchanged.
 - size: S
 - branch: slice/S-54-session-search
+
+### S-55 Bookmark tree: ctrl-r and ctrl-p create the session of a bookmark that has none
+- status: in-progress
+- deps: S-22, S-38
+- FR-IDs: FR-ACT-02 (ctrl-r creates the session when it is missing), FR-ACT-12 (profile option); proposal P-69 (replaces the P-59 no-op notice for ctrl-r and ctrl-p on bookmark rows)
+- scope: src/app/pickers.rs (TreeHandler::act for TreeKind::Bookmarks), tests/tui_trees.rs
+- acceptance: in the bookmark tree, ctrl-r on a row with no managed session creates it from the bookmark's profile (or the --profile option) and reloads; ctrl-p on such a row opens the profile picker, then creates the session with the chosen profile; ctrl-x on a row without a session keeps the notice; the session tree keeps its notices; project, history and bookmark pickers are unchanged.
+- size: S
+- branch: slice/S-55-tree-rebuild-creates

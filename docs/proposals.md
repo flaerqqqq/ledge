@@ -673,3 +673,10 @@ Format:
 - doc: requirements.md (FR-EDIT-01 says hidden directories are skipped)
 - change: the bookmark edit window hides folders whose names start with a dot by default. The '.' key shows them and hides them again. The state is not saved between runs.
 - why: the user needs to reach hidden folders such as .config inside a project to bookmark them.
+
+### P-69 Bookmark tree: ctrl-r and ctrl-p create the session (FR-ACT-02, FR-ACT-12)
+- from: user report, slice S-55
+- status: Open
+- doc: requirements.md (FR-ACT-02) and the design notice rule of P-59
+- change: in the bookmark tree, ctrl-r and ctrl-p on a bookmark with no managed session create it, as they do in the project, history and bookmark pickers. The "no session" notice remains for ctrl-x and for the session tree.
+- why: the user expects ctrl-r and ctrl-p to work the same in every window that opens directories.
