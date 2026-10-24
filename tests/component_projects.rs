@@ -5,6 +5,7 @@ mod support;
 
 use ledge::adapters::fs::RealFs;
 use ledge::app::load_projects;
+use ledge::domain::custom_projects::CustomProjects;
 use ledge::domain::path::AbsPath;
 use std::fs;
 use std::path::Path;
@@ -23,7 +24,7 @@ fn folder(root: &Path, rel: &str) {
 }
 
 fn project_paths(search_paths: &[AbsPath]) -> Vec<String> {
-    load_projects(&RealFs, search_paths)
+    load_projects(&RealFs, search_paths, &CustomProjects::default())
         .iter()
         .map(|p| p.path.as_str().to_string())
         .collect()

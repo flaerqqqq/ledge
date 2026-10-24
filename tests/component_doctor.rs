@@ -454,3 +454,18 @@ fn bookmark_and_session_lines_show_home_paths_as_tilde() {
     );
     assert!(out.contains(&format!("OK    search path {code}")));
 }
+
+// P-65, FR-DOC-04: a bookmark inside a custom project lies inside a project, so it is not reported as outside
+#[test]
+fn bookmark_inside_a_custom_project_is_not_outside() {
+    let h = ready("doctor-custom-inside");
+    let scratch = folder(&h, "scratch");
+    let src = folder(&h, "scratch/src");
+    h.write_custom_projects(&format!("{scratch}\n"));
+    write_bookmarks(&h, &format!("{src}\n"));
+    let (code, out) = run_doctor(&h);
+    assert_eq!(code, 0);
+    assert!(!out
+        .iter()
+        .any(|line| line.contains("outside every project")));
+}

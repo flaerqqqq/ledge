@@ -118,6 +118,7 @@ mod tests {
         vec![Project {
             path: abs("/p/app"),
             name: "app".to_string(),
+            custom: false,
         }]
     }
 

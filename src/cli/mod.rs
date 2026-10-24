@@ -8,7 +8,7 @@ pub mod parse;
 use crate::app::bookmark_cmd;
 use crate::app::doctor;
 use crate::app::history_cmd;
-use crate::app::open::open_dir_with_editor;
+use crate::app::open::open_from_command_line;
 use crate::app::pickers::{
     bookmark_picker, history_picker_with_editor, project_picker_with_editor, session_switcher,
     session_tree_picker,
@@ -35,7 +35,7 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
         Command::Usage(group) => Ok(Outcome::Info(help::group_usage(group).to_string())),
         Command::Open { dir, options } => {
             require_tmux(ctx)?;
-            open_dir_with_editor(
+            open_from_command_line(
                 ctx,
                 dir.as_deref(),
                 &options.profile,

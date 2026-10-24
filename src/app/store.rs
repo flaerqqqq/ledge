@@ -1,10 +1,12 @@
 //! Configuration, profile, history and bookmark files: load, create on first run, read a named profile,
 //! read and write the cache files (architecture 9.2 to 9.4, D-05). Reads and writes go through the ports;
-//! the parsing is in `domain::config`, `domain::profile`, `domain::history` and `domain::bookmarks`.
+//! the parsing is in `domain::config`, `domain::profile`, `domain::history`, `domain::bookmarks` and
+//! `domain::custom_projects`.
 
 use crate::domain::bm_edit::ExpandedFolders;
 use crate::domain::bookmarks::Bookmarks;
 use crate::domain::config::{self, Config, DEFAULT_CONFIG_TEXT};
+use crate::domain::custom_projects::CustomProjects;
 use crate::domain::history::History;
 use crate::domain::location::Dirs;
 use crate::domain::path::AbsPath;
@@ -21,6 +23,7 @@ const PROFILES_FOLDER: &str = "profiles";
 const HISTORY_FILE: &str = "history";
 const BOOKMARKS_FILE: &str = "bookmarks";
 const EXPANDED_FILE: &str = "bm-edit-open";
+const CUSTOM_FILE: &str = "custom-projects";
 
 /// FR-CONF-01, FR-CONF-06, FR-CONF-02, D-05, architecture 9.2: loads `config.json` from the config
 /// folder, creating the file with the default content when it is missing and the profiles folder
@@ -133,6 +136,21 @@ pub fn load_bookmarks(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<Bookmarks>
 /// FR-BM-01, D-05: writes the whole bookmark list to the cache folder through an atomic write.
 pub fn save_bookmarks(fs: &dyn FileSystem, dirs: &Dirs, bookmarks: &Bookmarks) -> io::Result<()> {
     fs.write_atomic(&cache_file(dirs, BOOKMARKS_FILE), &bookmarks.to_file_text())
+}
+
+/// P-65, architecture 9.4: reads the custom projects file from the cache folder. A missing file gives an empty list.
+pub fn load_custom_projects(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<CustomProjects> {
+    let text = fs.read_text(&cache_file(dirs, CUSTOM_FILE))?;
+    Ok(CustomProjects::parse(text.as_deref().unwrap_or("")))
+}
+
+/// P-65, D-05: writes the whole custom projects list to the cache folder through an atomic write.
+pub fn save_custom_projects(
+    fs: &dyn FileSystem,
+    dirs: &Dirs,
+    custom: &CustomProjects,
+) -> io::Result<()> {
+    fs.write_atomic(&cache_file(dirs, CUSTOM_FILE), &custom.to_file_text())
 }
 
 /// FR-EDIT-05, architecture 9.4: reads the `bm-edit-open` file from the cache folder. A missing file gives no

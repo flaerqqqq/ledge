@@ -1,11 +1,12 @@
 //! Pure domain logic, no I/O (architecture 2). S-01 adds the path, naming and location modules; S-02 adds
 //! config and profile; S-03 adds history and bookmarks;
-//! S-04 adds projects and group selection; S-05 adds the bookmark and session trees.
+//! S-04 adds projects and group selection; S-05 adds the bookmark and session trees; S-49 adds custom projects.
 
 pub mod age;
 pub mod bm_edit;
 pub mod bookmarks;
 pub mod config;
+pub mod custom_projects;
 pub mod history;
 pub mod location;
 pub mod naming;

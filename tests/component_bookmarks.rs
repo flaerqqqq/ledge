@@ -376,3 +376,41 @@ fn refusals_name_home_paths_as_tilde() {
         "~/notes is not inside a project from search_paths."
     );
 }
+
+/// The custom projects file (P-65) with one path.
+fn custom_projects(h: &Harness, dir: &str) {
+    h.write_custom_projects(&format!("{dir}\n"));
+}
+
+// P-65, FR-BM-02: a directory inside a custom project is accepted and listed as ok
+#[test]
+fn directory_inside_a_custom_project_is_accepted() {
+    let h = harness("bm-custom-inside");
+    let scratch = folder(&h, "scratch");
+    let src = folder(&h, "scratch/src");
+    custom_projects(&h, &scratch);
+    assert_eq!(
+        info(run(&args(&["bm", "add", &src]), &h.ctx())),
+        format!("Bookmarked {src}")
+    );
+    assert_eq!(
+        bookmarks_text(&h).as_deref(),
+        Some(format!("{src}\n").as_str())
+    );
+    let listing = info(run(&args(&["bm", "list"]), &h.ctx()));
+    assert!(listing.starts_with("ok"), "listing was {listing:?}");
+    assert!(listing.contains(&src));
+}
+
+// P-65, FR-BM-04: the root of a custom project is a project, so it is refused with the project message
+#[test]
+fn custom_project_root_is_refused_as_a_project() {
+    let h = harness("bm-custom-root");
+    let scratch = folder(&h, "scratch");
+    custom_projects(&h, &scratch);
+    assert_eq!(
+        fatal(run(&args(&["bm", "add", &scratch]), &h.ctx())),
+        format!("{scratch} is a project; open it with 'ledge project pick'.")
+    );
+    assert!(bookmarks_text(&h).is_none());
+}

@@ -856,3 +856,25 @@ fn p59_texts_are_verbatim() {
         "Only a bookmark can be deleted."
     );
 }
+
+// P-65: the custom project texts: the project picker footer with ^d remove, the notice for ctrl-d on a regular
+// project, and the warnings of the custom projects file
+#[test]
+fn custom_project_texts_are_verbatim() {
+    assert_eq!(
+        messages::PROJECT_PICKER_FOOTER,
+        "enter open · ^r rebuild · ^p profile · ^x kill · ^d remove"
+    );
+    assert_eq!(
+        messages::ONLY_CUSTOM_PROJECT_CAN_BE_REMOVED,
+        "Only a custom project can be removed."
+    );
+    assert_eq!(
+        messages::could_not_read_custom_projects("denied"),
+        "could not read custom projects: denied"
+    );
+    assert_eq!(
+        messages::could_not_write_custom_projects("denied"),
+        "could not write custom projects: denied"
+    );
+}

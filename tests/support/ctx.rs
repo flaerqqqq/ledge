@@ -120,6 +120,19 @@ impl Harness {
         fs::read_to_string(PathBuf::from(self.dirs.cache.as_str()).join("history")).ok()
     }
 
+    /// The custom projects file text (P-65), or `None` when there is no file.
+    pub fn custom_projects_text(&self) -> Option<String> {
+        fs::read_to_string(PathBuf::from(self.dirs.cache.as_str()).join("custom-projects")).ok()
+    }
+
+    /// Writes the custom projects file (P-65) in the cache folder, as a hand-edited file would be.
+    pub fn write_custom_projects(&self, text: &str) {
+        self.write_under(
+            &PathBuf::from(self.dirs.cache.as_str()).join("custom-projects"),
+            text,
+        );
+    }
+
     /// Makes the cache folder unusable: a regular file sits where the folder should be, so neither the
     /// history read nor its write can succeed (FR-OPEN-11).
     pub fn break_cache_folder(&self) {

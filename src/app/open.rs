@@ -1,9 +1,11 @@
 //! The open flow (architecture 2 and 6; FR-OPEN-03, FR-OPEN-08, FR-OPEN-10, FR-OPEN-11, FR-PROF-09..12).
-//! Order: check the directory, read the config, record the directory in the history, choose the profile,
-//! create or reuse the session, then attach or switch. Only the ports in `Ctx` are used.
+//! Order: check the directory, read the config, record the directory in the history (and, for the command-line forms,
+//! in the custom projects, P-65), choose the profile, create or reuse the session, then attach or switch. Only the ports
+//! in `Ctx` are used.
 
 use crate::app::build::{ensure_session, Ensured};
 use crate::app::launch::{launch_editor, Editor};
+use crate::app::load_projects;
 use crate::app::store;
 use crate::app::Ctx;
 use crate::domain::history::History;
@@ -11,6 +13,7 @@ use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
 use crate::domain::profile::Profile;
 use crate::domain::profile_rules::{open_profile, OpenProfile, ProfileOpt};
+use crate::domain::projects::should_record;
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::ports::backend::BackendError;
@@ -33,6 +36,29 @@ pub fn open_dir_with_editor(
     option: &ProfileOpt,
     editor: Option<&Editor>,
 ) -> Result<Outcome> {
+    open_flow(ctx, dir, option, editor, false)
+}
+
+/// P-65, FR-CONF-07: the open of the command-line forms `ledge DIR` and `ledge project open DIR`. As
+/// `open_dir_with_editor`, and a directory that qualifies (see `should_record`) joins the custom projects. Opens from
+/// the pickers do not record, so they use `open_dir_with_editor`.
+pub fn open_from_command_line(
+    ctx: &Ctx<'_>,
+    dir: Option<&str>,
+    option: &ProfileOpt,
+    editor: Option<&Editor>,
+) -> Result<Outcome> {
+    open_flow(ctx, dir, option, editor, true)
+}
+
+/// The open flow. `from_command_line` is true for the command-line forms, which may record a custom project (P-65).
+fn open_flow(
+    ctx: &Ctx<'_>,
+    dir: Option<&str>,
+    option: &ProfileOpt,
+    editor: Option<&Editor>,
+    from_command_line: bool,
+) -> Result<Outcome> {
     let typed = dir.unwrap_or(ctx.cwd.as_str());
     let path = AbsPath::clean(typed, &ctx.cwd);
     if !ctx.fs.is_dir(Path::new(path.as_str())) {
@@ -40,6 +66,9 @@ pub fn open_dir_with_editor(
     }
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     record_in_history(ctx, &path);
+    if from_command_line {
+        record_custom_project(ctx, &config.search_paths, &path);
+    }
     let profile = resolve_profile(ctx, option, config.default_profile.as_deref())?;
     let ensured = ensure_session(ctx.backend, &path, &profile)?;
     if let (Ensured::Created, Some(editor)) = (ensured, editor) {
@@ -57,6 +86,29 @@ fn record_in_history(ctx: &Ctx<'_>, dir: &AbsPath) {
     });
     if let Err(error) = result {
         let text = messages::could_not_update_history(&error.to_string());
+        ctx.console.err(&messages::warning(&text));
+    }
+}
+
+/// P-65, FR-CONF-07: adds `dir` to the custom projects when `should_record` allows it. An unreadable list is a warning
+/// and nothing is added, so the file is never overwritten from a list that could not be read. A write failure is a
+/// warning, and the open goes on.
+fn record_custom_project(ctx: &Ctx<'_>, search_paths: &[AbsPath], dir: &AbsPath) {
+    let mut custom = match store::load_custom_projects(ctx.fs, &ctx.dirs) {
+        Ok(custom) => custom,
+        Err(error) => {
+            let text = messages::could_not_read_custom_projects(&error.to_string());
+            ctx.console.err(&messages::warning(&text));
+            return;
+        }
+    };
+    let projects = load_projects(ctx.fs, search_paths, &custom);
+    if !should_record(dir, &projects) {
+        return;
+    }
+    custom.add(dir.clone());
+    if let Err(error) = store::save_custom_projects(ctx.fs, &ctx.dirs, &custom) {
+        let text = messages::could_not_write_custom_projects(&error.to_string());
         ctx.console.err(&messages::warning(&text));
     }
 }

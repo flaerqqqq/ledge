@@ -1,9 +1,11 @@
 //! Use cases (architecture 2). `Ctx` bundles the ports the open flow needs (architecture 4; the other fields
 //! arrive with the slices that use them). The store and build services and the project listing helper
 //! live beside it.
+use crate::domain::custom_projects::CustomProjects;
 use crate::domain::location::Dirs;
 use crate::domain::path::AbsPath;
-use crate::domain::projects::{project_list, Project};
+use crate::domain::projects::{merge_projects, project_list, Project};
+use crate::messages;
 use crate::ports::backend::SessionBackend;
 use crate::ports::clock::Clock;
 use crate::ports::console::Console;
@@ -54,9 +56,14 @@ pub fn home_of(ctx: &Ctx<'_>) -> Option<AbsPath> {
         .map(|home| AbsPath::clean(&home, &AbsPath::root()))
 }
 
-/// FR-PICK-01, FR-CONF-07: the projects of the search paths, read through `fs`. A search path that cannot be
-/// read (missing, not a folder) contributes no projects and no message (architecture A-42).
-pub fn load_projects(fs: &dyn FileSystem, search_paths: &[AbsPath]) -> Vec<Project> {
+/// FR-PICK-01, FR-CONF-07, P-65: the projects of the search paths, read through `fs`, followed by the custom projects
+/// `custom`. A search path that cannot be read (missing, not a folder) contributes no projects and no message
+/// (architecture A-42).
+pub fn load_projects(
+    fs: &dyn FileSystem,
+    search_paths: &[AbsPath],
+    custom: &CustomProjects,
+) -> Vec<Project> {
     let listings: Vec<(AbsPath, Vec<String>)> = search_paths
         .iter()
         .map(|base| {
@@ -64,5 +71,15 @@ pub fn load_projects(fs: &dyn FileSystem, search_paths: &[AbsPath]) -> Vec<Proje
             (base.clone(), names)
         })
         .collect();
-    project_list(&listings)
+    merge_projects(&project_list(&listings), custom)
+}
+
+/// P-65: the custom projects of the cache file. A file that cannot be read is a warning on stderr, and the list is
+/// empty, so the projects of the search paths still load.
+pub fn custom_projects(ctx: &Ctx<'_>) -> CustomProjects {
+    store::load_custom_projects(ctx.fs, &ctx.dirs).unwrap_or_else(|error| {
+        let text = messages::could_not_read_custom_projects(&error.to_string());
+        ctx.console.err(&messages::warning(&text));
+        CustomProjects::default()
+    })
 }

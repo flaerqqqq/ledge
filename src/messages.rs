@@ -192,6 +192,10 @@ pub const HISTORY_LABEL: &str = "History";
 /// keys (proposal P-15).
 pub const PICKER_FOOTER: &str = "enter open · ^r rebuild · ^p profile · ^x kill";
 
+/// P-65: the footer of the project picker, with ctrl-d removing a custom project.
+pub const PROJECT_PICKER_FOOTER: &str =
+    "enter open · ^r rebuild · ^p profile · ^x kill · ^d remove";
+
 /// Architecture 6.2: column titles of the project and history pickers.
 pub const HEADER_PROJECT: &str = "Project";
 pub const HEADER_SESSION: &str = "Session";
@@ -556,6 +560,19 @@ pub const NOTHING_TO_OPEN_ON_ROW: &str = "Nothing to open on this row.";
 
 /// Proposal P-59 [new, not yet accepted]: ctrl-d on a row that is not a bookmark, in the bookmark tree; status line.
 pub const ONLY_BOOKMARK_CAN_BE_DELETED: &str = "Only a bookmark can be deleted.";
+
+/// P-65: ctrl-d on a project that is not a custom project in the project picker; status line (FR-TUI-14).
+pub const ONLY_CUSTOM_PROJECT_CAN_BE_REMOVED: &str = "Only a custom project can be removed.";
+
+/// P-65: the custom projects file exists but cannot be read; a warning, and the list is empty.
+pub fn could_not_read_custom_projects(detail: &str) -> String {
+    format!("could not read custom projects: {detail}")
+}
+
+/// P-65: the custom projects file cannot be written; a warning at open, an error in the project picker.
+pub fn could_not_write_custom_projects(detail: &str) -> String {
+    format!("could not write custom projects: {detail}")
+}
 
 /// Proposal P-39 [new, not yet accepted]: the edit window state file exists but cannot be read; error.
 pub fn could_not_read_edit_state(detail: &str) -> String {

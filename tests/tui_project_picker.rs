@@ -22,6 +22,8 @@ use support::ctx::Harness;
 use support::fake_backend::FakeBackend;
 
 const PROJECT_FOOTER: &str = "enter open · ^r rebuild · ^p profile · ^x kill";
+/// P-65: the project picker footer, with the ctrl-d key for custom projects.
+const PROJECT_PICKER_FOOTER: &str = "enter open · ^r rebuild · ^p profile · ^x kill · ^d remove";
 const DEV_PROFILE: &str =
     r#"{"windows": [{"name": "editor", "command": "nvim"}, {"name": "shell"}]}"#;
 
@@ -1168,4 +1170,196 @@ fn theme_zen_in_config_is_accepted_without_a_warning() {
         h.console.err_lines()
     );
     assert!(line_with(&screen(&h), "Projects").contains("Projects"));
+}
+
+fn ctrl_d() -> Input {
+    Input::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL))
+}
+
+fn typed(text: &str) -> Vec<Input> {
+    text.chars().map(|c| key(KeyCode::Char(c))).collect()
+}
+
+/// A custom project (P-65) at `<root>/scratch`, listed in the custom projects file; the path text.
+fn custom_scratch(h: &Harness) -> String {
+    let scratch = format!("{}/scratch", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch");
+    h.write_custom_projects(&format!("{scratch}\n"));
+    scratch
+}
+
+/// The `projects` folder of the harness (the search path), as text.
+fn projects_dir(h: &Harness) -> String {
+    h.root().join("projects").display().to_string()
+}
+
+/// Writes the bookmarks file text (P-65 tests).
+fn write_bookmarks_text(h: &Harness, text: &str) {
+    let cache = PathBuf::from(h.dirs.cache.as_str());
+    fs::create_dir_all(&cache).expect("create cache folder");
+    fs::write(cache.join("bookmarks"), text).expect("write bookmarks");
+}
+
+/// The bookmarks file text, or `None`.
+fn bookmarks_text(h: &Harness) -> Option<String> {
+    fs::read_to_string(PathBuf::from(h.dirs.cache.as_str()).join("bookmarks")).ok()
+}
+
+/// Makes `LC_ALL` a UTF-8 locale, so the mark is the diamond (design UTF-8 check).
+fn utf8(h: &mut Harness) {
+    h.env = h.env.clone().with_var("LC_ALL", "en_US.UTF-8");
+}
+
+// P-65: a custom project shows the ◆ mark after its name in the project cell
+#[test]
+fn custom_project_row_shows_the_diamond_mark_after_its_name() {
+    let mut h = Harness::new("tui_custom-mark");
+    search_config(&h);
+    h.project("app");
+    custom_scratch(&h);
+    utf8(&mut h);
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("scratch ◆")),
+        "{lines:#?}"
+    );
+}
+
+// P-65: without a UTF-8 locale the mark is the ASCII '#'
+#[test]
+fn custom_project_mark_is_ascii_when_the_locale_is_not_utf8() {
+    let mut h = Harness::new("tui_custom-mark-ascii");
+    search_config(&h);
+    custom_scratch(&h);
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("scratch #")),
+        "{lines:#?}"
+    );
+    assert!(!lines.iter().any(|line| line.contains('◆')));
+}
+
+// P-65: the search matches the plain name of a custom project, not the mark
+#[test]
+fn search_matches_the_plain_name_of_a_custom_project() {
+    let mut h = Harness::new("tui_custom-search");
+    search_config(&h);
+    h.project("app");
+    let scratch = custom_scratch(&h);
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    let mut keys = typed("scr");
+    keys.push(enter());
+    h.terminal.script(keys);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(h.backend.attached_to(), Some(name_of(&scratch)));
+}
+
+// P-65: the footer of the project picker names ctrl-d as remove
+#[test]
+fn project_picker_footer_shows_ctrl_d_remove() {
+    let mut h = Harness::new("tui_custom-footer");
+    search_config(&h);
+    h.project("app");
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains(PROJECT_PICKER_FOOTER)));
+}
+
+// P-65: ctrl-d on a custom project row removes it from the list, deletes its bookmarks and kills its session
+#[test]
+fn ctrl_d_on_a_custom_row_removes_it_its_bookmarks_and_its_session() {
+    let mut h = Harness::new("tui_custom-ctrl-d");
+    search_config(&h);
+    let scratch = custom_scratch(&h);
+    let src = format!("{scratch}/src");
+    fs::create_dir_all(&src).expect("create src");
+    let other = format!("{}/projects/other", h.root().display());
+    fs::create_dir_all(&other).expect("create other");
+    write_bookmarks_text(&h, &format!("{src}\n{other}\n"));
+    live(&h, &scratch);
+    launch_from(&mut h, &scratch);
+    h.terminal.script(vec![ctrl_d(), esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    assert_eq!(h.custom_projects_text(), Some(String::new()));
+    assert_eq!(
+        bookmarks_text(&h).as_deref(),
+        Some(format!("{other}\n").as_str())
+    );
+    assert!(!h
+        .backend
+        .list_sessions()
+        .expect("list")
+        .iter()
+        .any(|s| s.name == name_of(&scratch)));
+}
+
+// P-65: ctrl-d on a regular project row shows the one-line notice and changes nothing
+#[test]
+fn ctrl_d_on_a_regular_row_shows_a_notice_and_changes_nothing() {
+    let mut h = Harness::new("tui_custom-ctrl-d-regular");
+    search_config(&h);
+    let app = h.project("app");
+    custom_scratch(&h);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl_d(), esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("Only a custom project can be removed.")));
+    assert!(h
+        .custom_projects_text()
+        .expect("file kept")
+        .contains("scratch"));
+}
+
+// P-65: a custom project whose directory is gone stays listed, dimmed with (missing), and ctrl-d removes it
+#[test]
+fn missing_custom_project_is_listed_with_missing_and_removable() {
+    let mut h = Harness::new("tui_custom-missing");
+    search_config(&h);
+    let gone = format!("{}/gone", h.root().display());
+    h.write_custom_projects(&format!("{gone}\n"));
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("gone #") && line.contains("(missing)")));
+
+    let mut again = Harness::new("tui_custom-missing-remove");
+    search_config(&again);
+    again.write_custom_projects(&format!("{gone}\n"));
+    launch_from(&mut again, &gone);
+    again.terminal.script(vec![ctrl_d(), esc()]);
+    project_picker(&again.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    assert_eq!(again.custom_projects_text(), Some(String::new()));
 }

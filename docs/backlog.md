@@ -574,7 +574,7 @@ have no FR-IDs state why.
 - branch: slice/S-47-path-middle-cut
 
 ### S-49 Custom projects: directories opened from outside the project folders
-- status: in-progress
+- status: done
 - deps: S-04, S-18, S-24, S-25, S-30, S-43
 - FR-IDs: FR-CONF-07, FR-PICK-01, FR-BM-02 (proposal P-65; the user owns requirements.md)
 - scope: src/domain/custom_projects.rs (new), src/domain/projects.rs (custom flag, merge_projects, should_record), src/app/store.rs (custom-projects file), src/app/mod.rs (load_projects with the custom list), src/app/open.rs and src/cli/mod.rs (record on the command-line open only), src/app/pickers.rs (◆ mark in the project cell, ctrl-d on custom rows), src/app/actions.rs (delete_custom_project), src/messages.rs, tests/*

@@ -1,6 +1,7 @@
 //! Project listing and the current-directory row of the project picker (architecture 5, A-16).
 //! Pure: the child names come from the caller (`app::load_projects`); no file system access.
 
+use super::custom_projects::CustomProjects;
 use super::path::AbsPath;
 
 /// architecture 5: a directory directly under a search path.
@@ -8,6 +9,9 @@ use super::path::AbsPath;
 pub struct Project {
     pub path: AbsPath,
     pub name: String,
+    /// P-65: a custom project (opened from the command line, outside every search path) rather than a child of a
+    /// search path.
+    pub custom: bool,
 }
 
 /// FR-PICK-04, FR-PICK-05, A-16: one row of the project picker. `project` is false for a current
@@ -17,6 +21,8 @@ pub struct ProjectRow {
     pub path: AbsPath,
     pub project: bool,
     pub current: bool,
+    /// P-65: the row is a custom project (the picker marks it).
+    pub custom: bool,
 }
 
 /// FR-PICK-01, FR-PICK-02, FR-PICK-03, FR-CONF-07: the projects of each search path, from the names of its
@@ -36,6 +42,7 @@ pub fn project_list(listings: &[(AbsPath, Vec<String>)]) -> Vec<Project> {
             projects.push(Project {
                 path,
                 name: name.clone(),
+                custom: false,
             });
         }
     }
@@ -48,11 +55,12 @@ pub fn project_list(listings: &[(AbsPath, Vec<String>)]) -> Vec<Project> {
 /// order. When it is not a project (also a directory inside a project), an extra first row shows its path.
 /// The other rows keep the sort order of `projects`.
 pub fn project_rows(cwd: &AbsPath, projects: &[Project]) -> Vec<ProjectRow> {
-    let is_project = projects.iter().any(|p| &p.path == cwd);
+    let cwd_project = projects.iter().find(|p| &p.path == cwd);
     let mut rows = vec![ProjectRow {
         path: cwd.clone(),
-        project: is_project,
+        project: cwd_project.is_some(),
         current: true,
+        custom: cwd_project.is_some_and(|p| p.custom),
     }];
     rows.extend(
         projects
@@ -62,9 +70,44 @@ pub fn project_rows(cwd: &AbsPath, projects: &[Project]) -> Vec<ProjectRow> {
                 path: p.path.clone(),
                 project: true,
                 current: false,
+                custom: p.custom,
             }),
     );
     rows
+}
+
+/// P-65, FR-PICK-01, FR-CONF-07: the search-path projects `listed` followed by the custom projects, sorted by full path.
+/// A custom path that `listed` already holds is dropped, so the listed project wins. The name of a custom project is
+/// its last component.
+pub fn merge_projects(listed: &[Project], custom: &CustomProjects) -> Vec<Project> {
+    let mut projects: Vec<Project> = listed.to_vec();
+    for path in custom.entries() {
+        if projects.iter().any(|known| &known.path == path) {
+            continue;
+        }
+        projects.push(Project {
+            path: path.clone(),
+            name: basename_of(path),
+            custom: true,
+        });
+    }
+    projects.sort_by(|a, b| a.path.cmp(&b.path));
+    projects
+}
+
+/// P-65: a directory is recorded as a custom project only when no project contains it. `projects` is the search-path
+/// projects plus the custom list, so the check covers "is a project", "is inside a project" and "is already listed".
+pub fn should_record(dir: &AbsPath, projects: &[Project]) -> bool {
+    project_containing(dir, projects).is_none()
+}
+
+/// The last component of a cleaned absolute path (the name of a custom project).
+fn basename_of(path: &AbsPath) -> String {
+    path.as_str()
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_string()
 }
 
 /// FR-SCOPE-01: the project that contains `dir` (equal to it, or inside it by whole components). When
@@ -80,7 +123,11 @@ pub fn project_containing<'a>(dir: &AbsPath, projects: &'a [Project]) -> Option<
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{project_containing, project_list, project_rows, Project, ProjectRow};
+    use super::{
+        merge_projects, project_containing, project_list, project_rows, should_record, Project,
+        ProjectRow,
+    };
+    use crate::domain::custom_projects::CustomProjects;
     use crate::domain::path::AbsPath;
 
     fn abs(text: &str) -> AbsPath {
@@ -94,7 +141,11 @@ mod tests {
     fn project(path: &str) -> Project {
         let path = abs(path);
         let name = path.as_str().rsplit('/').next().unwrap_or("").to_string();
-        Project { path, name }
+        Project {
+            path,
+            name,
+            custom: false,
+        }
     }
 
     fn paths(projects: &[Project]) -> Vec<&str> {
@@ -169,7 +220,8 @@ mod tests {
             ProjectRow {
                 path: abs("/p/b"),
                 project: true,
-                current: true
+                current: true,
+                custom: false,
             }
         );
         let rest: Vec<&str> = rows[1..].iter().map(|r| r.path.as_str()).collect();
@@ -198,7 +250,8 @@ mod tests {
             ProjectRow {
                 path: abs("/home/u"),
                 project: false,
-                current: true
+                current: true,
+                custom: false,
             }
         );
         assert_eq!(rows[1].path.as_str(), "/p/a");
@@ -225,7 +278,8 @@ mod tests {
             vec![ProjectRow {
                 path: abs("/p"),
                 project: false,
-                current: true
+                current: true,
+                custom: false,
             }]
         );
     }
@@ -267,5 +321,104 @@ mod tests {
             project_containing(&abs("/p/app/src"), &projects).map(|p| p.path.as_str()),
             Some("/p/app")
         );
+    }
+
+    // P-65: a custom project is a project named by its last component, sorted by full path with the others
+    #[test]
+    fn merge_adds_custom_projects_sorted_with_the_listed_ones() {
+        let listed = project_list(&[(abs("/p"), names(&["app"]))]);
+        let custom = CustomProjects::parse("/s/scratch\n");
+        let merged = merge_projects(&listed, &custom);
+        assert_eq!(paths(&merged), vec!["/p/app", "/s/scratch"]);
+        assert_eq!(merged[1].name, "scratch");
+        assert!(merged[1].custom);
+        assert!(!merged[0].custom);
+    }
+
+    // P-65: a custom path that a search path already lists is not added twice; the listed project wins
+    #[test]
+    fn merge_drops_custom_path_that_is_already_listed() {
+        let listed = project_list(&[(abs("/p"), names(&["app"]))]);
+        let custom = CustomProjects::parse("/p/app\n");
+        let merged = merge_projects(&listed, &custom);
+        assert_eq!(paths(&merged), vec!["/p/app"]);
+        assert!(!merged[0].custom);
+    }
+
+    // P-65: the custom list has no duplicates to merge, and an empty list leaves the listed projects alone
+    #[test]
+    fn merge_with_empty_custom_list_is_the_listed_projects() {
+        let listed = project_list(&[(abs("/p"), names(&["a", "b"]))]);
+        assert_eq!(merge_projects(&listed, &CustomProjects::default()), listed);
+    }
+
+    // P-65: a directory is recorded when no project contains it
+    #[test]
+    fn should_record_outside_every_project() {
+        let listed = project_list(&[(abs("/p"), names(&["app"]))]);
+        assert!(should_record(&abs("/s/scratch"), &listed));
+    }
+
+    // P-65: a directory directly under a search path is a project, so it is not recorded
+    #[test]
+    fn should_not_record_a_project() {
+        let listed = project_list(&[(abs("/p"), names(&["app"]))]);
+        assert!(!should_record(&abs("/p/app"), &listed));
+    }
+
+    // P-65: a subdirectory of a project is never recorded
+    #[test]
+    fn should_not_record_inside_a_project() {
+        let listed = project_list(&[(abs("/p"), names(&["app"]))]);
+        assert!(!should_record(&abs("/p/app/src"), &listed));
+    }
+
+    // P-65: a search path itself is not a project, and nothing contains it, so it is recorded
+    #[test]
+    fn should_record_a_search_path_itself() {
+        let listed = project_list(&[(abs("/p"), names(&["app"]))]);
+        assert!(should_record(&abs("/p"), &listed));
+    }
+
+    // P-65: a directory inside a custom project is not recorded
+    #[test]
+    fn should_not_record_inside_a_custom_project() {
+        let listed = merge_projects(&[], &CustomProjects::parse("/s/scratch\n"));
+        assert!(!should_record(&abs("/s/scratch/sub"), &listed));
+    }
+
+    // P-65: a custom project is not recorded again
+    #[test]
+    fn should_not_record_a_listed_custom_project() {
+        let listed = merge_projects(&[], &CustomProjects::parse("/s/scratch\n"));
+        assert!(!should_record(&abs("/s/scratch"), &listed));
+    }
+
+    // P-65: the parent of a custom project is outside it, so it is recorded
+    #[test]
+    fn should_record_parent_of_a_custom_project() {
+        let listed = merge_projects(&[], &CustomProjects::parse("/s/scratch\n"));
+        assert!(should_record(&abs("/s"), &listed));
+    }
+
+    // P-65: the home folder is recorded like any other directory when no project contains it
+    #[test]
+    fn should_record_home_folder() {
+        let listed = project_list(&[(abs("/home/u/projects"), names(&["app"]))]);
+        assert!(should_record(&abs("/home/u"), &listed));
+    }
+
+    // P-65: the home folder recorded as a custom project makes the directories under it inside a project
+    #[test]
+    fn should_not_record_under_a_custom_home_folder() {
+        let listed = merge_projects(&[], &CustomProjects::parse("/home/u\n"));
+        assert!(!should_record(&abs("/home/u/notes"), &listed));
+    }
+
+    // P-65: a prefix of a project name is outside it
+    #[test]
+    fn should_record_name_prefix_of_a_project() {
+        let listed = merge_projects(&[], &CustomProjects::parse("/s/scratch\n"));
+        assert!(should_record(&abs("/s/scratchpad"), &listed));
     }
 }

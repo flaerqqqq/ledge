@@ -224,7 +224,9 @@ fn check_bookmarks(ctx: &Ctx<'_>, config: Option<&Config>, report: &mut Report) 
             return;
         }
     };
-    let projects = config.map(|config| load_projects(ctx.fs, &config.search_paths));
+    // P-65: the custom list is read quietly here; an unreadable file gives no custom projects.
+    let custom = store::load_custom_projects(ctx.fs, &ctx.dirs).unwrap_or_default();
+    let projects = config.map(|config| load_projects(ctx.fs, &config.search_paths, &custom));
     let home = home_of(ctx);
     let mark = report.lines.len();
     for path in bookmarks.entries() {

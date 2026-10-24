@@ -7,7 +7,7 @@ use crate::app::pickers::{
     backend_fatal, bookmark_tree_picker, live_cell, live_session, live_sessions, profile_text,
     run_in_terminal, session_text, utf8_locale,
 };
-use crate::app::{home_of, load_projects, store, Ctx};
+use crate::app::{custom_projects, home_of, load_projects, store, Ctx};
 use crate::domain::bm_edit::{visible_rows, EditRow, ExpandedFolders, Marker};
 use crate::domain::bookmarks::{check_candidate, status, BookmarkStatus, Bookmarks, Refusal};
 use crate::domain::path::AbsPath;
@@ -376,5 +376,6 @@ pub(crate) fn write_bookmarks(ctx: &Ctx<'_>, bookmarks: &Bookmarks) -> Result<()
 /// FR-PICK-01, FR-CONF-07: the projects of the configured search paths. Reads the config as the open flow does.
 fn project_list(ctx: &Ctx<'_>) -> Result<Vec<Project>> {
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
-    Ok(load_projects(ctx.fs, &config.search_paths))
+    let custom = custom_projects(ctx);
+    Ok(load_projects(ctx.fs, &config.search_paths, &custom))
 }

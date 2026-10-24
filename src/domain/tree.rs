@@ -410,7 +410,11 @@ mod tests {
     fn project(text: &str) -> Project {
         let path = abs(text);
         let name = path.as_str().rsplit('/').next().unwrap_or("").to_string();
-        Project { path, name }
+        Project {
+            path,
+            name,
+            custom: false,
+        }
     }
 
     fn session(name: &str, dir: &str) -> SessionDir {

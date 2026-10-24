@@ -1359,3 +1359,20 @@ fn ctrl_x_on_a_bookmark_without_a_session_says_so() {
         .iter()
         .any(|line| line.contains("No session on this row.")));
 }
+
+// P-65: a bookmark inside a custom project is grouped under the custom project's root row, as a project's bookmark is
+#[test]
+fn bookmark_inside_a_custom_project_groups_under_it() {
+    let h = Harness::new("tui_trees-custom-group");
+    search_in_projects(&h);
+    let scratch = format!("{}/scratch", h.root().display());
+    let src = format!("{scratch}/src");
+    fs::create_dir_all(&src).expect("create src");
+    h.write_custom_projects(&format!("{scratch}\n"));
+    write_bookmarks(&h, &[src.as_str()]);
+    // Row 0 is the gray root of the custom project, row 1 its bookmark `src`.
+    h.terminal.script(vec![down(), enter()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Done));
+    assert_eq!(h.backend.attached_to(), Some(name_of(&abs(&src))));
+}

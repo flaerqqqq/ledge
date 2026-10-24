@@ -8,11 +8,18 @@ mod support;
 
 use ledge::app::launch::{split_command, Editor};
 use ledge::app::open::{open_dir, open_dir_with_editor};
+use ledge::app::pickers::history_picker;
+use ledge::cli::run;
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
 use ledge::domain::profile_rules::ProfileOpt;
 use ledge::error::{LedgeError, Outcome};
 use ledge::ports::backend::{SessionBackend, OPT_PROFILE};
+use ledge::tui::terminal::Input;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use support::ctx::Harness;
 use support::fake_backend::FakeBackend;
 use support::fake_process::FakeProcess;
@@ -489,4 +496,111 @@ fn missing_editor_warns_and_session_still_opens() {
     assert!(detached_spawns(&h).is_empty());
     assert_eq!(session_names(&h), vec![name.clone()]);
     assert_eq!(h.backend.attached_to(), Some(name));
+}
+
+// P-65: `ledge DIR` on an existing directory outside every project records it in the custom projects file
+#[test]
+fn command_line_open_records_a_custom_project() {
+    let h = Harness::new("open_custom_records");
+    let scratch = format!("{}/scratch", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch");
+    assert_eq!(
+        run(std::slice::from_ref(&scratch), &h.ctx()),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(h.custom_projects_text(), Some(format!("{scratch}\n")));
+}
+
+// P-65: `ledge project open DIR` records the same way
+#[test]
+fn project_open_form_records_a_custom_project() {
+    let h = Harness::new("open_custom_project_form");
+    let scratch = format!("{}/scratch", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch");
+    let words = vec!["project".to_string(), "open".to_string(), scratch.clone()];
+    assert_eq!(run(&words, &h.ctx()), Ok(Outcome::Done));
+    assert_eq!(h.custom_projects_text(), Some(format!("{scratch}\n")));
+}
+
+// P-65: a directory that is a project (directly under a search path) is not recorded
+#[test]
+fn command_line_open_of_a_project_records_nothing() {
+    let h = Harness::new("open_custom_project_dir");
+    let search = format!("{}/projects", h.root().display());
+    h.write_config(&format!("{{\"search_paths\": [\"{search}\"]}}"));
+    let app = h.project("app");
+    assert_eq!(run(&[app], &h.ctx()), Ok(Outcome::Done));
+    assert_eq!(h.custom_projects_text(), None);
+}
+
+// P-65: a subdirectory of a project is never recorded
+#[test]
+fn command_line_open_of_a_subdirectory_of_a_project_records_nothing() {
+    let h = Harness::new("open_custom_subdir");
+    let search = format!("{}/projects", h.root().display());
+    h.write_config(&format!("{{\"search_paths\": [\"{search}\"]}}"));
+    let app = h.project("app");
+    let src = format!("{app}/src");
+    fs::create_dir_all(&src).expect("create src");
+    assert_eq!(run(&[src], &h.ctx()), Ok(Outcome::Done));
+    assert_eq!(h.custom_projects_text(), None);
+}
+
+// P-65: a directory already listed is not added again
+#[test]
+fn command_line_open_of_a_listed_custom_project_changes_nothing() {
+    let h = Harness::new("open_custom_listed");
+    let scratch = format!("{}/scratch", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch");
+    h.write_custom_projects(&format!("{scratch}\n"));
+    assert_eq!(
+        run(std::slice::from_ref(&scratch), &h.ctx()),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(h.custom_projects_text(), Some(format!("{scratch}\n")));
+}
+
+// P-65: an open from the history picker never records a custom project
+#[test]
+fn picker_open_does_not_record_a_custom_project() {
+    let h = Harness::new("open_custom_picker");
+    let scratch = format!("{}/scratch", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch");
+    let cache = PathBuf::from(h.dirs.cache.as_str());
+    fs::create_dir_all(&cache).expect("create cache");
+    fs::write(cache.join("history"), format!("{scratch}\n")).expect("write history");
+    h.terminal.script(vec![Input::Key(KeyEvent::new(
+        KeyCode::Enter,
+        KeyModifiers::NONE,
+    ))]);
+    assert_eq!(
+        history_picker(&h.ctx(), &ProfileOpt::Unset),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(h.custom_projects_text(), None);
+}
+
+// P-65: a custom projects file that cannot be written warns and the open still happens
+#[test]
+fn custom_project_write_failure_warns_and_still_opens() {
+    let h = Harness::new("open_custom_write_failure");
+    let scratch = format!("{}/scratch", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch");
+    let cache = PathBuf::from(h.dirs.cache.as_str());
+    fs::create_dir_all(&cache).expect("create cache");
+    fs::write(cache.join("custom-projects"), "").expect("write custom file");
+    let mut perms = fs::metadata(&cache).expect("cache metadata").permissions();
+    perms.set_mode(0o555);
+    fs::set_permissions(&cache, perms).expect("make cache read-only");
+    let result = run(std::slice::from_ref(&scratch), &h.ctx());
+    let mut perms = fs::metadata(&cache).expect("cache metadata").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&cache, perms).expect("restore cache");
+    assert_eq!(result, Ok(Outcome::Done));
+    assert_eq!(h.backend.attached_to(), Some(name_of(&scratch)));
+    assert!(h
+        .console
+        .err_lines()
+        .iter()
+        .any(|line| line.starts_with("Warning: could not write custom projects: ")));
 }

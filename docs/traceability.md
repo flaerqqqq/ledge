@@ -34,7 +34,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-OPEN-09 | S-09 | src/adapters/tmux.rs | tests/it_tmux_adapter.rs (ignored, real tmux) | covered | With no server, list is empty; the first create starts the server (real tmux, isolated server name). |
 | FR-OPEN-10 | S-11 | src/app/open.rs; src/app/store.rs | tests/component_open.rs | covered | History written before the session is built, so a failed build still records the directory (A-27). |
 | FR-OPEN-11 | S-11 | src/app/open.rs; src/messages.rs | tests/component_open.rs; tests/messages_verbatim.rs | covered | History folder blocked by a file: one `Warning: could not update history:` line on stderr, session still created and attached. |
-| FR-PICK-01 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
+| FR-PICK-01 | S-04, S-49 | domain/projects.rs (merge_projects); domain/custom_projects.rs; app/mod.rs (load_projects); app/pickers.rs | domain/projects.rs; domain/custom_projects.rs; tests/component_projects.rs; tests/tui_project_picker.rs | covered | P-65: custom projects join the project list, with a ◆ mark (# without UTF-8) and ctrl-d to remove. |
 | FR-PICK-02 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-PICK-03 | S-04 | domain/projects.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-PICK-04 | S-04 | domain/projects.rs; src/app/pickers.rs | domain/projects.rs; tests/tui_project_picker.rs | covered | Current row first and preselected on screen, also with a launch directory argument. |
@@ -56,7 +56,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-HIST-07 | S-18 | src/app/history_cmd.rs; src/messages.rs (no_history_cache) | tests/component_history.rs; tests/messages_verbatim.rs | covered | No file: the message, no file created. |
 | FR-HIST-08 | S-18 | src/app/history_cmd.rs | tests/component_history.rs | covered | clean does not read or write the bookmarks file. |
 | FR-BM-01 | S-03 | domain/bookmarks.rs; app/store.rs | domain/bookmarks.rs; tests/component_store.rs | covered |  |
-| FR-BM-02 | S-18 | src/domain/bookmarks.rs (check_candidate); src/app/bookmark_cmd.rs | src/domain/bookmarks.rs (unit); tests/component_bookmarks.rs | covered | Strictly inside a project, whole components (A-14). |
+| FR-BM-02 | S-18, S-49 | src/domain/bookmarks.rs (check_candidate); src/app/bookmark_cmd.rs; src/app/mod.rs (load_projects with the custom list) | src/domain/bookmarks.rs (unit); tests/component_bookmarks.rs; tests/component_doctor.rs; tests/tui_trees.rs | covered | Strictly inside a project, whole components (A-14). P-65: a custom project counts as a project, so a directory inside it is accepted; its root is refused as a project (FR-BM-04). |
 | FR-BM-03 | S-18 | src/domain/bookmarks.rs; src/app/bookmark_cmd.rs; src/messages.rs (bookmark_outside_project) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | The search path itself is refused as outside. |
 | FR-BM-04 | S-18 | src/domain/bookmarks.rs; src/app/bookmark_cmd.rs; src/messages.rs (bookmark_is_project) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered |  |
 | FR-BM-05 | S-18 | src/app/bookmark_cmd.rs; src/domain/bookmarks.rs (add); src/messages.rs (bookmarked) | tests/component_bookmarks.rs; src/domain/bookmarks.rs (unit); tests/messages_verbatim.rs | covered |  |
@@ -142,7 +142,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CONF-04 | S-02 | domain/config.rs | domain/config.rs; tests/component_config.rs | covered |  |
 | FR-CONF-05 | S-02 | domain/config.rs; app/store.rs | domain/config.rs; tests/component_config.rs | covered |  |
 | FR-CONF-06 | S-02 | app/store.rs | tests/component_config.rs | covered |  |
-| FR-CONF-07 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
+| FR-CONF-07 | S-04, S-49 | domain/projects.rs (should_record, merge_projects); domain/custom_projects.rs; app/store.rs; app/open.rs (record_custom_project); app/mod.rs | domain/projects.rs; domain/custom_projects.rs; tests/component_open.rs; tests/component_projects.rs | covered | P-65: `ledge DIR` and `ledge project open DIR` record a directory outside every project in the cache file `custom-projects`; picker opens never record; subdirectories and projects are not recorded. |
 | FR-CONF-08 | S-01 | domain/location.rs; adapters/env.rs; ports/env.rs | domain/location.rs; tests/component_location.rs | covered |  |
 | FR-NAME-01 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered | Vectors provisional until user supplies reference pairs (D-02). |
 | FR-NAME-02 | S-01 | domain/naming.rs | domain/naming.rs | open | Vectors provisional until user supplies reference pairs (D-02); stays open until those pairs are supplied. |

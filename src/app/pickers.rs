@@ -3,8 +3,9 @@
 //! runs the picker, and on enter opens the chosen directory through the open flow after the terminal is restored
 //! (architecture 6.4). Rows are built here; the screen and the keys are `tui`. Row actions: ctrl-x kills, ctrl-r
 //! rebuilds, ctrl-p picks a profile in a nested picker and rebuilds with it (S-15, FR-ACT-01, FR-ACT-02, FR-ACT-04,
-//! FR-ACT-12). ctrl-d deletes a bookmark and kills its session in the bookmark picker only (S-19, FR-BM-13, FR-ACT-11);
-//! the alt-key actions are not bound in these pickers.
+//! FR-ACT-12). ctrl-d deletes a bookmark and kills its session in the bookmark picker (S-19, FR-BM-13, FR-ACT-11); in the
+//! project picker it removes a custom project with its bookmarks and sessions, and gives a notice on any other project
+//! (P-65). The alt-key actions are not bound in these pickers.
 
 use crate::app::actions::{
     current_session, delete_node_bookmarks, kill, kill_node, never_touch_current, rebuild,
@@ -15,7 +16,7 @@ use crate::app::launch::Editor;
 use crate::app::open::{attach_or_switch, open_dir_with_editor};
 use crate::app::store;
 use crate::app::Ctx;
-use crate::app::{home_of, load_projects};
+use crate::app::{custom_projects, home_of, load_projects};
 use crate::domain::age::age;
 use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
@@ -67,7 +68,7 @@ pub fn project_picker_with_editor(
             &file.display().to_string(),
         )));
     }
-    let projects = load_projects(ctx.fs, &config.search_paths);
+    let projects = load_projects(ctx.fs, &config.search_paths, &custom_projects(ctx));
     if projects.is_empty() {
         // D-12: an empty project list at start closes with an info line, no window.
         return Ok(Outcome::Info(messages::no_projects_found().to_string()));
@@ -213,12 +214,49 @@ impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
     }
 
     fn act(&mut self, action: Action, row: Option<&AbsPath>) -> Step {
-        dir_action(self.ctx, &self.option, action, row)
+        match (action, row) {
+            (Action::DeleteBookmark, Some(dir)) => remove_custom_project(self.ctx, dir),
+            (Action::DeleteBookmark, None) => no_action(),
+            _ => dir_action(self.ctx, &self.option, action, row),
+        }
     }
 
     fn reload(&mut self) -> Result<Vec<DirRow>> {
-        let projects = load_projects(self.ctx.fs, &self.search_paths);
+        // The list is read again after each action; a warning here would draw over the picker, so it is read quietly.
+        let custom = store::load_custom_projects(self.ctx.fs, &self.ctx.dirs).unwrap_or_default();
+        let projects = load_projects(self.ctx.fs, &self.search_paths, &custom);
         project_dir_rows(self.ctx, &self.from, &projects)
+    }
+}
+
+/// P-65, FR-CONF-07, FR-BM-13: ctrl-d on a custom project removes it from the list, deletes the bookmarks inside it and
+/// kills its managed sessions (the session the user is in last, S-43). The list entry goes last, so a failure before it
+/// leaves the project listed and ctrl-d can be tried again. On any other project the status line says so and nothing
+/// changes.
+fn remove_custom_project(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
+    let mut custom = match store::load_custom_projects(ctx.fs, &ctx.dirs) {
+        Ok(custom) => custom,
+        Err(error) => {
+            return failed(LedgeError::Fatal(messages::could_not_read_custom_projects(
+                &error.to_string(),
+            )))
+        }
+    };
+    if !custom.contains(dir) {
+        return notice(messages::ONLY_CUSTOM_PROJECT_CAN_BE_REMOVED);
+    }
+    if let Err(error) = delete_node_bookmarks(ctx, dir).and_then(|()| kill_node(ctx, dir)) {
+        return failed(error);
+    }
+    custom.remove(dir);
+    if let Err(error) = store::save_custom_projects(ctx.fs, &ctx.dirs, &custom) {
+        return failed(LedgeError::Fatal(
+            messages::could_not_write_custom_projects(&error.to_string()),
+        ));
+    }
+    Step::Continue {
+        status: None,
+        reload: true,
     }
 }
 
@@ -585,8 +623,18 @@ fn applied_profile(option: &ProfileOpt, default_profile: Option<&str>) -> Option
         .map(|_| name)
 }
 
-/// FR-PICK-04..07, P-61: one row per project (and the launch directory, FR-PICK-05). The project picker has no marker
-/// column and no mark: a live session shows in the session cell. The launch directory's row is preselected.
+/// P-65: the mark of a custom project, `◆` in a UTF-8 locale and `#` otherwise (design UTF-8 check).
+fn custom_mark(ctx: &Ctx<'_>) -> &'static str {
+    if utf8_locale(ctx.env) {
+        "◆"
+    } else {
+        "#"
+    }
+}
+
+/// FR-PICK-04..07, P-61, P-65: one row per project (and the launch directory, FR-PICK-05). The project picker has no
+/// marker column: a live session shows in the session cell, and a custom project carries the `◆` mark after its name.
+/// The launch directory's row is preselected.
 fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
     let home = home_of(ctx);
@@ -600,8 +648,14 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
                 row.path.display_with_home(home.as_ref())
             };
             let path = row.path.display_with_home(home.as_ref());
+            // P-65: a custom project carries the mark after its name; the search matches the plain name.
+            let project_cell = if row.custom {
+                format!("{shown} {}", custom_mark(ctx))
+            } else {
+                shown.clone()
+            };
             let cells = vec![
-                shown.clone(),
+                project_cell,
                 session_text(live),
                 profile_text(live),
                 path.clone(),
@@ -725,7 +779,7 @@ fn project_text(projects: &[Project], dir: &AbsPath, home: Option<&AbsPath>) -> 
     }
 }
 
-/// Architecture 6.2, P-61: the project picker chrome. No marker column: the search, the missing cue and the current
+/// Architecture 6.2, P-61, P-65: the project picker chrome. No marker column: the search, the missing cue and the current
 /// mark are on the project column (column 0), the live session is in the session column (column 1).
 fn project_chrome(label: &str) -> Chrome {
     let mut chrome = Chrome::new(
@@ -736,7 +790,7 @@ fn project_chrome(label: &str) -> Chrome {
             ColumnSpec::text(messages::HEADER_PROFILE),
             ColumnSpec::wide_path(messages::HEADER_PATH),
         ],
-        messages::PICKER_FOOTER,
+        messages::PROJECT_PICKER_FOOTER,
     );
     chrome.search_column = Some(0);
     chrome.missing_column = Some(0);
@@ -822,7 +876,7 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
     let sessions = live_sessions(ctx)?;
     let current = current_session(ctx)?;
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
-    let projects = load_projects(ctx.fs, &config.search_paths);
+    let projects = load_projects(ctx.fs, &config.search_paths, &custom_projects(ctx));
     let home = home_of(ctx);
     let now = ctx.clock.now_secs();
     let rows = switcher_order(&sessions, current.as_deref())
@@ -1108,7 +1162,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
 /// (FR-SESS-06). The scope selects the bookmark rows (FR-TREE-05..08); the session tree is always whole.
 fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<TreeItem>, usize)> {
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
-    let projects = load_projects(ctx.fs, &config.search_paths);
+    let projects = load_projects(ctx.fs, &config.search_paths, &custom_projects(ctx));
     let sessions = live_sessions(ctx)?;
     let (rows, cursor) = match kind {
         TreeKind::Bookmarks => {
