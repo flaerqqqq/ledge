@@ -66,6 +66,8 @@ pub fn map_key(key: &KeyEvent) -> Option<Action> {
             'p' => Action::Profile,
             'x' => Action::Kill,
             'd' => Action::DeleteBookmark,
+            'j' => Action::Down,
+            'k' => Action::Up,
             _ => return None,
         },
         KeyCode::Char(c) if alt => match c.to_ascii_lowercase() {

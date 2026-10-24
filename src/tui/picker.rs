@@ -187,6 +187,13 @@ impl<T> PickerModel<T> {
 
     /// Applies one action (architecture 6.1, 6.3). Movement never wraps (A-28).
     pub fn apply(&mut self, action: Action) -> Effect {
+        // P-52, FR-TUI-11: without a filter (the edit window, D-15) plain j and k move as the arrows do. With a filter
+        // they are typed (FR-TUI-02) and ctrl-j and ctrl-k move, through the shared key map.
+        let action = match action {
+            Action::Type('j') if !self.has_filter() => Action::Down,
+            Action::Type('k') if !self.has_filter() => Action::Up,
+            other => other,
+        };
         let last = self.visible.len().saturating_sub(1);
         let step = self.page.saturating_sub(1).max(1);
         let target = match action {

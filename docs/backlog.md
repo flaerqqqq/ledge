@@ -421,7 +421,7 @@ have no FR-IDs state why.
 - branch: slice/27-install
 
 ### S-28 Vim navigation keys in pickers and trees
-- status: in-progress
+- status: done
 - deps: S-07, S-22, S-21
 - FR-IDs: FR-TUI-11 (proposed in docs/proposals.md P-52; not yet in requirements.md)
 - scope: src/tui/keys.rs (key map), src/tui/picker.rs and src/tui/render.rs only where the footer or cue changes; the edit window and tree windows use the same map. No new keys for actions.

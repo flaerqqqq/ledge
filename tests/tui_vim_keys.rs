@@ -1,7 +1,7 @@
 //! TUI model tests for the vim navigation keys (FR-TUI-11, P-52, S-28; docs/testing.md level 3, picker test pattern).
-//! j and k move the selection in the tree and edit windows, which have no type-to-filter. ctrl-j and ctrl-k move it in
-//! the pickers that filter as the user types, where a plain j or k is typed into the filter (FR-TUI-02). The arrow keys
-//! are the reference: every vim run must end as the arrow run does, including at the ends of the list (A-28: no wrap).
+//! ctrl-j and ctrl-k move the selection in every picker and tree window. j and k move it only in the bookmark edit
+//! window, which has no filter. Elsewhere a plain j or k is typed into the filter (FR-TUI-02). The arrow keys are the
+//! reference: every vim run must end as the arrow run does, including at the ends of the list (A-28: no wrap).
 //! Every window uses the same key map (FR-TUI-07). Runs over `FakeBackend`, `FakeTerminal` and temp folders.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -262,11 +262,11 @@ fn edit_window_j_and_k_stop_at_the_ends_as_the_arrows_do() {
     assert_eq!(top_vim, top_arrow);
 }
 
-// FR-TUI-11, P-52: j and k move the selection in the session tree, as the arrows do, and stop at the ends
+// FR-TUI-11, P-52: ctrl-j and ctrl-k move the selection in the session tree, as the arrows do, and stop at the ends
 #[test]
-fn session_tree_j_and_k_move_as_the_arrows_do() {
+fn session_tree_ctrl_j_and_ctrl_k_move_as_the_arrows_do() {
     let down_arrow = session_tree_opened("tui_vim-stree-down-arrow", vec![down(), enter(), esc()]);
-    let down_vim = session_tree_opened("tui_vim-stree-j", vec![j(), enter(), esc()]);
+    let down_vim = session_tree_opened("tui_vim-stree-ctrl-j", vec![ctrl_j(), enter(), esc()]);
     assert!(down_arrow.is_some(), "the down arrow reaches a session");
     assert_eq!(down_vim, down_arrow);
 
@@ -274,8 +274,10 @@ fn session_tree_j_and_k_move_as_the_arrows_do() {
         "tui_vim-stree-up-arrow",
         vec![down(), down(), up(), enter(), esc()],
     );
-    let back_vim =
-        session_tree_opened("tui_vim-stree-k", vec![down(), down(), k(), enter(), esc()]);
+    let back_vim = session_tree_opened(
+        "tui_vim-stree-ctrl-k",
+        vec![down(), down(), ctrl_k(), enter(), esc()],
+    );
     assert_eq!(back_vim, back_arrow);
 
     let bottom_arrow = session_tree_opened(
@@ -284,9 +286,9 @@ fn session_tree_j_and_k_move_as_the_arrows_do() {
     );
     let bottom_vim = session_tree_opened(
         "tui_vim-stree-bottom",
-        then(repeat(j, 5), vec![enter(), esc()]),
+        then(repeat(ctrl_j, 5), vec![enter(), esc()]),
     );
-    assert_eq!(bottom_vim, bottom_arrow, "j clamps like down");
+    assert_eq!(bottom_vim, bottom_arrow, "ctrl-j clamps like down");
 
     let top_arrow = session_tree_opened(
         "tui_vim-stree-top-arrow",
@@ -294,16 +296,16 @@ fn session_tree_j_and_k_move_as_the_arrows_do() {
     );
     let top_vim = session_tree_opened(
         "tui_vim-stree-top",
-        then(repeat(k, 5), vec![enter(), esc()]),
+        then(repeat(ctrl_k, 5), vec![enter(), esc()]),
     );
-    assert_eq!(top_vim, top_arrow, "k clamps like up");
+    assert_eq!(top_vim, top_arrow, "ctrl-k clamps like up");
 }
 
-// FR-TUI-11, P-52: j and k move the selection in the bookmark tree, as the arrows do, and stop at the ends
+// FR-TUI-11, P-52: ctrl-j and ctrl-k move the selection in the bookmark tree, as the arrows do, and stop at the ends
 #[test]
-fn bookmark_tree_j_and_k_move_as_the_arrows_do() {
+fn bookmark_tree_ctrl_j_and_ctrl_k_move_as_the_arrows_do() {
     let down_arrow = bookmark_tree_opened("tui_vim-btree-down-arrow", vec![down(), enter(), esc()]);
-    let down_vim = bookmark_tree_opened("tui_vim-btree-j", vec![j(), enter(), esc()]);
+    let down_vim = bookmark_tree_opened("tui_vim-btree-ctrl-j", vec![ctrl_j(), enter(), esc()]);
     assert!(down_arrow.is_some(), "the down arrow reaches a bookmark");
     assert_eq!(down_vim, down_arrow);
 
@@ -311,8 +313,10 @@ fn bookmark_tree_j_and_k_move_as_the_arrows_do() {
         "tui_vim-btree-up-arrow",
         vec![down(), down(), up(), enter(), esc()],
     );
-    let back_vim =
-        bookmark_tree_opened("tui_vim-btree-k", vec![down(), down(), k(), enter(), esc()]);
+    let back_vim = bookmark_tree_opened(
+        "tui_vim-btree-ctrl-k",
+        vec![down(), down(), ctrl_k(), enter(), esc()],
+    );
     assert_eq!(back_vim, back_arrow);
 
     let bottom_arrow = bookmark_tree_opened(
@@ -321,9 +325,9 @@ fn bookmark_tree_j_and_k_move_as_the_arrows_do() {
     );
     let bottom_vim = bookmark_tree_opened(
         "tui_vim-btree-bottom",
-        then(repeat(j, 8), vec![enter(), esc()]),
+        then(repeat(ctrl_j, 8), vec![enter(), esc()]),
     );
-    assert_eq!(bottom_vim, bottom_arrow, "j clamps like down");
+    assert_eq!(bottom_vim, bottom_arrow, "ctrl-j clamps like down");
 
     let top_arrow = bookmark_tree_opened(
         "tui_vim-btree-top-arrow",
@@ -331,9 +335,39 @@ fn bookmark_tree_j_and_k_move_as_the_arrows_do() {
     );
     let top_vim = bookmark_tree_opened(
         "tui_vim-btree-top",
-        then(repeat(k, 8), vec![enter(), esc()]),
+        then(repeat(ctrl_k, 8), vec![enter(), esc()]),
     );
-    assert_eq!(top_vim, top_arrow, "k clamps like up");
+    assert_eq!(top_vim, top_arrow, "ctrl-k clamps like up");
+}
+
+// FR-TUI-11, P-52: a plain j typed into a tree window filter is shown on the prompt (both tree windows filter)
+#[test]
+fn tree_windows_plain_j_types_into_the_filter() {
+    let h = Harness::new("tui_vim-stree-typed");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    ensure_session(&h.backend, &app, &Profile::basic()).expect("create session");
+    h.terminal.script(vec![j(), esc()]);
+    let _ = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("> j")),
+        "the session tree prompt shows the typed filter: {lines:#?}"
+    );
+
+    let h = Harness::new("tui_vim-btree-typed");
+    search_in_projects(&h);
+    let app = h.project("app");
+    let api = format!("{app}/api");
+    fs::create_dir_all(&api).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    h.terminal.script(vec![j(), esc()]);
+    let _ = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("> j")),
+        "the bookmark tree prompt shows the typed filter: {lines:#?}"
+    );
 }
 
 // FR-TUI-11, P-52: ctrl-j moves the project picker selection down, as the down arrow does
@@ -396,14 +430,17 @@ fn project_picker_plain_j_and_k_do_not_move_the_selection() {
     assert_eq!(with_k, launch, "k leaves the selection on the launch row");
 }
 
-// FR-TUI-11, FR-TUI-07, P-52: the same key map is used by every window: ctrl-j and ctrl-k are the down and up keys
-// of the key map, and ctrl-j moves the selection in each window as the down arrow does
+// FR-TUI-11, FR-TUI-07, P-52: the shared key map sends ctrl-j and ctrl-k to Down and Up, and a plain j is not Down
+// (only the window with no filter moves on j); ctrl-j moves the selection in each picker and tree window as the down
+// arrow does
 #[test]
 fn every_window_uses_the_same_key_map_for_vim_movement() {
     let ctrl_j_key = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL);
     let ctrl_k_key = KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL);
+    let plain_j_key = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
     assert_eq!(keys::map_key(&ctrl_j_key), Some(Action::Down));
     assert_eq!(keys::map_key(&ctrl_k_key), Some(Action::Up));
+    assert_ne!(keys::map_key(&plain_j_key), Some(Action::Down));
 
     // Project picker (filter): ctrl-j then enter opens the same row the down arrow does.
     let project_down = project_opened("tui_vim-same-project-arrow", "app", vec![down(), enter()]);
@@ -416,10 +453,6 @@ fn every_window_uses_the_same_key_map_for_vim_movement() {
     let picker_ctrl = bookmark_picker_opened("tui_vim-same-bpicker-ctrl", vec![ctrl_j(), enter()]);
     assert!(picker_down.is_some());
     assert_eq!(picker_ctrl, picker_down, "bookmark picker");
-
-    // Edit window (no filter): ctrl-j moves down, as j does.
-    let edit_ctrl = edit_bookmarks("tui_vim-same-edit-ctrl", vec![ctrl_j(), enter(), esc()]);
-    assert_eq!(edit_ctrl, "<app>/docs\n", "edit window");
 
     // Bookmark tree and session tree: ctrl-j moves down as the down arrow does.
     let btree_down = bookmark_tree_opened("tui_vim-same-btree-arrow", vec![down(), enter(), esc()]);

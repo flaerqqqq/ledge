@@ -22,7 +22,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-TUI-08 | S-07 | src/tui/render.rs; src/tui/picker.rs | tests/tui_engine.rs | covered | Text cue and dim style automated on TestBackend; color appearance is manual. |
 | FR-TUI-09 | S-07 | src/tui/render.rs | src/tui/render.rs (unit); tests/tui_engine.rs | covered | Text cues, reverse video and NO_COLOR/TERM=dumb rule automated; color appearance is manual. |
 | FR-TUI-10 | S-07 | src/tui/picker.rs; src/app/pickers.rs | src/tui/picker.rs (unit); tests/tui_engine.rs; tests/tui_project_picker.rs | covered | Model: should_close and reload (S-07). Picker side (S-13): a choose on a missing directory keeps the history picker open with its rows. Row actions that reload (ctrl-r, ctrl-p, ctrl-x) are no-ops until S-15. |
-| FR-TUI-11 | S-28 | | tests/tui_vim_keys.rs | open | Proposed in P-52, not yet in requirements.md. j/k in tree and edit windows, ctrl-j/ctrl-k in filter pickers. Tests written first (S-28); code pending. |
+| FR-TUI-11 | S-28 | src/tui/keys.rs; src/tui/picker.rs | tests/tui_vim_keys.rs | covered | Proposed in P-52, not yet in requirements.md. ctrl-j/ctrl-k move in every picker and tree window; j/k move in the edit window only (no filter, picker.rs apply); plain j/k type into filters elsewhere. |
 | FR-OPEN-01 | S-17 | src/cli/parse.rs; src/cli/mod.rs (run) | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-OPEN-02 | S-17 | src/cli/parse.rs; src/cli/mod.rs (run) | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-OPEN-03 | S-11 | src/app/open.rs; src/messages.rs | tests/component_open.rs; tests/messages_verbatim.rs | covered | Missing and non-directory targets on temp folders; the argument is echoed as typed (A-15). |
