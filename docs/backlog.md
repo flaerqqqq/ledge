@@ -635,3 +635,12 @@ have no FR-IDs state why.
 - acceptance: in the bookmark tree, ctrl-r on a row with no managed session creates it from the bookmark's profile (or the --profile option) and reloads; ctrl-p on such a row opens the profile picker, then creates the session with the chosen profile; ctrl-x on a row without a session keeps the notice; the session tree keeps its notices; project, history and bookmark pickers are unchanged.
 - size: S
 - branch: slice/S-55-tree-rebuild-creates
+
+### S-56 Session tree search and highlight use the session column
+- status: in-progress
+- deps: S-54
+- FR-IDs: FR-TUI-02 (search over the first visible column), FR-SESS-06
+- scope: src/app/pickers.rs (tree_chrome for TreeKind::Sessions: search_column = 0, the session column; the search text of session rows is the session name), tests/tui_trees.rs
+- acceptance: in the session tree, the filter matches the session name and the matched characters are highlighted in the Session column (not in Project); placeholder rows match their would-be name; the Project column is not searched or highlighted.
+- size: S
+- branch: slice/S-56-session-tree-search-column
