@@ -80,7 +80,17 @@ fn kill_server_stops_the_server() {
     assert_eq!(backend.list_sessions().expect("list").len(), 1);
 
     backend.kill_server().expect("kill server");
-    assert_eq!(backend.list_sessions(), Ok(Vec::new()));
+    // The server may still be shutting down for a moment, when tmux reports it exited instead of not running.
+    // Wait for the stop, then the list is empty.
+    let mut listed = backend.list_sessions();
+    for _ in 0..50 {
+        if listed == Ok(Vec::new()) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        listed = backend.list_sessions();
+    }
+    assert_eq!(listed, Ok(Vec::new()));
 }
 
 // FR-PLAT-01: the installed tmux is 3.2 or later (the minimum of architecture 7.2)

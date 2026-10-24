@@ -154,7 +154,7 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
             let title = if spec.right {
                 columns::fit_right(&spec.title, w)
             } else {
-                columns::fit(&spec.title, w, false)
+                columns::fit(&spec.title, w, Cut::End)
             };
             vec![Span::styled(title, title_style)]
         })
@@ -258,7 +258,10 @@ fn draw_details<T>(
     for (row, (label, value)) in rows[2..6].iter().zip(facts) {
         let line = Line::from(vec![
             Span::raw(" ".repeat(MARGIN)),
-            Span::styled(columns::fit(label, DETAIL_LABEL_WIDTH, false), label_style),
+            Span::styled(
+                columns::fit(label, DETAIL_LABEL_WIDTH, Cut::End),
+                label_style,
+            ),
             Span::styled(value, value_style),
         ]);
         frame.render_widget(Paragraph::new(line), *row);
@@ -330,7 +333,7 @@ fn draw_preview<T>(
     for (line_area, window) in lines.iter().zip(windows.iter().take(shown)) {
         let line = Line::from(vec![
             Span::raw(" ".repeat(MARGIN)),
-            Span::styled(columns::fit(&window.name, name_room, false), value_style),
+            Span::styled(columns::fit(&window.name, name_room, Cut::End), value_style),
             Span::styled(columns::cut_end(&window.command, command_room), muted_style),
         ]);
         frame.render_widget(Paragraph::new(line), *line_area);
@@ -632,7 +635,7 @@ fn cell_style<T>(
         Token::Missing
     } else if session_cell && row.session_cell == SessionCell::Live {
         Token::SessionActive
-    } else if spec.cut == Cut::Start {
+    } else if spec.cut == Cut::Path {
         // A path column (design 6.1 `path`).
         Token::Path
     } else {
@@ -707,9 +710,8 @@ fn cell_spans<T>(
     let Some(kept) = kept else {
         // Too narrow for the text: the whole cell is cut as the column says.
         let whole_text = format!("{prefix}{raw}{suffix}");
-        let from_left = spec.cut == Cut::Start;
         return vec![Span::styled(
-            columns::fit(&whole_text, width, from_left),
+            columns::fit(&whole_text, width, spec.cut),
             base,
         )];
     };

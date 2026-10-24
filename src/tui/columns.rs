@@ -11,13 +11,16 @@ const FLOOR_LAST: usize = 6;
 const FLOOR_SEARCH: usize = 12;
 const FLOOR_OTHER: usize = 4;
 
-/// How long text is cut to fit (design 3.2): paths keep their tail, session names keep their start and their hash,
-/// other text keeps its start.
+/// How long text is cut to fit (design 3.2): session names keep their start and their hash, other text keeps its
+/// start. A path (S-47) keeps its start and its last folders, and a project cell is a path in the middle cut and a
+/// name at the end. `Start` keeps the tail and is the fallback of a path with no folder to cut.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cut {
     End,
     Start,
     Middle,
+    Path,
+    PathOrEnd,
 }
 
 /// One column of a picker: its title, an optional fixed width (the marker column is 2 cells), and how its long text
@@ -52,13 +55,22 @@ impl ColumnSpec {
         }
     }
 
+    /// A path column (S-47: cut in the middle, keeping the start and the last folders).
     pub fn path(title: &str) -> Self {
         Self {
             title: title.to_string(),
             fixed_width: None,
-            cut: Cut::Start,
+            cut: Cut::Path,
             wide_only: false,
             right: false,
+        }
+    }
+
+    /// A project cell (S-47): a path when it shows one (cut in the middle), a name otherwise (cut at the end).
+    pub fn project(title: &str) -> Self {
+        Self {
+            cut: Cut::PathOrEnd,
+            ..Self::text(title)
         }
     }
 
@@ -172,19 +184,31 @@ pub fn kept(text: &str, max: usize, cut: Cut) -> Option<Kept> {
     if width(text) <= max {
         return None;
     }
+    let chars: Vec<char> = text.chars().collect();
     let budget = max.saturating_sub(char_width(ELLIPSIS));
-    let (head_budget, tail_budget) = match cut {
-        Cut::End => (budget, 0),
-        Cut::Start => (0, budget),
+    let split = |head_budget, tail_budget| split_budget(&chars, head_budget, tail_budget);
+    let kept = match cut {
+        Cut::End => split(budget, 0),
+        Cut::Start => split(0, budget),
         Cut::Middle => {
             let tail = budget.min(MIDDLE_TAIL);
-            (budget - tail, tail)
+            split(budget - tail, tail)
         }
+        Cut::Path => path_kept(&chars, budget).unwrap_or_else(|| split(0, budget)),
+        Cut::PathOrEnd if is_path(text) => {
+            path_kept(&chars, budget).unwrap_or_else(|| split(0, budget))
+        }
+        Cut::PathOrEnd => split(budget, 0),
     };
-    let chars: Vec<char> = text.chars().collect();
+    Some(kept)
+}
+
+/// The characters kept from each end of `chars`: at most `head_budget` cells from the start and `tail_budget` cells
+/// from the end.
+fn split_budget(chars: &[char], head_budget: usize, tail_budget: usize) -> Kept {
     let mut head = 0;
     let mut used = 0;
-    for c in &chars {
+    for c in chars {
         let w = char_width(*c);
         if used + w > head_budget {
             break;
@@ -202,7 +226,51 @@ pub fn kept(text: &str, max: usize, cut: Cut) -> Option<Kept> {
         used += w;
         tail += 1;
     }
-    Some(Kept { head, tail })
+    Kept { head, tail }
+}
+
+/// Whether `text` is a path: the home folder (`~`) or an absolute path (S-47).
+fn is_path(text: &str) -> bool {
+    text == "~" || text.starts_with("~/") || text.starts_with('/')
+}
+
+/// The middle cut of a path (S-47, design 3.2): the start is `~/` or `/` and the first folder, then the last folders
+/// that fit whole, with `…` between them and the `/` that starts each kept folder after it (`~/dev/…/tui/render`).
+/// `None` when the text is not a path or has no folder after its start, so there is nothing to cut in the middle.
+/// A start wider than `budget` is cut at its end.
+fn path_kept(chars: &[char], budget: usize) -> Option<Kept> {
+    let text: String = chars.iter().collect();
+    if !is_path(&text) {
+        return None;
+    }
+    let start = if text.starts_with("~/") { 2 } else { 1 };
+    let folder_end = chars[start..].iter().position(|c| *c == '/')?;
+    // The head is the start and the first folder, with the separator that ends it.
+    let head_end = start + folder_end + 1;
+    let head_width: usize = chars[..head_end].iter().map(|c| char_width(*c)).sum();
+    if head_width > budget {
+        return Some(Kept {
+            head: split_budget(&chars[..head_end], budget, 0).head,
+            tail: 0,
+        });
+    }
+    // Tail folders are taken from the end while they fit; each one starts at its separator.
+    let remaining = budget - head_width;
+    let mut used = 0;
+    let mut tail = 0;
+    for p in (head_end..chars.len()).rev() {
+        used += char_width(chars[p]);
+        if used > remaining {
+            break;
+        }
+        if chars[p] == '/' {
+            tail = chars.len() - p;
+        }
+    }
+    Some(Kept {
+        head: head_end,
+        tail,
+    })
 }
 
 /// Cuts `text` to at most `max` cells in the way `cut` names, marking the cut with `…`.
@@ -236,6 +304,16 @@ pub fn cut_middle(text: &str, max: usize) -> String {
     cut_with(text, max, Cut::Middle)
 }
 
+/// Cuts a path to at most `max` cells in the middle, keeping its start and its last folders (S-47, design 3.2).
+pub fn cut_path_middle(text: &str, max: usize) -> String {
+    cut_with(text, max, Cut::Path)
+}
+
+/// Cuts a project cell to at most `max` cells (S-47): a path in the middle, a name at the end.
+pub fn cut_project(text: &str, max: usize) -> String {
+    cut_with(text, max, Cut::PathOrEnd)
+}
+
 /// Fits a footer of key and label pairs (design 4.2, P-59 FR-TUI-13) in `max` cells. When it is too wide, whole
 /// pairs are dropped from the end and no key is cut. A first pair that is wider than `max` alone is cut at the end.
 pub fn fit_pairs(footer: &str, max: usize) -> String {
@@ -264,15 +342,12 @@ pub fn fit_right(text: &str, max: usize) -> String {
     format!("{}{cut}", " ".repeat(pad))
 }
 
-/// Exactly `max` cells: the text cut as needed (from the left when `from_left`), then padded with
-/// spaces.
-pub fn fit(text: &str, max: usize, from_left: bool) -> String {
+/// Exactly `max` cells: the text cut as `cut` names when it is too long, then padded with spaces.
+pub fn fit(text: &str, max: usize, cut: Cut) -> String {
     let cut = if width(text) <= max {
         text.to_string()
-    } else if from_left {
-        cut_start(text, max)
     } else {
-        cut_end(text, max)
+        cut_with(text, max, cut)
     };
     let pad = max.saturating_sub(width(&cut));
     format!("{cut}{}", " ".repeat(pad))
@@ -325,7 +400,7 @@ mod tests {
     fn cjk_characters_count_two_cells() {
         assert_eq!(width("日本"), 4);
         assert_eq!(cut_end("日本語", 4), "日…");
-        assert_eq!(fit("日本語", 4, false), "日… ");
+        assert_eq!(fit("日本語", 4, Cut::End), "日… ");
     }
 
     // design 3.2: a session name keeps its start and its four-character hash
@@ -382,10 +457,66 @@ mod tests {
         assert_eq!(fit_pairs(footer, 9), "enter 開…");
     }
 
+    // S-47, design 3.2: a path keeps its start and as many final folders as fit, with … between them
+    #[test]
+    fn cut_path_middle_keeps_the_start_and_the_last_folders() {
+        let path = "~/dev/projects/ledge/src/tui/render";
+        assert_eq!(cut_path_middle(path, 20), "~/dev/…/tui/render");
+        assert_eq!(cut_path_middle(path, 22), "~/dev/…/src/tui/render");
+        assert_eq!(
+            cut_path_middle("/home/u/dev/projects/ledge", 16),
+            "/home/…/ledge"
+        );
+    }
+
+    // S-47: a path that fits is kept unchanged, to the last cell
+    #[test]
+    fn cut_path_middle_keeps_a_path_that_fits() {
+        assert_eq!(cut_path_middle("~/dev/ledge", 11), "~/dev/ledge");
+        assert_eq!(cut_path_middle("/", 1), "/");
+    }
+
+    // S-47: a path with one folder has no middle to cut, so its folder is kept from the end, as cut_start does
+    #[test]
+    fn cut_path_middle_with_one_folder_keeps_the_folder() {
+        assert_eq!(cut_path_middle("/projects", 6), "…jects");
+        assert_eq!(cut_path_middle("~/ledge", 5), "…edge");
+    }
+
+    // S-47: CJK characters count as two cells in the path cut
+    #[test]
+    fn cut_path_middle_counts_cjk_as_two_cells() {
+        let path = "~/日本/プロジェクト/ledge/テキスト";
+        assert_eq!(cut_path_middle(path, 17), "~/日本/…/テキスト");
+        assert!(width(&cut_path_middle(path, 17)) <= 17);
+    }
+
+    // S-47: at three cells or less the start is cut as far as it must be, and never wider than the column
+    #[test]
+    fn cut_path_middle_at_three_cells_or_less() {
+        let path = "~/dev/projects/ledge";
+        assert_eq!(cut_path_middle(path, 3), "~/…");
+        assert_eq!(cut_path_middle(path, 1), "…");
+        assert_eq!(cut_path_middle(path, 0), "");
+        for max in 1..=3 {
+            assert!(width(&cut_path_middle(path, max)) <= max, "max {max}");
+        }
+    }
+
+    // S-47: a project cell is cut in the middle when it is a path and at the end when it is a name
+    #[test]
+    fn cut_project_cuts_a_path_in_the_middle_and_a_name_at_the_end() {
+        assert_eq!(cut_project("api-gateway-service", 10), "api-gatew…");
+        assert_eq!(
+            cut_project("~/dev/projects/ledge/src/tui/render", 20),
+            "~/dev/…/tui/render"
+        );
+    }
+
     #[test]
     fn fit_pads_to_the_exact_width() {
-        assert_eq!(fit("ab", 5, false), "ab   ");
-        assert_eq!(fit("", 3, false), "   ");
+        assert_eq!(fit("ab", 5, Cut::End), "ab   ");
+        assert_eq!(fit("", 3, Cut::End), "   ");
     }
 
     // S-44, option B 4.3: a count is right-aligned in its column, and a long text is cut at the end

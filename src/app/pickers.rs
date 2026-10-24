@@ -832,7 +832,7 @@ fn switcher_chrome() -> Chrome {
         messages::SESSIONS_LABEL,
         vec![
             ColumnSpec::name(messages::HEADER_SESSION),
-            ColumnSpec::text(messages::HEADER_PROJECT),
+            ColumnSpec::project(messages::HEADER_PROJECT),
             ColumnSpec::text(messages::HEADER_PROFILE),
             ColumnSpec::text(messages::HEADER_ACTIVITY),
             ColumnSpec::wide_path(messages::HEADER_PATH),
@@ -1042,7 +1042,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
         TreeKind::Sessions => (
             vec![
                 ColumnSpec::name(messages::HEADER_SESSION),
-                ColumnSpec::text(messages::HEADER_PROJECT),
+                ColumnSpec::project(messages::HEADER_PROJECT),
                 ColumnSpec::text(messages::HEADER_PROFILE),
                 ColumnSpec::text(messages::HEADER_ACTIVITY),
             ],

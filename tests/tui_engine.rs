@@ -585,6 +585,24 @@ fn long_session_name_is_cut_in_the_middle_keeping_the_hash() {
     assert!(line.contains(&expected), "{line:?}");
 }
 
+// S-47, design 3.2: a path wider than its column is cut in the middle, keeping the start and the last folders
+#[test]
+fn long_path_is_cut_in_the_middle_keeping_the_start_and_the_folders() {
+    let path = "~/dev/projects/ledge/src/tui/render/columns/widths";
+    let chrome = Chrome::new("Projects", vec![ColumnSpec::path("Project")], "enter open");
+    let mut model = PickerModel::new(vec![PickerRow::new(vec![path.into()], path, 0)], chrome);
+    let mut term = FakeTerminal::new(40, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    // 40 cells, 36 inside the border and the margins. The start "~/dev/" and "/src/tui/render/columns/widths" (37
+    // cells with the ellipsis) do not both fit, so the last folders that fit are kept: "/tui/render/columns/widths".
+    let (_, line) = line_containing(&term, "…/tui/render/columns/widths").unwrap();
+    assert!(
+        line.contains("~/dev/…/tui/render/columns/widths"),
+        "{line:?}"
+    );
+    assert!(!line.contains("projects"), "{line:?}");
+}
+
 // FR-TUI-09, design 8.4: an error in the status row is bold and keeps its text
 #[test]
 fn error_status_is_bold_and_keeps_its_text() {

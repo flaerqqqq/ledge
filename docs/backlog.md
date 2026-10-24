@@ -565,7 +565,7 @@ have no FR-IDs state why.
 - branch: slice/S-46-bookmark-tree-path
 
 ### S-47 Middle-cut long paths in every path column
-- status: in-progress
+- status: done
 - deps: S-46, S-37
 - FR-IDs: FR-TUI-05 (fit), design section 3.2 (middle cut); no requirement change
 - scope: src/tui/columns.rs (a path cut that keeps the start and the last folders with … between), and every path cell that is cut: project picker, history picker, bookmark picker, bookmark tree, session tree and switcher Project cell, bookmark edit window Path column
