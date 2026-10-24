@@ -373,7 +373,7 @@ have no FR-IDs state why.
 - branch: slice/23-session-tree
 
 ### S-24 Bookmark tree command
-- status: in-progress
+- status: done
 - deps: S-22, S-18
 - FR-IDs: FR-TREE-05, FR-TREE-06, FR-TREE-07, FR-TREE-08, FR-ACT-10
 - scope: `app/bookmark_cmd.rs` (`bm tree`), bookmark tree screen, `domain/tree.rs` (scope selection).
@@ -384,7 +384,7 @@ have no FR-IDs state why.
 - branch: slice/24-bookmark-tree
 
 ### S-25 Session list and kill commands
-- status: blocked
+- status: in-progress
 - deps: S-14, S-09, S-17
 - FR-IDs: FR-SESS-09, FR-SESS-10, FR-SESS-11, FR-SESS-12, FR-SESS-13
 - scope: `app/session_cmd.rs` (`ss list`, `ss kill`), table formatting in `tui/columns.rs` reused or in `app/session_cmd.rs`.

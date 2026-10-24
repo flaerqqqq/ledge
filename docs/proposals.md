@@ -438,3 +438,22 @@ Format:
   (c) Enter on a gray folder without a session opens its directory under the session name it would get (FR-SESS-07, FR-SESS-08). A gray folder is openable only in the session tree (A-13), so it does not depend on a session existing.
 - why: each choice keeps the grammar of architecture 2.3 and the S-22 window. Tests: tests/tui_trees.rs and tests/component_cli.rs cover the enter path and the empty window.
 - status: Open
+
+### P-44 S-24 bookmark tree scope: choices the spec leaves open (FR-TREE-05..08)
+- from: implementer / slice S-24
+- doc: requirements.md (FR-TREE-05..08), docs/architecture.md (A-13, 6.2), docs/backlog.md (S-24)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) "The tree that contains a directory" is the tree of its deepest project that holds at least one bookmark. A directory inside a project with no bookmarks is in no tree.
+  (b) The cursor starts on the nearest node: the deepest row of that tree whose path is the directory or one of its ancestors (a gray connector counts as a node). With no directory, the cursor is on the first row.
+  (c) FR-TREE-07, "shows only the root directory": when the directory is in no tree, the window shows one gray, non-openable row. Its path is the root of the project that contains the directory (labelled with the project basename, as the other roots). When the directory is outside every project, the row is the directory itself, labelled with its path (the A-13 rule for sessions outside projects).
+  (d) `--session-scope` uses the directory of the current session (A-37 directory, `session_dir` of `bm edit`); outside tmux or without such a session it gives `--session-scope requires running inside a session.` (D-16). A directory given to `bm tree` is cleaned against the working directory and need not exist.
+  (e) `bm tree` with no directory is the whole tree set (FR-TREE-08); it does not default to the working directory.
+- why: the spec does not say which tree "contains" a directory, where the cursor starts, or what the root-only view labels. These follow A-13 and the `bm edit` project rule (FR-EDIT-08). Tests: domain/tree.rs unit tests (all_trees_are_shown_when_no_scope_is_given, directory_shows_only_the_tree_that_contains_it, cursor_starts_on_the_nearest_shown_node, directory_outside_every_tree_shows_only_its_root, directory_outside_every_project_shows_only_itself) and tests/tui_trees.rs (scope tests).
+- status: Open
+
+### P-45 S-24 bm tree: open options accepted, editor not used by the window
+- from: implementer / slice S-24
+- doc: docs/architecture.md (2.3 grammar `ledge bm tree [DIR] [--session-scope] [OPEN-OPTS]`, A-18 editor options apply to `bm tree`), requirements.md (FR-TREE-11), docs/backlog.md (S-24)
+- change: `bm tree` takes the open options from the parser and passes `options.profile` to the window (enter opens the chosen directory with that profile). `--editor`, `--code` and `--idea` are accepted and not used by the window, the same choice as P-36 (`bm pick`) and P-43 (`ss tree`). A-18 says editor options apply to `bm tree`; this slice does not implement that for the window, and the user may decide whether the window launches the editor on enter.
+- why: keeps the window behaviour of S-22 and S-23 the same for all trees. Tests: tests/component_cli.rs and src/cli/parse.rs (parsing); tests/tui_trees.rs (enter path).
+- status: Open

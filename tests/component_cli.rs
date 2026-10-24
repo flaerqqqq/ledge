@@ -514,3 +514,12 @@ fn ss_tree_with_no_sessions_says_so_and_stays_open() {
         "empty tree says so: {lines:#?}"
     );
 }
+
+// FR-TREE-06, D-16: `bm tree --session-scope` outside a session is refused before any window opens
+#[test]
+fn bm_tree_session_scope_outside_a_session_is_refused() {
+    let h = Harness::new("component_cli-tree-scope-outside");
+    let text = fatal(run(&args(&["bm", "tree", "--session-scope"]), &h.ctx()));
+    assert_eq!(text, "--session-scope requires running inside a session.");
+    assert_eq!(h.terminal.opened(), 0, "no window is opened");
+}

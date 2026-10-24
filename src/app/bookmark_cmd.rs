@@ -3,13 +3,15 @@
 //! list in `app::load_projects`, the file work in `app::store`.
 
 use crate::app::actions::current_session;
-use crate::app::pickers::{backend_fatal, run_in_terminal};
+use crate::app::pickers::{backend_fatal, bookmark_tree_picker, run_in_terminal};
 use crate::app::{load_projects, store, Ctx};
 use crate::domain::bm_edit::{visible_rows, EditRow, ExpandedFolders, Marker};
 use crate::domain::bookmarks::{check_candidate, status, BookmarkStatus, Bookmarks, Refusal};
 use crate::domain::path::AbsPath;
+use crate::domain::profile_rules::ProfileOpt;
 use crate::domain::projects::{project_containing, Project};
 use crate::domain::sessions::session_directory;
+use crate::domain::tree::TreeScope;
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::tui::columns::ColumnSpec;
@@ -125,6 +127,26 @@ pub fn edit(ctx: &Ctx<'_>, dir: Option<&str>, session_scope: bool) -> Result<Out
         | PickerResult::Profile(_)
         | PickerResult::ProfileNode(_) => Ok(Outcome::Done),
     }
+}
+
+/// FR-TREE-05..08: `bm tree [DIR] [--session-scope]`. A directory shows the tree that contains it; `--session-scope`
+/// uses the directory of the current session (FR-TREE-06); neither shows every tree. The directory is cleaned against
+/// the working directory and is not required to exist (as `bm edit`).
+pub fn tree(
+    ctx: &Ctx<'_>,
+    dir: Option<&str>,
+    session_scope: bool,
+    option: &ProfileOpt,
+) -> Result<Outcome> {
+    let scope = if session_scope {
+        TreeScope::Directory(session_dir(ctx)?)
+    } else {
+        match dir {
+            Some(dir) => TreeScope::Directory(AbsPath::clean(dir, &ctx.cwd)),
+            None => TreeScope::All,
+        }
+    };
+    bookmark_tree_picker(ctx, option, &scope)
 }
 
 /// FR-EDIT-08, FR-EDIT-09: the directory of the session the client is in. Outside tmux, or when that session has no

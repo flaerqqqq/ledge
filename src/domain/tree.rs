@@ -54,6 +54,93 @@ pub fn bookmark_tree(projects: &[Project], bookmarks: &Bookmarks) -> Vec<TreeRow
     build(projects, &leaves, Which::Bookmarks)
 }
 
+/// FR-TREE-05..08: which part of the bookmark tree a window shows. `Directory` is the directory given to `bm tree`,
+/// or the directory of the current session with `--session-scope` (FR-TREE-06).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TreeScope {
+    All,
+    Directory(AbsPath),
+}
+
+/// FR-TREE-05..08: the rows a window shows and the index of the row the cursor starts on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TreeView {
+    pub rows: Vec<TreeRow<NodeKind>>,
+    pub cursor: usize,
+}
+
+/// FR-TREE-05..08: the bookmark tree for `scope`. A directory shows only the tree of its project (the one that holds
+/// a bookmark), with the cursor on the nearest shown node. A directory in no such tree shows only its root directory:
+/// the root of its project, or the directory itself when it is outside every project (A-13, P-44).
+pub fn bookmark_view(projects: &[Project], bookmarks: &Bookmarks, scope: &TreeScope) -> TreeView {
+    let rows = bookmark_tree(projects, bookmarks);
+    let dir = match scope {
+        TreeScope::All => return TreeView { rows, cursor: 0 },
+        TreeScope::Directory(dir) => dir,
+    };
+    let block =
+        project_containing(dir, projects).and_then(|project| block_at(&rows, &project.path));
+    match block {
+        Some(block) => {
+            let cursor = block
+                .iter()
+                .enumerate()
+                .filter(|(_, row)| dir.is_inside(&row.path))
+                .max_by_key(|(_, row)| row.depth)
+                .map_or(0, |(index, _)| index);
+            TreeView {
+                rows: block,
+                cursor,
+            }
+        }
+        None => root_only(dir, projects),
+    }
+}
+
+/// The rows of the block whose root row is at `root`: from that row up to the next depth-0 row.
+fn block_at(rows: &[TreeRow<NodeKind>], root: &AbsPath) -> Option<Vec<TreeRow<NodeKind>>> {
+    let start = rows
+        .iter()
+        .position(|row| row.depth == 0 && row.path == *root)?;
+    let end = rows
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .find(|(_, row)| row.depth == 0)
+        .map_or(rows.len(), |(index, _)| index);
+    rows.get(start..end).map(<[TreeRow<NodeKind>]>::to_vec)
+}
+
+/// FR-TREE-07, A-13: the single gray row of a directory that no bookmark tree holds. Labelled with its project's
+/// basename, or with its path outside every project.
+fn root_only(dir: &AbsPath, projects: &[Project]) -> TreeView {
+    let (path, label) = match project_containing(dir, projects) {
+        Some(project) => (
+            project.path.clone(),
+            project
+                .path
+                .as_str()
+                .rsplit('/')
+                .find(|part| !part.is_empty())
+                .unwrap_or("/")
+                .to_string(),
+        ),
+        None => (dir.clone(), dir.as_str().to_string()),
+    };
+    TreeView {
+        rows: vec![TreeRow {
+            depth: 0,
+            label,
+            path,
+            kind: NodeKind::Root,
+            openable: false,
+            session: None,
+            dimmed: true,
+        }],
+        cursor: 0,
+    }
+}
+
 /// FR-SESS-06, FR-SESS-07, FR-TREE-11, FR-SCOPE-01, A-13: rows of the session tree. One root per project
 /// that holds a managed session; a session outside every project is its own root labelled with its path.
 pub fn session_tree(projects: &[Project], sessions: &[SessionDir]) -> Vec<TreeRow<NodeKind>> {
@@ -203,7 +290,9 @@ fn path_of(key: &[String]) -> AbsPath {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{bookmark_tree, session_tree, NodeKind, SessionDir, TreeRow};
+    use super::{
+        bookmark_tree, bookmark_view, session_tree, NodeKind, SessionDir, TreeRow, TreeScope,
+    };
     use crate::domain::bookmarks::Bookmarks;
     use crate::domain::naming::session_name;
     use crate::domain::path::AbsPath;
@@ -479,6 +568,101 @@ mod tests {
                 ("/p/app/src", 1, NodeKind::Session, true),
             ]
         );
+    }
+
+    fn scope_dir(text: &str) -> TreeScope {
+        TreeScope::Directory(abs(text))
+    }
+
+    // FR-TREE-08: with no directory and no session scope, every tree is shown and the cursor is on the first row
+    #[test]
+    fn all_trees_are_shown_when_no_scope_is_given() {
+        let projects = vec![project("/p/app"), project("/p/lib")];
+        let view = bookmark_view(
+            &projects,
+            &bookmarks("/p/app/x\n/p/lib/y\n"),
+            &TreeScope::All,
+        );
+        assert_eq!(
+            shape(&view.rows),
+            vec![
+                ("/p/app", 0, NodeKind::Root, false),
+                ("/p/app/x", 1, NodeKind::Bookmark, true),
+                ("/p/lib", 0, NodeKind::Root, false),
+                ("/p/lib/y", 1, NodeKind::Bookmark, true),
+            ]
+        );
+        assert_eq!(view.cursor, 0);
+    }
+
+    // FR-TREE-05: a given directory shows only the tree that contains it
+    #[test]
+    fn directory_shows_only_the_tree_that_contains_it() {
+        let projects = vec![project("/p/app"), project("/p/lib")];
+        let view = bookmark_view(
+            &projects,
+            &bookmarks("/p/app/x\n/p/lib/y\n"),
+            &scope_dir("/p/lib/z"),
+        );
+        assert_eq!(
+            shape(&view.rows),
+            vec![
+                ("/p/lib", 0, NodeKind::Root, false),
+                ("/p/lib/y", 1, NodeKind::Bookmark, true),
+            ]
+        );
+        assert_eq!(view.cursor, 0);
+    }
+
+    // FR-TREE-05: the cursor starts on the nearest node, the deepest shown directory that holds the given one
+    #[test]
+    fn cursor_starts_on_the_nearest_shown_node() {
+        let projects = vec![project("/p/app")];
+        let text = "/p/app/a/b/c\n/p/app/d\n";
+        let node_at = |dir: &str| {
+            let view = bookmark_view(&projects, &bookmarks(text), &scope_dir(dir));
+            view.rows
+                .get(view.cursor)
+                .map(|row| row.path.as_str().to_string())
+        };
+        // a gray connector that is shown
+        assert_eq!(node_at("/p/app/a/b/x/y").as_deref(), Some("/p/app/a/b"));
+        // a directory that is not shown, between a connector and a bookmark
+        assert_eq!(node_at("/p/app/a/q").as_deref(), Some("/p/app/a"));
+        // a bookmark itself
+        assert_eq!(node_at("/p/app/d").as_deref(), Some("/p/app/d"));
+        // the project root
+        assert_eq!(node_at("/p/app/z").as_deref(), Some("/p/app"));
+    }
+
+    // FR-TREE-07: a directory outside every tree shows only the root directory of its project
+    #[test]
+    fn directory_outside_every_tree_shows_only_its_root() {
+        let projects = vec![project("/p/app"), project("/p/lib")];
+        let view = bookmark_view(
+            &projects,
+            &bookmarks("/p/app/x\n"),
+            &scope_dir("/p/lib/z/w"),
+        );
+        assert_eq!(
+            shape(&view.rows),
+            vec![("/p/lib", 0, NodeKind::Root, false)]
+        );
+        assert_eq!(view.cursor, 0);
+        assert!(view.rows[0].dimmed);
+    }
+
+    // FR-TREE-07: a directory outside every project is the only row, labelled with its path (A-13)
+    #[test]
+    fn directory_outside_every_project_shows_only_itself() {
+        let projects = vec![project("/p/app")];
+        let view = bookmark_view(&projects, &bookmarks("/p/app/x\n"), &scope_dir("/home/u/x"));
+        assert_eq!(
+            shape(&view.rows),
+            vec![("/home/u/x", 0, NodeKind::Root, false)]
+        );
+        assert_eq!(view.rows[0].label, "/home/u/x");
+        assert_eq!(view.cursor, 0);
     }
 
     // FR-SESS-06: with no managed sessions the session tree is empty, even when projects exist

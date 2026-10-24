@@ -12,6 +12,7 @@ use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
 use ledge::domain::profile::{Profile, ProfileName};
 use ledge::domain::profile_rules::ProfileOpt;
+use ledge::domain::tree::TreeScope;
 use ledge::error::Outcome;
 use ledge::ports::backend::{SessionBackend, OPT_PROFILE};
 use ledge::tui::terminal::Input;
@@ -178,7 +179,7 @@ fn bookmark_tree_stays_open_when_its_last_entry_is_removed() {
     let api = format!("{}/api", h.project("app"));
     write_bookmarks(&h, &[api.as_str()]);
     h.terminal.script(vec![alt('d'), esc()]);
-    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
     assert_eq!(
         h.terminal.opened(),
@@ -340,7 +341,7 @@ fn alt_d_on_a_bookmark_node_deletes_the_bookmarks_under_it() {
     live(&h, &api, "dev", DEV);
     live(&h, &x, "dev", DEV);
     h.terminal.script(vec![alt('d'), esc()]);
-    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
     assert_eq!(bookmarks_text(&h).trim(), x.as_str());
     assert!(!exists(&h, &name_of(&api)));
@@ -365,7 +366,7 @@ fn trees_show_their_given_footers() {
     let api = format!("{}/api", h2.project("app"));
     write_bookmarks(&h2, &[api.as_str()]);
     h2.terminal.script(vec![esc()]);
-    bookmark_tree_picker(&h2.ctx(), &ProfileOpt::Unset).expect("bookmark tree");
+    bookmark_tree_picker(&h2.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
     assert!(
         screen(&h2)
             .iter()
@@ -418,4 +419,105 @@ fn enter_on_a_deep_session_entry_opens_its_directory() {
     let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
     assert_eq!(outcome, Ok(Outcome::Done));
     assert_eq!(h.backend.attached_to(), Some(name_of(&f.api)));
+}
+
+// FR-TREE-05: a given directory shows only the bookmark tree that contains it, and the cursor starts on its nearest node
+#[test]
+fn bookmark_tree_for_a_directory_shows_only_its_tree() {
+    let h = Harness::new("tui_trees-scope-tree");
+    search_in_projects(&h);
+    let api = h.project("app/api");
+    let lib_x = format!("{}/x", h.project("lib"));
+    write_bookmarks(&h, &[api.as_str(), lib_x.as_str()]);
+    let dir = abs(&format!("{api}/src"));
+    h.terminal.script(vec![enter()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::Directory(dir));
+    assert_eq!(outcome, Ok(Outcome::Done));
+    assert_eq!(
+        h.backend.attached_to(),
+        Some(name_of(&abs(&api))),
+        "the cursor starts on the nearest node, the api bookmark"
+    );
+    let lines = screen(&h);
+    assert!(
+        !lines.iter().any(|line| line.contains("lib")),
+        "other tree hidden: {lines:#?}"
+    );
+}
+
+// FR-TREE-07: a directory outside every tree shows only its root; enter on the gray root does nothing
+#[test]
+fn bookmark_tree_for_a_directory_outside_every_tree_shows_only_the_root() {
+    let h = Harness::new("tui_trees-scope-root");
+    search_in_projects(&h);
+    let api = h.project("app/api");
+    write_bookmarks(&h, &[api.as_str()]);
+    let lib = abs(&h.project("lib"));
+    h.terminal.script(vec![enter(), esc()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::Directory(lib));
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(h.backend.attached_to(), None, "the gray root is not opened");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("lib")),
+        "root shown: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("api")),
+        "only the root: {lines:#?}"
+    );
+}
+
+// FR-TREE-08: with no directory and no session scope, every bookmark tree is shown
+#[test]
+fn bookmark_tree_without_a_directory_shows_every_tree() {
+    let h = Harness::new("tui_trees-scope-all");
+    search_in_projects(&h);
+    let api = h.project("app/api");
+    let lib_x = format!("{}/x", h.project("lib"));
+    write_bookmarks(&h, &[api.as_str(), lib_x.as_str()]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("tree");
+    let lines = screen(&h);
+    assert!(lines.iter().any(|line| line.contains("api")), "{lines:#?}");
+    assert!(lines.iter().any(|line| line.contains("lib")), "{lines:#?}");
+}
+
+// FR-TREE-06: `bm tree --session-scope` shows the tree of the directory of the current session
+#[test]
+fn session_scope_shows_the_tree_of_the_current_session_directory() {
+    let mut h = Harness::new("tui_trees-session-scope");
+    search_in_projects(&h);
+    let api = abs(&h.project("app/api"));
+    let lib_x = format!("{}/x", h.project("lib"));
+    write_bookmarks(&h, &[api.as_str(), lib_x.as_str()]);
+    live(&h, &api, "dev", DEV);
+    be_inside(&mut h, &name_of(&api));
+    h.terminal.script(vec![esc()]);
+    let args = vec![
+        "bm".to_string(),
+        "tree".to_string(),
+        "--session-scope".to_string(),
+    ];
+    let outcome = ledge::cli::run(&args, &h.ctx());
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    assert!(lines.iter().any(|line| line.contains("api")), "{lines:#?}");
+    assert!(
+        !lines.iter().any(|line| line.contains("lib")),
+        "other tree hidden: {lines:#?}"
+    );
+}
+
+// D-12, FR-TREE-08: an empty bookmark tree says `No bookmarks.` and stays open
+#[test]
+fn empty_bookmark_tree_says_so_and_stays_open() {
+    let h = Harness::new("tui_trees-empty");
+    search_in_projects(&h);
+    write_bookmarks(&h, &[]);
+    h.terminal.script(vec![esc()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(h.terminal.opened(), 1, "the window opened and stayed open");
+    assert!(screen(&h).iter().any(|line| line.contains("No bookmarks.")));
 }

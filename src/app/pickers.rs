@@ -26,7 +26,7 @@ use crate::domain::profile_rules::{
 use crate::domain::projects::{project_containing, project_rows, Project};
 use crate::domain::sessions::SessionInfo;
 use crate::domain::sessions::{managed, session_directory, switcher_order, ManagedSession};
-use crate::domain::tree::{bookmark_tree, session_tree, NodeKind, SessionDir, TreeRow};
+use crate::domain::tree::{bookmark_view, session_tree, NodeKind, SessionDir, TreeRow, TreeScope};
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::ports::backend::BackendError;
@@ -793,24 +793,38 @@ type TreeItem = PickerRow<TreeRow<NodeKind>>;
 /// FR-SESS-06..08, FR-TREE-11, FR-TREE-12, FR-ACT-06..09, D-12, S-22: runs the session tree over the managed sessions.
 /// Enter opens an openable entry; the alt keys act on the whole node. The window stays open when its list is empty.
 pub fn session_tree_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
-    run_tree_window(ctx, option, TreeKind::Sessions)
+    run_tree_window(ctx, option, TreeKind::Sessions, &TreeScope::All)
 }
 
-/// FR-TREE-05..08 (all trees), FR-TREE-11, FR-TREE-12, FR-ACT-06..10, D-12, S-22: runs the bookmark tree. Enter opens an
-/// openable entry; alt-d deletes the bookmarks under the node. The window stays open when its list is empty.
-pub fn bookmark_tree_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
-    run_tree_window(ctx, option, TreeKind::Bookmarks)
+/// FR-TREE-05..08, FR-TREE-11, FR-TREE-12, FR-ACT-06..10, D-12, S-22, S-24: runs the bookmark tree for `scope`. The
+/// cursor starts on the nearest node of the scope. Enter opens an openable entry; alt-d deletes the bookmarks under
+/// the node. The window stays open when its list is empty.
+pub fn bookmark_tree_picker(
+    ctx: &Ctx<'_>,
+    option: &ProfileOpt,
+    scope: &TreeScope,
+) -> Result<Outcome> {
+    run_tree_window(ctx, option, TreeKind::Bookmarks, scope)
 }
 
 /// Runs a tree window. Enter opens the chosen entry after the terminal is restored; ctrl-p and alt-p ask a profile
 /// and reopen the window with the row selected.
-fn run_tree_window(ctx: &Ctx<'_>, option: &ProfileOpt, kind: TreeKind) -> Result<Outcome> {
-    let rows = tree_rows(ctx, kind)?;
+fn run_tree_window(
+    ctx: &Ctx<'_>,
+    option: &ProfileOpt,
+    kind: TreeKind,
+    scope: &TreeScope,
+) -> Result<Outcome> {
+    let (mut rows, cursor) = tree_rows(ctx, kind, scope)?;
+    if let Some(row) = rows.get_mut(cursor) {
+        row.preselect = true;
+    }
     let mut model = PickerModel::new(rows, tree_chrome(kind));
     let mut handler = TreeHandler {
         ctx,
         option: option.clone(),
         kind,
+        scope: scope.clone(),
     };
     loop {
         let chrome = model.chrome().clone();
@@ -881,20 +895,25 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
     chrome
 }
 
-/// Rows of a tree window, built from the project list, the bookmarks or the managed sessions (A-13, A-37). Only the
-/// managed sessions with a directory are placed in the session tree (FR-SESS-06).
-fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind) -> Result<Vec<TreeItem>> {
+/// Rows of a tree window, built from the project list, the bookmarks or the managed sessions (A-13, A-37), and the
+/// index of the row the cursor starts on. Only the managed sessions with a directory are placed in the session tree
+/// (FR-SESS-06). The scope selects the bookmark rows (FR-TREE-05..08); the session tree is always whole.
+fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<TreeItem>, usize)> {
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     let projects = load_projects(ctx.fs, &config.search_paths);
     let sessions = live_sessions(ctx)?;
-    let rows = match kind {
-        TreeKind::Bookmarks => bookmark_tree(&projects, &read_bookmarks(ctx)?),
-        TreeKind::Sessions => session_tree(&projects, &session_dirs(ctx, &sessions)),
+    let (rows, cursor) = match kind {
+        TreeKind::Bookmarks => {
+            let view = bookmark_view(&projects, &read_bookmarks(ctx)?, scope);
+            (view.rows, view.cursor)
+        }
+        TreeKind::Sessions => (session_tree(&projects, &session_dirs(ctx, &sessions)), 0),
     };
-    Ok(rows
+    let items = rows
         .into_iter()
         .map(|row| tree_item(ctx, &sessions, row))
-        .collect())
+        .collect();
+    Ok((items, cursor))
 }
 
 /// FR-SESS-06, A-37: the managed sessions with their directory (`@ledge_dir`, then tmux's path).
@@ -945,6 +964,7 @@ struct TreeHandler<'c, 'a> {
     ctx: &'c Ctx<'a>,
     option: ProfileOpt,
     kind: TreeKind,
+    scope: TreeScope,
 }
 
 impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
@@ -977,7 +997,7 @@ impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
     }
 
     fn reload(&mut self) -> Result<Vec<TreeItem>> {
-        tree_rows(self.ctx, self.kind)
+        tree_rows(self.ctx, self.kind, &self.scope).map(|(rows, _)| rows)
     }
 }
 

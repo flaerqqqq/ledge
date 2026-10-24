@@ -61,6 +61,10 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
         Command::BmAdd { dir } => bookmark_cmd::add(ctx, dir.as_deref()),
         Command::BmRemove { dir } => bookmark_cmd::remove(ctx, &dir),
         Command::BmList => bookmark_cmd::list(ctx),
+        Command::BmTree { dir, options } => {
+            require_tmux(ctx)?;
+            bookmark_cmd::tree(ctx, dir.as_deref(), options.session_scope, &options.profile)
+        }
         Command::BmPick => {
             require_tmux(ctx)?;
             bookmark_picker(ctx, &ProfileOpt::Unset)

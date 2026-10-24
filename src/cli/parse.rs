@@ -73,7 +73,11 @@ pub enum Command {
         dir: Option<String>,
         session_scope: bool,
     },
-    BmTree,
+    /// FR-TREE-05..08: `bm tree [DIR] [--session-scope]` with the open options; no directory means every tree.
+    BmTree {
+        dir: Option<String>,
+        options: Options,
+    },
     SsList,
     /// FR-SESS-06: `ss tree`, the session tree window; takes the open options (P-36 applies: the editor is not used).
     SsTree(Options),
@@ -97,7 +101,7 @@ impl Command {
             Command::BmRemove { .. } => "bm remove",
             Command::BmList => "bm list",
             Command::BmEdit { .. } => "bm edit",
-            Command::BmTree => "bm tree",
+            Command::BmTree { .. } => "bm tree",
             Command::SsList => "ss list",
             Command::SsTree(_) => "ss tree",
             Command::SsKill => "ss kill",
@@ -414,7 +418,10 @@ fn bm(words: &[String], opts: &[Opt]) -> Result<Command, String> {
             if parsed.session_scope && !tail.is_empty() {
                 return Err(messages::session_scope_with_directory().to_string());
             }
-            Ok(Command::BmTree)
+            Ok(Command::BmTree {
+                dir: tail.first().cloned(),
+                options: parsed,
+            })
         }
         other => Err(messages::unknown_group_command("bm", other)),
     }
@@ -628,7 +635,35 @@ mod tests {
         );
         assert_eq!(
             parse(&argv(&["bm", "tree", "--session-scope"])),
-            Ok(Command::BmTree)
+            Ok(Command::BmTree {
+                dir: None,
+                options: Options {
+                    session_scope: true,
+                    ..Options::default()
+                },
+            })
+        );
+    }
+
+    // FR-TREE-05, FR-TREE-08: `bm tree` takes one directory or none, and the open options
+    #[test]
+    fn bm_tree_takes_a_directory_and_the_open_options() {
+        assert_eq!(
+            parse(&argv(&["bm", "tree"])),
+            Ok(Command::BmTree {
+                dir: None,
+                options: Options::default(),
+            })
+        );
+        assert_eq!(
+            parse(&argv(&["bm", "tree", "/a", "--profile", "web"])),
+            Ok(Command::BmTree {
+                dir: Some("/a".to_string()),
+                options: Options {
+                    profile: ProfileOpt::Named("web".to_string()),
+                    ..Options::default()
+                },
+            })
         );
     }
 

@@ -655,3 +655,32 @@ fn proposed_history_and_bookmark_error_texts_are_verbatim() {
         "could not write bookmarks: denied"
     );
 }
+
+// FR-TREE-09, Messages: two directories given to `bm tree`
+#[test]
+fn bm_tree_takes_at_most_one_directory_text_is_verbatim() {
+    assert_eq!(
+        messages::bm_tree_takes_at_most_one_directory(),
+        "bm tree takes at most one directory."
+    );
+}
+
+// FR-TREE-10, Messages: `--session-scope` with a directory
+#[test]
+fn session_scope_with_directory_text_is_verbatim() {
+    assert_eq!(
+        messages::session_scope_with_directory(),
+        "--session-scope cannot be combined with a directory."
+    );
+}
+
+// FR-TREE-08, Messages: the empty bookmark tree and the bookmark tree footer (Screens and interactions)
+#[test]
+fn bookmark_tree_empty_and_footer_are_verbatim() {
+    assert_eq!(messages::no_bookmarks(), "No bookmarks.");
+    assert_eq!(messages::BOOKMARK_TREE_LABEL, "Bookmark tree");
+    assert_eq!(
+        messages::BOOKMARK_TREE_FOOTER,
+        "enter open · ^r/^p/^x/^d selected · alt-r/alt-p/alt-x/alt-d whole node"
+    );
+}
