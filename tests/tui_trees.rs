@@ -537,11 +537,11 @@ fn session_tree_row_starts_with_the_session_name() {
     );
     let name = name_of(&f.api);
     let row = line_with(&lines, &name);
-    // The first column may start with the tree lead (the current mark and branch glyphs, design 3.6); the name follows.
+    // The first column may start with the tree lead (the branch glyphs, design 3.6); the name follows.
     let body = row
         .trim_start_matches('│')
         .trim_start()
-        .trim_start_matches(|c: char| "*|`-│├└─ ".contains(c));
+        .trim_start_matches(|c: char| "|`-│├└─ ".contains(c));
     assert!(
         body.starts_with(&name),
         "first column is the session after its lead: {row}"
@@ -1119,9 +1119,9 @@ fn session_tree_shows_the_missing_cue() {
     assert!(line_with(&lines, &name_of(&scratch)).contains("(missing)"));
 }
 
-// FR-SESS-02, FR-PICK-05, design 3.6: the session the user is in has a leading * in the session tree
+// FR-SESS-02, FR-PICK-05, design 3.6: the session the user is in has no star in the session tree
 #[test]
-fn current_session_has_a_star_in_the_session_tree() {
+fn current_session_has_no_star_in_the_session_tree() {
     let mut h = Harness::new("tui_trees-current-star");
     let fixture = session_fixture(&h);
     be_inside(&mut h, &name_of(&fixture.app));
@@ -1129,8 +1129,8 @@ fn current_session_has_a_star_in_the_session_tree() {
     session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
     let lines = screen(&h);
     let app = name_of(&fixture.app);
-    assert!(line_with(&lines, &app).contains(&format!("*{app}")));
-    assert!(!line_with(&lines, &name_of(&fixture.lib)).contains('*'));
+    assert!(line_with(&lines, &app).contains(&app), "{lines:#?}");
+    assert!(!lines.iter().any(|line| line.contains('*')), "{lines:#?}");
 }
 
 // design 3.2, 4.2 (P-59): an empty session tree and an empty bookmark tree show only "esc close" and stay open

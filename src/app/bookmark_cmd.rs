@@ -277,21 +277,19 @@ impl PickerHandler<EditRow> for EditHandler<'_, '_> {
     }
 }
 
-/// FR-EDIT-01, FR-EDIT-06: one row of the window. Column 0 is the bookmark marker, column 1 the directory tree: the
-/// branch glyphs come from the depth (`rows` sets them as the lead), then `+` or `-` (FR-EDIT-04) and the folder name.
+/// FR-EDIT-01, FR-EDIT-04, FR-EDIT-06: one row of the window. Column 0 is the bookmark marker, column 1 the directory
+/// tree: the branch glyphs come from the depth (`rows` sets them as the lead), then the folder name, then `+` or `-`
+/// after it (FR-EDIT-04). A folder without subfolders has no marker after the name.
 fn edit_row(row: &EditRow) -> PickerRow<EditRow> {
     let mark = if row.bookmarked { BOOKMARK_MARK } else { "" };
-    let marker = if row.marker.text().is_empty() {
-        " "
+    let marker = row.marker.text();
+    let tree_cell = if marker.is_empty() {
+        row.name.clone()
     } else {
-        row.marker.text()
+        format!("{} {marker}", row.name)
     };
     // FR-EDIT-13: the search matches the folder name.
-    let mut picker_row = PickerRow::new(
-        vec![mark.to_string(), format!("{marker} {}", row.name)],
-        &row.name,
-        row.clone(),
-    );
+    let mut picker_row = PickerRow::new(vec![mark.to_string(), tree_cell], &row.name, row.clone());
     picker_row.depth = row.depth;
     picker_row.marked = row.bookmarked;
     picker_row

@@ -136,7 +136,7 @@ fn chrome_shows_label_prompt_header_status_and_footer() {
     let rows = vec![
         PickerRow::new(
             vec![
-                "*".into(),
+                "".into(),
                 "/home/u/dev/alpha".into(),
                 "alpha-1a2b".into(),
                 "basic".into(),
@@ -423,8 +423,8 @@ fn session_cells_take_their_row_state_token() {
     );
 }
 
-// design 3.5, 3.6: the lead (current mark and tree branch) is drawn before the cell text, and the (missing) cue
-// needs the row's missing flag, not only its dimmed state (a gray placeholder is not missing)
+// design 3.6: the lead (the tree branch glyphs) is drawn before the cell text, and the (missing) cue needs the row's
+// missing flag, not only its dimmed state (a gray placeholder is not missing). No row gets a star (FR-PICK-05)
 #[test]
 fn lead_is_drawn_before_the_text_and_the_cue_needs_the_missing_flag() {
     let mut chrome = Chrome::new(
@@ -434,7 +434,7 @@ fn lead_is_drawn_before_the_text_and_the_cue_needs_the_missing_flag() {
     );
     chrome.missing_column = Some(1);
     let mut child = PickerRow::new(vec!["api-91bc".into(), "api".into()], "api", 0);
-    child.lead = Some("*\u{2514}\u{2500}".into());
+    child.lead = Some("\u{2514}\u{2500}".into());
     let mut gray = PickerRow::new(vec!["web (no session)".into(), "web".into()], "web", 1);
     gray.dimmed = true;
     let mut gone = PickerRow::new(vec!["old-0c4e".into(), "/x/old".into()], "old", 2);
@@ -442,29 +442,18 @@ fn lead_is_drawn_before_the_text_and_the_cue_needs_the_missing_flag() {
     let mut model = PickerModel::new(vec![child, gray, gone], chrome);
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
-    assert!(line_containing(&term, "*\u{2514}\u{2500}api-91bc").is_some());
+    let (_, child_line) = line_containing(&term, "\u{2514}\u{2500}api-91bc").unwrap();
+    assert!(
+        child_line.starts_with("│ \u{2514}\u{2500}api-91bc"),
+        "{child_line:?}"
+    );
+    assert!(!term.lines().iter().any(|line| line.contains('*')));
     assert!(line_containing(&term, "/x/old (missing)").is_some());
     assert!(line_containing(&term, "web (no session)")
         .unwrap()
         .1
         .find("(missing)")
         .is_none());
-}
-
-// design 3.5, FR-PICK-05: the current mark `*` of a session cell takes the accent token, as the project picker's does
-#[test]
-fn current_mark_takes_the_accent_token() {
-    let mut chrome = name_chrome("enter open");
-    chrome.session_column = Some(0);
-    let other = PickerRow::new(vec!["other".into(), "x".into()], "other", 0);
-    let mut current = PickerRow::new(vec!["app".into(), "x".into()], "app", 1);
-    current.lead = Some("*".into());
-    current.session_cell = SessionCell::Live;
-    let mut model = PickerModel::new(vec![other, current], chrome);
-    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
-    drive(&mut model, &mut term, true);
-    let (y, line) = line_containing(&term, "*app").unwrap();
-    assert_eq!(term.cell(cell_x(&line, "*app"), y).unwrap().fg, Color::Cyan);
 }
 
 // FR-TUI-02, FR-TUI-09: matched characters are bold and underlined
@@ -478,7 +467,8 @@ fn matched_characters_are_bold_and_underlined() {
     let mut term = FakeTerminal::new(60, 12, typed("le")).unwrap();
     drive(&mut model, &mut term, false);
     let (y, _) = line_containing(&term, "ledge").unwrap();
-    for x in [3, 4] {
+    // The name starts at x 2 (the left margin is x 1).
+    for x in [2, 3] {
         let modifier = term.cell(x, y).unwrap().modifier;
         assert!(
             modifier.contains(Modifier::BOLD | Modifier::UNDERLINED),
@@ -486,7 +476,7 @@ fn matched_characters_are_bold_and_underlined() {
         );
     }
     assert!(!term
-        .cell(5, y)
+        .cell(4, y)
         .unwrap()
         .modifier
         .contains(Modifier::UNDERLINED));
@@ -512,17 +502,17 @@ fn picker_stays_open_with_rows_and_closes_when_empty_unless_staying_open() {
     assert!(term.lines()[0].starts_with("╭ Names "));
 }
 
-// FR-TUI-09, design 9.2a: the selected row has the bar in column 0, and reverse video runs over the whole row
-// and its gaps (no colour)
+// FR-TUI-09, design 3.1: the selected row has no bar and no gap in column 0; reverse video runs over the whole row,
+// its gaps included (no colour), and no bar is drawn anywhere
 #[test]
-fn selection_bar_and_reverse_video_cover_the_whole_row() {
+fn selected_row_is_reverse_video_across_the_whole_row_with_no_bar() {
     let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
     let mut term = FakeTerminal::new(60, 12, vec![key(KeyCode::Down)]).unwrap();
     drive(&mut model, &mut term, false);
+    assert!(!term.lines().iter().any(|line| line.contains('▌')));
     let (y, _) = line_containing(&term, "row01-1a2b").unwrap();
-    // The bar is in column 0 of the row, after the left margin (x 1). Reverse video runs from the left margin (x 1)
-    // to the right margin (x 58), gaps included.
-    assert_eq!(term.cell(2, y).unwrap().symbol(), "▌");
+    // Reverse video runs from the left margin (x 1) to the right margin (x 58), gaps included.
+    assert_eq!(term.cell(2, y).unwrap().symbol(), "r");
     for x in 1..=58 {
         assert!(
             term.cell(x, y)
@@ -532,11 +522,11 @@ fn selection_bar_and_reverse_video_cover_the_whole_row() {
             "x={x}"
         );
     }
-    // The gap between Name (x 3..=7) and Session is x 8..=9.
+    // The gap between Name (x 2..=6) and Session is x 7..=8. The row above is not selected: no reverse video there.
     let (other, _) = line_containing(&term, "row00-1a2b").unwrap();
-    assert_eq!(term.cell(2, other).unwrap().symbol(), " ");
+    assert_eq!(term.cell(2, other).unwrap().symbol(), "r");
     assert!(!term
-        .cell(8, other)
+        .cell(7, other)
         .unwrap()
         .modifier
         .contains(Modifier::REVERSED));
@@ -551,13 +541,12 @@ fn selection_gap_takes_the_theme_selection_background() {
     drive_themed(&mut model, &mut term, &ink, true);
     let (y, _) = line_containing(&term, "row01-1a2b").unwrap();
     let selection_bg = Color::Rgb(0x39, 0x3b, 0x44);
-    // Left margin, bar, Name, the gap, Session, its padding, and the right margin.
-    for x in [1, 2, 3, 7, 8, 9, 10, 20, 58] {
+    // Left margin, Name, the gap, Session, its padding, and the right margin.
+    for x in [1, 2, 6, 7, 8, 9, 19, 20, 58] {
         let cell = term.cell(x, y).unwrap();
         assert_eq!(cell.bg, selection_bg, "x={x}");
         assert!(!cell.modifier.contains(Modifier::REVERSED), "x={x}");
     }
-    assert_eq!(term.cell(2, y).unwrap().fg, Color::Rgb(0x7f, 0xb4, 0xca));
 }
 
 // FR-TUI-04, design 4.2: at 60 cells the footer drops whole key pairs from the end, never half a pair
@@ -588,8 +577,8 @@ fn long_session_name_is_cut_in_the_middle_keeping_the_hash() {
     let mut model = PickerModel::new(vec![PickerRow::new(vec![name.into()], name, 0)], chrome);
     let mut term = FakeTerminal::new(40, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
-    // 40 cells, 38 inside the border, 2 for the margins and 1 for the selection bar: 35 cells, the hash is 5 of them.
-    let expected = format!("▌{}…-91bc", &name[..29]);
+    // 40 cells, 38 inside the border, 2 for the margins: 36 cells, the hash is 5 of them.
+    let expected = format!("{}…-91bc", &name[..30]);
     let (_, line) = line_containing(&term, "…-91bc").unwrap();
     assert!(line.contains(&expected), "{line:?}");
 }

@@ -1,7 +1,7 @@
 //! Picker rendering (architecture 6.2, design 3 and 6). `draw` is pure: it reads a `PickerModel` and writes into a
 //! ratatui frame, so tests use `TestBackend` (tests/tui_engine.rs). Colours come only from the theme's tokens
-//! (`tui::theme`). Colours are off when `NO_COLOR` is set or `TERM` is `dumb` (A-04); the text cues, the selection bar,
-//! reverse video and bold are drawn in both cases.
+//! (`tui::theme`). Colours are off when `NO_COLOR` is set or `TERM` is `dumb` (A-04); the text cues, reverse video and
+//! bold are drawn in both cases.
 
 use crate::messages;
 use crate::tui::columns::{self, ColumnSpec, Cut, GAP};
@@ -14,19 +14,15 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Paragraph};
 use ratatui::Frame;
 
-/// The selection bar, drawn in column 0 of the selected row (design 3.1, 9.2a).
-const BAR: &str = "▌";
-/// Cells the selection bar takes from the inner width.
-const BAR_WIDTH: usize = 1;
 /// Blank cells inside the frame on the left and on the right of every line (design 3.1).
 const MARGIN: usize = 1;
 /// The rule under the prompt row and the rule under the column titles (design 3.1, P-61): one dim line across the
 /// inner width.
 const RULE: &str = "─";
 
-/// Cells of a list line that the columns take: the inner width less both margins and the selection bar.
+/// Cells of a list line that the columns take: the inner width less both margins.
 fn content_width(full: usize) -> usize {
-    full.saturating_sub(2 * MARGIN + BAR_WIDTH)
+    full.saturating_sub(2 * MARGIN)
 }
 
 /// Smallest terminal the picker draws in (A-06). Below it only the too-small line is shown.
@@ -135,8 +131,7 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
         draw_rule(frame, prompt_rule, full, theme, color);
     }
 
-    // Column titles: text_muted and bold (design 3.1). The first cell after the margin is blank, where the selection
-    // bar is drawn.
+    // Column titles: text_muted and bold (design 3.1).
     let title_style = paint(theme, Token::TextMuted, color).add_modifier(Modifier::BOLD);
     let header_parts: Vec<Vec<Span<'static>>> = chrome
         .columns
@@ -149,7 +144,7 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
             )]
         })
         .collect();
-    let mut header_line = vec![Span::raw(" ".repeat(MARGIN + BAR_WIDTH))];
+    let mut header_line = vec![Span::raw(" ".repeat(MARGIN))];
     header_line.extend(join(header_parts));
     frame.render_widget(Paragraph::new(Line::from(header_line)), header);
 
@@ -362,9 +357,9 @@ struct Look<'a> {
     full: usize,
 }
 
-/// One list row (design 3.1, 9.2a). The selected row has the bar in column 0 and runs over the whole window width,
-/// gaps included: reverse video when the theme sets no selection colour (and without colour), otherwise the theme's
-/// selection colours. Matched characters of the search column are bold, underlined and in accent (architecture 6.1).
+/// One list row (design 3.1, 9.2a). The selected row runs over the whole window width, gaps included: reverse video
+/// when the theme sets no selection colour (and without colour), otherwise the theme's selection colours. Matched
+/// characters of the search column are bold, underlined and in accent (architecture 6.1).
 fn row_line<T>(
     row: &PickerRow<T>,
     selected: bool,
@@ -390,22 +385,12 @@ fn row_line<T>(
                 &[]
             };
             let base = cell_style(row, column, spec, chrome, theme, color);
-            let mark = paint(theme, Token::Accent, color);
-            cell_spans(
-                row, column, spec, width, base, matched, mark, highlight, chrome,
-            )
+            cell_spans(row, column, spec, width, base, matched, highlight, chrome)
         })
         .collect();
-    // The left margin, the bar (or a blank in its place), the cells, and the padding that runs to the right edge of
-    // the inner width, so a selected row covers both margins too (design 3.1, 5).
-    let mut spans = vec![
-        Span::raw(" ".repeat(MARGIN)),
-        if selected {
-            Span::styled(BAR, paint(theme, Token::Accent, color))
-        } else {
-            Span::raw(" ".repeat(BAR_WIDTH))
-        },
-    ];
+    // The left margin, the cells, and the padding that runs to the right edge of the inner width, so a selected row
+    // covers both margins too (design 3.1, 5).
+    let mut spans = vec![Span::raw(" ".repeat(MARGIN))];
     spans.extend(join(parts));
     if selected {
         let used: usize = spans.iter().map(Span::width).sum();
@@ -415,12 +400,8 @@ fn row_line<T>(
                 theme.color(Token::SelectionFg),
                 theme.color(Token::SelectionBg),
             );
-            for (index, span) in spans.iter_mut().enumerate() {
-                // The bar keeps the accent colour; the rest of the row takes the selection colours.
-                span.style = span.style.bg(bg);
-                if index > 1 {
-                    span.style = span.style.fg(fg);
-                }
+            for span in &mut spans {
+                span.style = span.style.bg(bg).fg(fg);
             }
         } else {
             for span in &mut spans {
@@ -485,21 +466,10 @@ fn cell_spans<T>(
     width: usize,
     base: Style,
     matched: Style,
-    mark: Style,
     highlight: &[usize],
     chrome: &Chrome,
 ) -> Vec<Span<'static>> {
     let (prefix, raw, suffix) = cell_parts(row, column, chrome);
-    // The current mark of a cell is the accent token (design 3.5, P-61).
-    let lead_spans = |prefix: String| -> Vec<Span<'static>> {
-        match prefix.strip_prefix('*') {
-            Some(rest) => vec![
-                Span::styled("*".to_string(), base.patch(mark)),
-                Span::styled(rest.to_string(), base),
-            ],
-            None => vec![Span::styled(prefix, base)],
-        }
-    };
     let chars: Vec<char> = raw.chars().collect();
     let char_style = |index: usize| {
         if highlight.contains(&index) {
@@ -510,7 +480,7 @@ fn cell_spans<T>(
     };
     let whole = columns::width(&prefix) + columns::width(&raw) + columns::width(&suffix);
     if whole <= width {
-        let mut spans = lead_spans(prefix);
+        let mut spans = vec![Span::styled(prefix, base)];
         spans.extend(
             chars
                 .iter()
@@ -536,7 +506,7 @@ fn cell_spans<T>(
             base,
         )];
     };
-    let mut spans = lead_spans(prefix);
+    let mut spans = vec![Span::styled(prefix, base)];
     spans.extend(
         (0..kept.head).map(|index| Span::styled(chars[index].to_string(), char_style(index))),
     );

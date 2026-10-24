@@ -504,8 +504,7 @@ fn applied_profile(option: &ProfileOpt, default_profile: Option<&str>) -> Option
 }
 
 /// FR-PICK-04..07, P-61: one row per project (and the launch directory, FR-PICK-05). The project picker has no marker
-/// column: the current directory is marked `*` in the project cell, and a live session shows in the session cell. The
-/// launch directory's row is preselected.
+/// column and no mark: a live session shows in the session cell. The launch directory's row is preselected.
 fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
     let home = home_of(ctx);
@@ -520,8 +519,6 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
             };
             let cells = vec![shown.clone(), session_text(live), profile_text(live)];
             let mut picker_row = PickerRow::new(cells, &shown, row.path.clone());
-            // The mark of the current directory, or a blank so the names line up (design 3.5, P-61).
-            picker_row.lead = Some(current_mark(row.current).to_string());
             picker_row.missing = is_missing(ctx, &row.path);
             picker_row.dimmed = picker_row.missing;
             picker_row.session_cell = live_cell(live);
@@ -735,10 +732,6 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
             row.missing = dir.as_ref().is_some_and(|dir| is_missing(ctx, dir));
             row.dimmed = row.missing;
             row.session_cell = SessionCell::Live;
-            // FR-PICK-05, FR-SESS-02 (design 3.5): the session the user is in is marked `*`; the others keep the
-            // column with a space so the names line up.
-            row.lead =
-                Some(current_mark(current.as_deref() == Some(info.name.as_str())).to_string());
             row
         })
         .collect();
@@ -763,15 +756,6 @@ fn switcher_chrome() -> Chrome {
     chrome.empty_message = Some(messages::no_ledge_sessions().to_string());
     chrome.stay_open_when_empty = true;
     chrome
-}
-
-/// Design 3.5, 3.6, FR-PICK-05: the mark of the current session in front of its name: `*`, or a space for the others.
-fn current_mark(is_current: bool) -> &'static str {
-    if is_current {
-        "*"
-    } else {
-        " "
-    }
 }
 
 /// The directory of the managed session `name`, cleaned against the working directory. `None` when the session is
@@ -1001,7 +985,6 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     let projects = load_projects(ctx.fs, &config.search_paths);
     let sessions = live_sessions(ctx)?;
-    let current = current_session(ctx)?;
     let (rows, cursor) = match kind {
         TreeKind::Bookmarks => {
             let view = bookmark_view(&projects, &read_bookmarks(ctx)?, scope);
@@ -1019,14 +1002,7 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
         .map(|row| tree_item(ctx, &sessions, kind, &projects, home.as_ref(), now, row))
         .collect();
     for (item, guide) in items.iter_mut().zip(guides) {
-        item.lead = Some(match kind {
-            // The session tree marks the current session as the switcher does (FR-PICK-05, design 3.6).
-            TreeKind::Sessions => format!(
-                "{}{guide}",
-                current_mark(item.payload.session.as_deref() == current.as_deref())
-            ),
-            TreeKind::Bookmarks => guide,
-        });
+        item.lead = Some(guide);
     }
     Ok((items, cursor))
 }

@@ -511,7 +511,7 @@ have no FR-IDs state why.
 - branch: slice/S-40-visual-polish
 
 ### S-41 Remove the current-session and current-directory stars, the selection bar, and move edit-window markers right
-- status: in-progress
+- status: done
 - deps: S-40
 - FR-IDs: FR-PICK-05 (no * mark; proposal P-62, the user owns requirements.md), FR-TUI-04 (selection shown by reverse video only), FR-EDIT-04 (+ and - placed after the name)
 - scope: src/app/pickers.rs (remove the * leads for the current session and the current directory), src/tui/render.rs (remove the ▌ selection bar in column 0; keep reverse video over the full row), src/app/bookmark_cmd.rs and src/tui/render.rs (edit window: + and - after the folder name, not before the indent)

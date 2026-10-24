@@ -116,7 +116,7 @@ fn enter_on_the_project_root_does_nothing() {
     h.terminal.script(vec![enter(), esc()]);
     assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
     assert_eq!(bookmarks_text(&h), "");
-    assert!(!line_with(&screen(&h), "- app").contains('★'));
+    assert!(!line_with(&screen(&h), "app -").contains('★'));
 }
 
 // FR-EDIT-02: a second enter on the same row removes the bookmark again
@@ -249,7 +249,7 @@ fn typing_does_not_filter_the_rows() {
     );
 }
 
-// FR-EDIT-04, FR-EDIT-06: the marker column shows the bookmark mark, the tree column shows + and -
+// FR-EDIT-04, FR-EDIT-06: the marker column shows the bookmark mark, the tree column shows + and - after the name
 #[test]
 fn view_shows_the_marker_column_and_the_tree_markers() {
     let h = Harness::new("tui_edit-view");
@@ -263,8 +263,35 @@ fn view_shows_the_marker_column_and_the_tree_markers() {
     let lines = screen(&h);
     assert!(line_with(&lines, "docs").contains('★'), "{lines:#?}");
     assert!(!line_with(&lines, "src").contains('★'), "{lines:#?}");
-    assert!(line_with(&lines, "+ src").contains("src"), "{lines:#?}");
-    assert!(line_with(&lines, "- app").contains("app"), "{lines:#?}");
+    assert!(line_with(&lines, "src +").contains("src +"), "{lines:#?}");
+    assert!(line_with(&lines, "app -").contains("app -"), "{lines:#?}");
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("+ src") || line.contains("- app")),
+        "{lines:#?}"
+    );
+}
+
+// FR-EDIT-04, FR-TUI-09: without colour the + and - still show, after the folder name, and the branch glyphs and the
+// indent stay on the left of the name
+#[test]
+fn folder_markers_follow_the_name_without_color() {
+    let mut h = Harness::new("tui_edit-markers-no-color");
+    h.terminal.set_size(80, 24);
+    h.env = h.env.clone().with_var("NO_COLOR", "1");
+    let app = fixture(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let app_row = line_with(&lines, "app -");
+    assert!(app_row.starts_with("│ "), "{app_row:?}");
+    // A folder without subfolders has no marker: the name ends the cell (the branch glyph before it is not a marker).
+    let docs_row = line_with(&lines, "docs");
+    assert!(
+        docs_row.trim_end_matches(['│', ' ']).ends_with("docs"),
+        "{docs_row:?}"
+    );
 }
 
 // FR-EDIT-06, design 3.6, section 8 item 11: the nesting is drawn with branch glyphs, as the session tree draws it
@@ -278,12 +305,9 @@ fn nesting_is_drawn_with_branch_glyphs_in_a_utf8_locale() {
     h.terminal.script(vec![down(), down(), right(), esc()]);
     assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
     let lines = screen(&h);
-    assert!(line_with(&lines, "docs").contains("├─  docs"), "{lines:#?}");
-    assert!(line_with(&lines, "src").contains("└─- src"), "{lines:#?}");
-    assert!(
-        line_with(&lines, "main").contains("  └─  main"),
-        "{lines:#?}"
-    );
+    assert!(line_with(&lines, "docs").contains("├─docs"), "{lines:#?}");
+    assert!(line_with(&lines, "src").contains("└─src -"), "{lines:#?}");
+    assert!(line_with(&lines, "main").contains("  └─main"), "{lines:#?}");
 }
 
 // design section 7: without a UTF-8 locale the ASCII set of the session tree is used
@@ -295,12 +319,9 @@ fn nesting_is_drawn_with_ascii_glyphs_without_a_utf8_locale() {
     h.terminal.script(vec![down(), down(), right(), esc()]);
     assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
     let lines = screen(&h);
-    assert!(line_with(&lines, "docs").contains("|-  docs"), "{lines:#?}");
-    assert!(line_with(&lines, "src").contains("`-- src"), "{lines:#?}");
-    assert!(
-        line_with(&lines, "main").contains("  `-  main"),
-        "{lines:#?}"
-    );
+    assert!(line_with(&lines, "docs").contains("|-docs"), "{lines:#?}");
+    assert!(line_with(&lines, "src").contains("`-src -"), "{lines:#?}");
+    assert!(line_with(&lines, "main").contains("  `-main"), "{lines:#?}");
 }
 
 // D-15, P-61 (rule under the prompt): the edit window has no prompt row, so its column header is the first row under

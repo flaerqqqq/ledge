@@ -130,7 +130,7 @@ fn directory_argument_is_the_launch_directory() {
     assert_eq!(h.backend.attached_to(), Some(name_of(&lib)));
 }
 
-// FR-PICK-05: a current directory that is not a project is an extra first row showing its path, marked "*"
+// FR-PICK-05: a current directory that is not a project is an extra first row showing its path, with no star
 #[test]
 fn non_project_current_directory_is_an_extra_first_row_with_its_path() {
     let mut h = Harness::new("tui_project_picker-non-project");
@@ -143,9 +143,12 @@ fn non_project_current_directory_is_an_extra_first_row_with_its_path() {
     let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
     let lines = screen(&h);
-    let first = line_with(&lines, "*/");
-    assert!(first.contains("/projects"), "{first}");
-    assert!(!line_with(&lines, "app").contains('*'), "{lines:#?}");
+    let first = line_with(&lines, "/projects");
+    assert!(
+        first.trim_start_matches('│').trim_start().starts_with('/'),
+        "{first}"
+    );
+    assert!(!lines.iter().any(|line| line.contains('*')), "{lines:#?}");
 }
 
 // FR-PICK-06, FR-PICK-07, P-61: a live managed session shows its session name and profile in the session column; the
@@ -172,18 +175,15 @@ fn live_session_shows_its_name_and_profile_with_no_marker_column() {
             .any(|line| line.contains('●') || line.contains('○')),
         "{lines:#?}"
     );
-    assert!(
-        line_with(&lines, "web").starts_with("│   web"),
-        "{lines:#?}"
-    );
+    assert!(line_with(&lines, "web").starts_with("│ web"), "{lines:#?}");
     assert!(line_with(&lines, "Projects & Submodules").starts_with("╭ Projects"));
     assert!(line_with(&lines, PROJECT_FOOTER).contains(PROJECT_FOOTER));
 }
 
-// FR-PICK-05, P-61: the header starts at the project column (no marker column before it); the current directory is
-// marked with `*` in the project cell, and the other rows keep a blank there so the names line up
+// FR-PICK-05, P-61: the header starts at the project column (no marker column before it); the current directory has
+// no star, and the names start in the same column
 #[test]
-fn current_directory_is_marked_in_the_project_cell_and_no_column_comes_first() {
+fn current_directory_has_no_mark_and_no_column_comes_first() {
     let mut h = Harness::new("tui_project_picker-current-mark");
     search_config(&h);
     let app = h.project("app");
@@ -193,12 +193,12 @@ fn current_directory_is_marked_in_the_project_cell_and_no_column_comes_first() {
     project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
     let lines = screen(&h);
     assert!(
-        line_with(&lines, "Session").starts_with("│  Project"),
+        line_with(&lines, "Session").starts_with("│ Project"),
         "{lines:#?}"
     );
-    assert!(line_with(&lines, "*app").contains("*app"), "{lines:#?}");
-    assert!(line_with(&lines, "lib").contains("  lib"), "{lines:#?}");
-    assert!(!line_with(&lines, "lib").contains('*'), "{lines:#?}");
+    assert!(line_with(&lines, "app").starts_with("│ app"), "{lines:#?}");
+    assert!(line_with(&lines, "lib").starts_with("│ lib"), "{lines:#?}");
+    assert!(!lines.iter().any(|line| line.contains('*')), "{lines:#?}");
 }
 
 // FR-PICK-08: enter opens the chosen project through the open flow: its session is created and attached, and the
@@ -765,9 +765,16 @@ fn non_project_current_directory_under_home_shows_tilde() {
         Ok(Outcome::Cancelled)
     );
     let lines = screen(&h);
-    let first = line_with(&lines, "*~/notes");
-    assert!(first.contains("~/notes"), "{first}");
+    let first = line_with(&lines, "~/notes");
+    assert!(
+        first
+            .trim_start_matches('│')
+            .trim_start()
+            .starts_with("~/notes"),
+        "{first}"
+    );
     assert!(!first.contains(&notes), "{first}");
+    assert!(!lines.iter().any(|line| line.contains('*')), "{lines:#?}");
 }
 
 // FR-HIST-04: a history entry under HOME shows the home folder as "~"; an entry outside HOME is shown in full

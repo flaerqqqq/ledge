@@ -497,10 +497,9 @@ fn session_with_a_missing_directory_shows_the_cue_in_the_project_column() {
     assert!(line_with(&lines, &name).contains("(missing)"), "{lines:#?}");
 }
 
-// FR-PICK-05, FR-SESS-02, design 3.5: the session the user is in has a leading * on its name, as the project picker
-// marks the current directory; the others have none
+// FR-PICK-05, FR-SESS-02: the session the user is in has no star; the switcher lists it in the same column as the others
 #[test]
-fn current_session_name_has_a_leading_star() {
+fn current_session_has_no_star() {
     let mut h = Harness::new("tui_switcher-current-star");
     search_config(&h);
     inside_tmux(&mut h);
@@ -512,8 +511,15 @@ fn current_session_name_has_a_leading_star() {
     h.terminal.script(vec![esc()]);
     session_switcher(&h.ctx()).expect("switcher runs");
     let lines = screen(&h);
-    assert!(line_with(&lines, &bravo).contains(&format!("*{bravo}")));
-    assert!(!line_with(&lines, &alpha).contains('*'));
+    assert!(
+        line_with(&lines, &bravo).starts_with(&format!("│ {bravo}")),
+        "{lines:#?}"
+    );
+    assert!(
+        line_with(&lines, &alpha).starts_with(&format!("│ {alpha}")),
+        "{lines:#?}"
+    );
+    assert!(!lines.iter().any(|line| line.contains('*')), "{lines:#?}");
 }
 
 // design 3.2, 4.2 (P-59): an empty switcher shows only "esc close" in its footer and stays open
