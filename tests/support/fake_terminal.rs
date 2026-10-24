@@ -6,13 +6,15 @@
 //! `record()` returns a handle that outlives the session. The session is moved into the engine, so
 //! the handle is how a test sees the restore (`Drop`, FR-TUI-06) and the last drawn screen.
 
-use ledge::tui::terminal::{Input, TerminalSession};
+use ledge::tui::terminal::{Input, TerminalFactory, TerminalSession};
 use ratatui::backend::TestBackend;
 use ratatui::buffer::{Buffer, Cell};
 use ratatui::{Frame, Terminal};
-use std::cell::RefCell;
+use std::cell::{Cell as StdCell, RefCell};
 use std::collections::VecDeque;
+use std::fs;
 use std::io;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -115,5 +117,71 @@ impl TerminalSession for FakeTerminal {
         record.draws += 1;
         record.lines = lines;
         Ok(())
+    }
+}
+
+/// FakeTerminalFactory: the `TerminalFactory` the picker services use in tests. `open` builds a `FakeTerminal`
+/// from the scripted inputs and keeps its record for the test. `remove_on_open` deletes a folder when the
+/// picker opens, after its rows were read, to model a directory that vanishes while the list is open (FR-PICK-09).
+pub struct FakeTerminalFactory {
+    inputs: RefCell<Vec<Input>>,
+    width: StdCell<u16>,
+    height: StdCell<u16>,
+    opened: StdCell<usize>,
+    last: RefCell<Option<Rc<RefCell<Record>>>>,
+    vanish: RefCell<Vec<PathBuf>>,
+}
+
+impl FakeTerminalFactory {
+    /// An 80x24 screen with no scripted input.
+    pub fn new() -> Self {
+        Self {
+            inputs: RefCell::new(Vec::new()),
+            width: StdCell::new(80),
+            height: StdCell::new(24),
+            opened: StdCell::new(0),
+            last: RefCell::new(None),
+            vanish: RefCell::new(Vec::new()),
+        }
+    }
+
+    /// The size of the next screen (long paths and status lines need more than 80 cells).
+    pub fn set_size(&self, width: u16, height: u16) {
+        self.width.set(width);
+        self.height.set(height);
+    }
+
+    /// The inputs the next picker reads, in order.
+    pub fn script(&self, inputs: Vec<Input>) {
+        *self.inputs.borrow_mut() = inputs;
+    }
+
+    /// Deletes `path` when the next picker opens.
+    pub fn remove_on_open(&self, path: PathBuf) {
+        self.vanish.borrow_mut().push(path);
+    }
+
+    /// How many times a picker opened a terminal. Zero when a command stops before the picker.
+    pub fn opened(&self) -> usize {
+        self.opened.get()
+    }
+
+    /// The record of the last terminal opened: restores, draws and the last screen.
+    pub fn last_record(&self) -> Option<Rc<RefCell<Record>>> {
+        self.last.borrow().clone()
+    }
+}
+
+impl TerminalFactory for FakeTerminalFactory {
+    fn open(&self) -> Result<Box<dyn TerminalSession>, String> {
+        self.opened.set(self.opened.get() + 1);
+        for path in self.vanish.borrow().iter() {
+            let _ = fs::remove_dir_all(path);
+        }
+        let inputs = std::mem::take(&mut *self.inputs.borrow_mut());
+        let term = FakeTerminal::new(self.width.get(), self.height.get(), inputs)
+            .map_err(|e| e.to_string())?;
+        *self.last.borrow_mut() = Some(term.record());
+        Ok(Box::new(term))
     }
 }

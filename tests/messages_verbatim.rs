@@ -241,3 +241,78 @@ fn could_not_start_editor_text_is_verbatim() {
         "could not start editor 'code': command not found"
     );
 }
+
+// FR-PICK-10, message "No search paths defined in <config file>." (error)
+#[test]
+fn no_search_paths_text_is_verbatim() {
+    assert_eq!(
+        messages::no_search_paths("/c/ledge/config.json"),
+        "No search paths defined in /c/ledge/config.json."
+    );
+}
+
+// D-12, FR-PICK-10: no projects at start (info)
+#[test]
+fn no_projects_found_text_is_verbatim() {
+    assert_eq!(
+        messages::no_projects_found(),
+        "No projects found in search paths."
+    );
+}
+
+// FR-PICK-09, message "Missing directory: <path>"
+#[test]
+fn missing_directory_text_is_verbatim() {
+    assert_eq!(
+        messages::missing_directory("/p/gone"),
+        "Missing directory: /p/gone"
+    );
+}
+
+// FR-HIST-05, message "No history cache found." (info)
+#[test]
+fn no_history_cache_text_is_verbatim() {
+    assert_eq!(messages::no_history_cache(), "No history cache found.");
+}
+
+// D-12, FR-HIST-03, message "No history." (info)
+#[test]
+fn no_history_text_is_verbatim() {
+    assert_eq!(messages::no_history(), "No history.");
+}
+
+// FR-PICK-13, border labels "Projects & Submodules" and "Projects (Profile: <name>)"
+#[test]
+fn projects_label_texts_are_verbatim() {
+    assert_eq!(messages::projects_label(None), "Projects & Submodules");
+    assert_eq!(
+        messages::projects_label(Some("dev")),
+        "Projects (Profile: dev)"
+    );
+}
+
+// Architecture 6.2 (FR-HIST-04): history label, footer and column titles
+#[test]
+fn picker_chrome_texts_are_verbatim() {
+    assert_eq!(messages::HISTORY_LABEL, "History");
+    assert_eq!(
+        messages::PICKER_FOOTER,
+        "enter open · ^r rebuild · ^p profile · ^x kill"
+    );
+    assert_eq!(messages::HEADER_PROJECT, "Project");
+    assert_eq!(messages::HEADER_SESSION, "Session");
+    assert_eq!(messages::HEADER_PROFILE, "Profile");
+}
+
+// Proposal P-24 [new]: the history file cannot be read; tmux cannot list sessions
+#[test]
+fn new_picker_detail_messages_are_verbatim() {
+    assert_eq!(
+        messages::could_not_read_history("boom"),
+        "could not read history: boom"
+    );
+    assert_eq!(
+        messages::could_not_list_sessions("boom"),
+        "could not list sessions: boom"
+    );
+}

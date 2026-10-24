@@ -217,7 +217,7 @@ have no FR-IDs state why.
 - branch: slice/12-editor-launch
 
 ### S-13 Project and history pickers (open, navigation, empty states)
-- status: in-progress
+- status: done
 - deps: S-03, S-04, S-08, S-09, S-11
 - FR-IDs: FR-PICK-06, FR-PICK-07, FR-PICK-08, FR-PICK-09, FR-PICK-10, FR-PICK-12, FR-PICK-13, FR-HIST-04, FR-HIST-05, FR-CMD-08, FR-CMD-12
 - scope: `app/pickers.rs` (project and history pickers), `app/history_cmd.rs` (pick), `tui/` wiring of the project and
@@ -234,7 +234,7 @@ have no FR-IDs state why.
 - branch: slice/13-project-history-pickers
 
 ### S-14 Rebuild and kill services
-- status: blocked
+- status: in-progress
 - deps: S-10, S-09
 - FR-IDs: FR-ACT-02, FR-ACT-03, FR-ACT-05, FR-ACT-07, FR-ACT-13, FR-PROF-14, FR-PROF-15
 - scope: `app/actions.rs` (kill of managed sessions, rebuild, rebuild of the current session, refusal rules), `domain/profile_rules.rs`

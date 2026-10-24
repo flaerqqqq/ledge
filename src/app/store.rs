@@ -121,6 +121,16 @@ pub fn save_bookmarks(fs: &dyn FileSystem, dirs: &Dirs, bookmarks: &Bookmarks) -
     fs.write_atomic(&cache_file(dirs, BOOKMARKS_FILE), &bookmarks.to_file_text())
 }
 
+/// Architecture 9.1: the config file, `<config>/config.json`.
+pub fn config_path(dirs: &Dirs) -> PathBuf {
+    PathBuf::from(dirs.config.as_str()).join(CONFIG_FILE)
+}
+
+/// Architecture 9.1: the history file, `<cache>/history`. FR-HIST-05 checks that it exists.
+pub fn history_path(dirs: &Dirs) -> PathBuf {
+    cache_file(dirs, HISTORY_FILE)
+}
+
 /// Architecture 9.1: the path of a file in the cache folder.
 fn cache_file(dirs: &Dirs, name: &str) -> PathBuf {
     PathBuf::from(dirs.cache.as_str()).join(name)

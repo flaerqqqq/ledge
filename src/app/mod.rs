@@ -9,11 +9,14 @@ use crate::ports::console::Console;
 use crate::ports::env::Env;
 use crate::ports::fs::FileSystem;
 use crate::ports::process::ProcessRunner;
+use crate::ports::signals::Signals;
+use crate::tui::terminal::TerminalFactory;
 use std::path::Path;
 
 pub mod build;
 pub mod launch;
 pub mod open;
+pub mod pickers;
 pub mod store;
 
 /// Architecture 4, S-11: the ports and folders a command runs with. Built once in `main` (or in a test
@@ -27,6 +30,10 @@ pub struct Ctx<'a> {
     pub process: &'a dyn ProcessRunner,
     /// Resolved once from `Env` (FR-PLAT-02, FR-CONF-08).
     pub dirs: Dirs,
+    /// Opens the picker screen (FR-TUI-01); the picker services are its first user (proposal P-24).
+    pub terminal: &'a dyn TerminalFactory,
+    /// Interrupt flags the picker loop polls (FR-TUI-06); first user: the picker services (P-24).
+    pub signals: &'a dyn Signals,
     /// The working directory, cleaned and absolute.
     pub cwd: AbsPath,
 }

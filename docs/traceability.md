@@ -21,7 +21,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-TUI-07 | S-07 | src/tui/keys.rs | src/tui/keys.rs (unit); tests/tui_engine.rs | covered | One key map for all pickers. Footers of the screen tables are set by later picker slices. |
 | FR-TUI-08 | S-07 | src/tui/render.rs; src/tui/picker.rs | tests/tui_engine.rs | covered | Text cue and dim style automated on TestBackend; color appearance is manual. |
 | FR-TUI-09 | S-07 | src/tui/render.rs | src/tui/render.rs (unit); tests/tui_engine.rs | covered | Text cues, reverse video and NO_COLOR/TERM=dumb rule automated; color appearance is manual. |
-| FR-TUI-10 | S-07 | src/tui/picker.rs | src/tui/picker.rs (unit); tests/tui_engine.rs | covered | Model side only: should_close and reload. The action wiring that calls reload comes with the picker services. |
+| FR-TUI-10 | S-07 | src/tui/picker.rs; src/app/pickers.rs | src/tui/picker.rs (unit); tests/tui_engine.rs; tests/tui_project_picker.rs | covered | Model: should_close and reload (S-07). Picker side (S-13): a choose on a missing directory keeps the history picker open with its rows. Row actions that reload (ctrl-r, ctrl-p, ctrl-x) are no-ops until S-15. |
 | FR-OPEN-01 | S-17 |  |  | open |  |
 | FR-OPEN-02 | S-17 |  |  | open |  |
 | FR-OPEN-03 | S-11 | src/app/open.rs; src/messages.rs | tests/component_open.rs; tests/messages_verbatim.rs | covered | Missing and non-directory targets on temp folders; the argument is echoed as typed (A-15). |
@@ -36,21 +36,21 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PICK-01 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-PICK-02 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-PICK-03 | S-04 | domain/projects.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
-| FR-PICK-04 | S-04 | domain/projects.rs | domain/projects.rs | open | Current row first is tested in domain. Preselection is the picker model's job (S-07, S-13). |
-| FR-PICK-05 | S-04 | domain/projects.rs | domain/projects.rs | open | Row data (current flag, path of a non-project) is tested. The '*' cell and path text are rendered in S-07 and S-13. |
-| FR-PICK-06 | S-13 |  |  | open |  |
-| FR-PICK-07 | S-13 |  |  | open | Live marker from fake backend; real tmux via integration. |
-| FR-PICK-08 | S-13 |  |  | open |  |
-| FR-PICK-09 | S-13 |  |  | open |  |
-| FR-PICK-10 | S-13 |  |  | open |  |
+| FR-PICK-04 | S-04 | domain/projects.rs; src/app/pickers.rs | domain/projects.rs; tests/tui_project_picker.rs | covered | Current row first and preselected on screen, also with a launch directory argument. |
+| FR-PICK-05 | S-04 | domain/projects.rs; src/app/pickers.rs | domain/projects.rs; tests/tui_project_picker.rs | covered | The '*' cell and the path of a launch directory that is not a project, on TestBackend. |
+| FR-PICK-06 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Basename, session name and profile of a live session, on TestBackend. Manual: the look of the rows on a real terminal (testing.md, look and feel); the cells and rendering are automated because the gate has no tty. |
+| FR-PICK-07 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Filled marker for a managed session found by name (D-14), empty marker otherwise, on FakeBackend. Real tmux listing is FR-PLAT-01 (integration). |
+| FR-PICK-08 | S-13 | src/app/pickers.rs; src/app/open.rs | tests/tui_project_picker.rs | covered | Enter runs the open flow: session created, attach called on FakeBackend, history recorded. Manual: the real attach on a tty (FR-OPEN-08). |
+| FR-PICK-09 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Enter on a directory that is gone: status line, picker open, nothing opened. The directory is removed after the list is read (FakeTerminalFactory.remove_on_open). History entries missing from the start are marked (missing). |
+| FR-PICK-10 | S-13 | src/app/pickers.rs; src/messages.rs (no_search_paths) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | Error with the config file path; no terminal opens. |
 | FR-PICK-11 | S-17 |  |  | open |  |
-| FR-PICK-12 | S-13 |  |  | open |  |
-| FR-PICK-13 | S-13 |  |  | open |  |
+| FR-PICK-12 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | --profile applies to the session the open creates (windows of the profile). Editor options for pickers are not in this entry point (proposal P-24). |
+| FR-PICK-13 | S-13 | src/app/pickers.rs; src/messages.rs (projects_label) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | Label names the profile that applies: --profile, or default_profile (proposal P-25). Basic and --no-profile give the plain label. |
 | FR-HIST-01 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
 | FR-HIST-02 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
 | FR-HIST-03 | S-18 |  |  | open |  |
-| FR-HIST-04 | S-13 |  |  | open |  |
-| FR-HIST-05 | S-13 |  |  | open |  |
+| FR-HIST-04 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Newest first, label and footer on screen, enter opens the chosen entry. Footer follows architecture 6.2 (proposal P-15 still open). Manual: the look on a real terminal (testing.md, look and feel). |
+| FR-HIST-05 | S-13 | src/app/pickers.rs; src/messages.rs (no_history_cache) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | No history file: the message, stop, no window. |
 | FR-HIST-06 | S-18 |  |  | open |  |
 | FR-HIST-07 | S-18 |  |  | open |  |
 | FR-HIST-08 | S-18 |  |  | open |  |
@@ -162,11 +162,11 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CMD-05 | S-17 |  |  | open |  |
 | FR-CMD-06 | S-17 |  |  | open |  |
 | FR-CMD-07 | S-00 | src/main.rs (report, main); src/error.rs (LedgeError Display); src/messages.rs (cancelled) | src/main.rs (report, 5 tests); tests/messages_verbatim.rs; tests/crate_targets.rs; tests/gate_scripts.rs | covered | Also covers S-00 acceptance for the gate and layer scripts (tests/gate_scripts.rs), which the backlog lists under this slice. |
-| FR-CMD-08 | S-13 | src/messages.rs (cancelled) | src/main.rs (cancelled test); tests/messages_verbatim.rs | open | S-00 implements only the "Cancelled." text (messages::cancelled, report). The rest of FR-CMD-08 is S-13; status stays open until then. |
+| FR-CMD-08 | S-13 | src/messages.rs (cancelled); src/app/pickers.rs | src/main.rs (cancelled test); tests/messages_verbatim.rs; tests/tui_project_picker.rs | covered | Escape in the project and history pickers gives Outcome::Cancelled, printed as Cancelled. by report. The nested profile picker cancel is S-15. |
 | FR-CMD-09 | S-17 |  |  | open | No runtime program besides tmux uses this message; helper only (proposal P-2). |
 | FR-CMD-10 | S-17 |  |  | open |  |
 | FR-CMD-11 | S-17 |  |  | open |  |
-| FR-CMD-12 | S-13 |  |  | open |  |
+| FR-CMD-12 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Empty at start: no history file, empty history file and no projects exit without a window. Empty after an action: the switcher and trees (later slices); no S-13 action empties a list. |
 | FR-LAUNCH-01 | S-12 | src/app/launch.rs; src/app/open.rs (open_dir_with_editor) | tests/component_open.rs | covered | Launch only when `ensure_session` reports Created: reuse, and a plain open without an editor, start nothing (FakeProcess). The pickers, `bm tree`, `ss` and `ss tree` open paths are not wired yet (later slices). |
 | FR-LAUNCH-02 | S-12 | src/app/launch.rs; src/ports/process.rs; src/adapters/process.rs | tests/component_open.rs; tests/messages_verbatim.rs | manual | Automated: `code`, `idea` and `--editor` argv (split on whitespace, directory last) on FakeProcess. Manual: the GUI editor really opens the directory; reason: needs a desktop session with VS Code or IntelliJ IDEA installed, which the gate does not have (testing.md, manual list). The `--editor` value parsing and the `--code`/`--idea`/`--editor` option grammar are S-17 (FR-CMD-06). |
 | FR-LAUNCH-03 | S-12 | src/app/launch.rs; src/adapters/process.rs (spawn_detached) | tests/component_open.rs | covered | Detached spawn checked on FakeProcess argv: `setsid -f <cmd> <dir>` with setsid present, direct start with the setsid warning without it. The process outliving ledge is the setsid mechanism itself and is not run by the gate. |

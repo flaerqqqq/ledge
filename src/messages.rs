@@ -143,3 +143,59 @@ pub fn setsid_not_installed() -> &'static str {
 pub fn could_not_attach(name: &str, detail: &str) -> String {
     format!("could not attach to '{name}': {detail}")
 }
+
+/// FR-PICK-10, D-16: no search path is configured; `config_file` is the config file path.
+pub fn no_search_paths(config_file: &str) -> String {
+    format!("No search paths defined in {config_file}.")
+}
+
+/// D-12: the project picker has no projects at start; info, exit 0, no window.
+pub fn no_projects_found() -> &'static str {
+    "No projects found in search paths."
+}
+
+/// FR-PICK-09: the chosen directory no longer exists; the picker stays open.
+pub fn missing_directory(path: &str) -> String {
+    format!("Missing directory: {path}")
+}
+
+/// FR-HIST-05, D-16: the history picker is asked for and the history file does not exist; info.
+pub fn no_history_cache() -> &'static str {
+    "No history cache found."
+}
+
+/// D-12, FR-HIST-03: the history file is empty; info, exit 0.
+pub fn no_history() -> &'static str {
+    "No history."
+}
+
+/// FR-PICK-13: the border label of the project picker. `profile` is the name of a non-basic profile that
+/// applies to the open, or `None` for the basic layout.
+pub fn projects_label(profile: Option<&str>) -> String {
+    match profile {
+        Some(name) => format!("Projects (Profile: {name})"),
+        None => "Projects & Submodules".to_string(),
+    }
+}
+
+/// FR-HIST-04, architecture 6.2: the border label of the history picker.
+pub const HISTORY_LABEL: &str = "History";
+
+/// FR-TUI-04, architecture 6.2 and A-03: the footer of the project picker. The history picker uses the same
+/// keys (proposal P-15).
+pub const PICKER_FOOTER: &str = "enter open · ^r rebuild · ^p profile · ^x kill";
+
+/// Architecture 6.2: column titles of the project and history pickers.
+pub const HEADER_PROJECT: &str = "Project";
+pub const HEADER_SESSION: &str = "Session";
+pub const HEADER_PROFILE: &str = "Profile";
+
+/// Proposal P-24 [new]: the history file exists but cannot be read.
+pub fn could_not_read_history(detail: &str) -> String {
+    format!("could not read history: {detail}")
+}
+
+/// Proposal P-24 [new]: tmux could not list the sessions a picker shows.
+pub fn could_not_list_sessions(detail: &str) -> String {
+    format!("could not list sessions: {detail}")
+}
