@@ -656,3 +656,91 @@ fn label_names_a_same_named_project_by_its_label() {
         "{lines:#?}"
     );
 }
+
+/// The `.` key (P-68), outside the search bar.
+fn dot() -> Input {
+    ch('.')
+}
+
+// FR-EDIT-01, P-68: hidden folders (names starting with a dot) are not shown when the window opens
+#[test]
+fn hidden_folders_start_hidden() {
+    let h = Harness::new("tui_edit-hidden-start");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert!(!screen_has(&h, ".config"), "{:#?}", screen(&h));
+}
+
+// P-68: the dot key shows the hidden folders, and a second dot hides them again
+#[test]
+fn dot_shows_and_then_hides_hidden_folders() {
+    let h = Harness::new("tui_edit-hidden-toggle");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    h.terminal.script(vec![dot(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert!(screen_has(&h, ".config"), "{:#?}", screen(&h));
+
+    let h = Harness::new("tui_edit-hidden-toggle-twice");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    h.terminal.script(vec![dot(), dot(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert!(!screen_has(&h, ".config"), "{:#?}", screen(&h));
+}
+
+// P-68: the selection stays on the same folder when the toggle adds rows above it
+#[test]
+fn selection_stays_on_the_same_folder_when_hidden_folders_appear() {
+    let h = Harness::new("tui_edit-hidden-selection");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    // docs is selected; the dot shows .config above it, and enter bookmarks the selected row.
+    h.terminal.script(vec![down(), dot(), enter(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert_eq!(bookmarks_text(&h), format!("{app}/docs\n"));
+}
+
+// P-68: a selected hidden folder that the dot hides again gives the selection to the nearest visible row above it
+#[test]
+fn hiding_the_selected_hidden_folder_selects_the_row_above() {
+    let h = Harness::new("tui_edit-hidden-hide-selected");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/src/.cache")).expect("create src/.cache");
+    // Expand src, show the hidden folders: .cache is under src. Select it and hide again: src is selected.
+    h.terminal.script(vec![
+        down(),
+        down(),
+        right(),
+        dot(),
+        down(),
+        dot(),
+        enter(),
+        esc(),
+    ]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert_eq!(bookmarks_text(&h), format!("{app}/src\n"));
+    assert!(!screen_has(&h, ".cache"), "{:#?}", screen(&h));
+}
+
+// P-68: while the search bar is open the dot types into the bar and does not toggle the hidden folders
+#[test]
+fn dot_in_the_search_bar_types_a_dot() {
+    let h = Harness::new("tui_edit-hidden-search-dot");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    // ctrl-c ends the window; the last screen drawn is the one before that key (as the search bar tests).
+    h.terminal.script(vec![ch('/'), dot(), ctrl('c')]);
+    let _ = edit(&h.ctx(), Some(&app), false);
+    let lines = screen(&h);
+    assert!(lines.iter().any(|line| line.contains("/.")), "{lines:#?}");
+    assert!(!screen_has(&h, ".config"), "{lines:#?}");
+}

@@ -8,7 +8,7 @@ use crate::app::pickers::{
     run_in_terminal, session_text, utf8_locale,
 };
 use crate::app::{custom_projects, home_of, load_projects, store, Ctx};
-use crate::domain::bm_edit::{visible_rows, EditRow, ExpandedFolders, Marker};
+use crate::domain::bm_edit::{visible_rows_with_hidden, EditRow, ExpandedFolders, Marker};
 use crate::domain::bookmarks::{check_candidate, status, BookmarkStatus, Bookmarks, Refusal};
 use crate::domain::path::AbsPath;
 use crate::domain::profile_rules::ProfileOpt;
@@ -119,6 +119,8 @@ pub fn edit(ctx: &Ctx<'_>, dir: Option<&str>, session_scope: bool) -> Result<Out
         project: project.path.clone(),
         expanded: read_expanded(ctx)?,
         bookmarks: read_bookmarks(ctx)?,
+        // P-68: hidden folders are hidden when the window opens; the '.' key shows them for this window only.
+        show_hidden: false,
         // S-44: the managed sessions are read once when the window opens, as the project picker reads them.
         sessions: live_sessions(ctx)?,
         home: home_of(ctx),
@@ -184,13 +186,15 @@ fn read_expanded(ctx: &Ctx<'_>) -> Result<ExpandedFolders> {
         .map_err(|error| LedgeError::Fatal(messages::could_not_read_edit_state(&error.to_string())))
 }
 
-/// Enter, left and right of the edit window (architecture 6.3, D-15). The state is the expanded folders and the
-/// bookmarks; each change is written at once so the next run starts from it.
+/// Enter, left, right and '.' of the edit window (architecture 6.3, D-15). The state is the expanded folders and the
+/// bookmarks; each change is written at once so the next run starts from it. `show_hidden` is not saved (P-68).
 struct EditHandler<'c, 'a> {
     ctx: &'c Ctx<'a>,
     project: AbsPath,
     expanded: ExpandedFolders,
     bookmarks: Bookmarks,
+    /// P-68: the hidden folders (names starting with a dot) are listed. Reset to hidden each time the window opens.
+    show_hidden: bool,
     /// The managed sessions when the window opened (S-44: the Session and Profile columns).
     sessions: Vec<ManagedSession>,
     /// The home folder, shown as `~` in the Path column.
@@ -202,7 +206,13 @@ impl EditHandler<'_, '_> {
     fn rows(&self) -> Vec<PickerRow<EditRow>> {
         let fs = self.ctx.fs;
         let children = |dir: &AbsPath| fs.list_dirs(Path::new(dir.as_str())).unwrap_or_default();
-        let rows = visible_rows(&self.project, &self.expanded, &self.bookmarks, &children);
+        let rows = visible_rows_with_hidden(
+            &self.project,
+            &self.expanded,
+            &self.bookmarks,
+            &children,
+            self.show_hidden,
+        );
         // Design section 7, 8 item 11: the nesting is drawn with the branch glyphs of the session tree (P-61).
         let depths: Vec<usize> = rows.iter().map(|row| row.depth).collect();
         let guides = render::tree_guides(&depths, utf8_locale(self.ctx.env));
@@ -275,6 +285,14 @@ impl PickerHandler<EditRow> for EditHandler<'_, '_> {
     /// FR-EDIT-03, D-15: right expands a collapsed folder; left collapses an expanded one, and otherwise moves to the
     /// parent row. The project root is always expanded, so left does nothing on it.
     fn act(&mut self, action: Action, row: Option<&EditRow>) -> Step {
+        // P-68: '.' shows or hides the hidden folders. The rows are rebuilt and the selection stays on the same folder.
+        if action == Action::ToggleHidden {
+            self.show_hidden = !self.show_hidden;
+            return Step::Continue {
+                status: None,
+                reload: true,
+            };
+        }
         let Some(row) = row else {
             return no_action();
         };
@@ -319,6 +337,8 @@ fn edit_row(
     ];
     // FR-EDIT-13: the search matches the folder name.
     let mut picker_row = PickerRow::new(cells, &row.name, row.clone());
+    // P-68: the folder path identifies the row when the hidden folders appear or disappear.
+    picker_row.key = Some(row.path.as_str().to_string());
     picker_row.depth = row.depth;
     picker_row.marked = row.bookmarked;
     picker_row.session_cell = live_cell(live);

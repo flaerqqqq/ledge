@@ -103,18 +103,30 @@ impl ExpandedFolders {
     }
 }
 
-/// FR-EDIT-01, FR-EDIT-06, FR-EDIT-11, FR-EDIT-04: the rows the edit window shows for the project at `root`.
-///
-/// The root row comes first and is always expanded. Below it, the visible subfolders of each expanded folder are
-/// listed in name order, depth first. Folders whose names start with "." are skipped. A project with no visible
-/// subfolders gives no rows at all, so the window does not open (FR-EDIT-11).
+/// FR-EDIT-01, FR-EDIT-06, FR-EDIT-11, FR-EDIT-04: the rows the edit window shows for the project at `root`, with the
+/// hidden folders skipped (the window's default, P-68).
 pub fn visible_rows(
     root: &AbsPath,
     expanded: &ExpandedFolders,
     bookmarks: &Bookmarks,
     children_of: &dyn Fn(&AbsPath) -> Vec<String>,
 ) -> Vec<EditRow> {
-    let top = subdirectories(root, children_of);
+    visible_rows_with_hidden(root, expanded, bookmarks, children_of, false)
+}
+
+/// FR-EDIT-01, FR-EDIT-06, FR-EDIT-11, FR-EDIT-04, P-68: the rows the edit window shows for the project at `root`.
+///
+/// The root row comes first and is always expanded. Below it, the visible subfolders of each expanded folder are
+/// listed in name order, depth first. Folders whose names start with "." are skipped unless `show_hidden` is set. A
+/// project with no visible subfolders gives no rows at all, so the window does not open (FR-EDIT-11).
+pub fn visible_rows_with_hidden(
+    root: &AbsPath,
+    expanded: &ExpandedFolders,
+    bookmarks: &Bookmarks,
+    children_of: &dyn Fn(&AbsPath) -> Vec<String>,
+    show_hidden: bool,
+) -> Vec<EditRow> {
+    let top = subdirectories(root, children_of, show_hidden);
     if top.is_empty() {
         return Vec::new();
     }
@@ -133,7 +145,15 @@ pub fn visible_rows(
         root: true,
         subfolders: top.len(),
     }];
-    push_children(&mut rows, top, 1, expanded, bookmarks, children_of);
+    push_children(
+        &mut rows,
+        top,
+        1,
+        expanded,
+        bookmarks,
+        children_of,
+        show_hidden,
+    );
     rows
 }
 
@@ -145,9 +165,10 @@ fn push_children(
     expanded: &ExpandedFolders,
     bookmarks: &Bookmarks,
     children_of: &dyn Fn(&AbsPath) -> Vec<String>,
+    show_hidden: bool,
 ) {
     for (path, name) in children {
-        let below = subdirectories(&path, children_of);
+        let below = subdirectories(&path, children_of, show_hidden);
         let subfolders = below.len();
         let open = !below.is_empty() && expanded.is_expanded(&path);
         let marker = match (below.is_empty(), open) {
@@ -166,19 +187,29 @@ fn push_children(
             subfolders,
         });
         if open {
-            push_children(rows, below, depth + 1, expanded, bookmarks, children_of);
+            push_children(
+                rows,
+                below,
+                depth + 1,
+                expanded,
+                bookmarks,
+                children_of,
+                show_hidden,
+            );
         }
     }
 }
 
-/// FR-EDIT-01: the visible subfolders of `dir` (names not starting with "."), sorted by name, with their paths.
+/// FR-EDIT-01, P-68: the visible subfolders of `dir` (names not starting with ".", unless `show_hidden`), sorted by
+/// name, with their paths.
 fn subdirectories(
     dir: &AbsPath,
     children_of: &dyn Fn(&AbsPath) -> Vec<String>,
+    show_hidden: bool,
 ) -> Vec<(AbsPath, String)> {
     let mut names: Vec<String> = children_of(dir)
         .into_iter()
-        .filter(|name| !name.is_empty() && !name.starts_with('.'))
+        .filter(|name| !name.is_empty() && (show_hidden || !name.starts_with('.')))
         .collect();
     names.sort();
     names

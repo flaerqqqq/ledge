@@ -96,6 +96,9 @@ pub struct PickerRow<T> {
     pub session_cell: SessionCell,
     /// Edit window bookmark marker.
     pub marked: bool,
+    /// Identity of the row (P-68): when the rows are rebuilt, the selection stays on the row with the same key, or on
+    /// the nearest keyed row above it when that row is gone. `None` keeps the selection by position.
+    pub key: Option<String>,
     /// Row the selection starts on (FR-PICK-04).
     pub preselect: bool,
     /// Facts for the Details section (option B 2.1). `None` for a row that has none.
@@ -120,6 +123,7 @@ impl<T> PickerRow<T> {
             preselect: false,
             details: None,
             preview: None,
+            key: None,
         }
     }
 }
@@ -330,6 +334,8 @@ impl<T> PickerModel<T> {
             Action::Type('k') if !self.has_filter() => Action::Up,
             Action::Type('h') if !self.has_filter() => Action::Left,
             Action::Type('l') if !self.has_filter() => Action::Right,
+            // P-68: the dot shows or hides the hidden folders of the edit window; with the search filter open it is typed.
+            Action::ToggleHidden if self.has_filter() => Action::Type('.'),
             other => other,
         };
         let last = self.visible.len().saturating_sub(1);
@@ -342,7 +348,7 @@ impl<T> PickerModel<T> {
             Action::Home => 0,
             Action::End => last,
             // Tree keys belong to the caller: the edit window expands and collapses (FR-EDIT-03).
-            Action::Left | Action::Right => return Effect::Act(action),
+            Action::Left | Action::Right | Action::ToggleHidden => return Effect::Act(action),
             // FR-EDIT-13: enter keeps the match and closes the search bar.
             Action::Choose if self.bar_open => {
                 self.bar_open = false;
@@ -427,14 +433,35 @@ impl<T> PickerModel<T> {
         }
     }
 
-    /// Replaces the rows after an action (D-12 reopen). The filter is kept and the selection keeps
+    /// Replaces the rows after an action (D-12 reopen). The filter is kept. The selection stays on the row with the
+    /// same key (P-68), or on the nearest keyed row above the selected one when that row is gone; without keys it keeps
     /// its position, clamped to the new list.
     pub fn reload(&mut self, rows: Vec<PickerRow<T>>) {
+        let above = self.keys_at_or_above_selection();
         self.rows = rows;
         let (visible, _) = self.match_rows();
         self.visible = visible;
-        self.selected = self.selected.min(self.visible.len().saturating_sub(1));
+        let keyed = above.iter().find_map(|key| {
+            self.rows
+                .iter()
+                .position(|row| row.key.as_deref() == Some(key.as_str()))
+        });
+        let kept = keyed.and_then(|row| self.visible.iter().position(|&v| v == row));
+        self.selected = match kept {
+            Some(position) => position,
+            None => self.selected.min(self.visible.len().saturating_sub(1)),
+        };
         self.ensure_visible();
+    }
+
+    /// P-68: the keys of the visible rows from the selected row up to the first row, nearest first.
+    fn keys_at_or_above_selection(&self) -> Vec<String> {
+        self.visible
+            .iter()
+            .take(self.selected + 1)
+            .rev()
+            .filter_map(|&row| self.rows.get(row)?.key.clone())
+            .collect()
     }
 
     /// Recomputes the visible rows after a filter edit (D-10). An empty filter keeps the row selected
@@ -747,6 +774,55 @@ mod tests {
         assert_eq!(model.filter(), "");
         assert_eq!(names(&model), vec!["alpha".to_string(), "beta".to_string()]);
         assert_eq!(model.apply(Action::Backspace), Effect::Act(Action::Left));
+    }
+
+    // P-68: the dot is the hidden-folders action of the edit window; with the search bar open it is typed
+    #[test]
+    fn dot_is_an_action_without_a_filter_and_typed_with_one() {
+        let mut edit_chrome = chrome();
+        edit_chrome.search_column = None;
+        let mut model = PickerModel::new(flat(&["alpha"]), edit_chrome);
+        assert_eq!(
+            model.apply(Action::ToggleHidden),
+            Effect::Act(Action::ToggleHidden)
+        );
+        assert_eq!(model.apply(Action::Type('/')), Effect::Handled);
+        assert_eq!(model.apply(Action::ToggleHidden), Effect::Handled);
+        assert_eq!(model.filter(), ".");
+    }
+
+    // P-68: a reload keeps the selection on the row with the same key; a keyed row that is gone selects the nearest
+    // keyed row above it
+    #[test]
+    fn reload_keeps_the_selected_key_or_the_nearest_keyed_row_above() {
+        let keyed = |names: &[&str]| -> Vec<PickerRow<usize>> {
+            flat(names)
+                .into_iter()
+                .map(|mut row| {
+                    row.key = Some(row.search_text.clone());
+                    row
+                })
+                .collect()
+        };
+        let mut model = PickerModel::new(keyed(&["app", "docs", "src", "zeta"]), chrome());
+        model.apply(Action::Down);
+        model.apply(Action::Down);
+        assert_eq!(
+            model.selected_row().map(|row| row.search_text.clone()),
+            Some("src".to_string())
+        );
+        // a row appears above the selection: the selection stays on src
+        model.reload(keyed(&["app", ".config", "docs", "src", "zeta"]));
+        assert_eq!(
+            model.selected_row().map(|row| row.search_text.clone()),
+            Some("src".to_string())
+        );
+        // src is gone: the nearest keyed row above it is docs
+        model.reload(keyed(&["app", "docs", "zeta"]));
+        assert_eq!(
+            model.selected_row().map(|row| row.search_text.clone()),
+            Some("docs".to_string())
+        );
     }
 
     // FR-EDIT-03: left on a child moves to the nearest row above with a smaller depth; the root keeps the selection

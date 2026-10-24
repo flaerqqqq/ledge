@@ -7,7 +7,7 @@ use ledge::app::bookmark_cmd::edit;
 use ledge::app::build::ensure_session;
 use ledge::app::store::{load_expanded, save_expanded};
 use ledge::cli::run;
-use ledge::domain::bm_edit::{visible_rows, ExpandedFolders};
+use ledge::domain::bm_edit::{visible_rows, visible_rows_with_hidden, ExpandedFolders};
 use ledge::domain::bookmarks::Bookmarks;
 use ledge::domain::location::Dirs;
 use ledge::domain::naming::session_name;
@@ -375,4 +375,84 @@ fn bm_edit_command_opens_the_window_for_the_given_directory() {
     let args = vec!["bm".to_string(), "edit".to_string(), app.clone()];
     assert_eq!(run(&args, &h.ctx()), Ok(Outcome::Done));
     assert!(window_label(&h).is_some_and(|line| line.contains("Bookmarks in app")));
+}
+
+// FR-EDIT-01, P-68: the listing skips hidden folders by default; with the toggle on it lists them in name order too
+#[test]
+fn hidden_folders_are_listed_only_after_the_toggle() {
+    let tree = TempTree::new("component_edit-hidden-listing");
+    let base = tree.path();
+    folder(base, "app/src/main");
+    folder(base, "app/docs");
+    folder(base, "app/.git");
+    folder(base, "app/.config");
+    let app = abs(&format!("{}/app", base.display()));
+    let names = |rows: &[ledge::domain::bm_edit::EditRow]| -> Vec<String> {
+        rows.iter().map(|row| row.name.clone()).collect()
+    };
+
+    let hidden = visible_rows(
+        &app,
+        &ExpandedFolders::default(),
+        &Bookmarks::default(),
+        &real_children,
+    );
+    assert_eq!(names(&hidden), vec!["app", "docs", "src"]);
+
+    let shown = visible_rows_with_hidden(
+        &app,
+        &ExpandedFolders::default(),
+        &Bookmarks::default(),
+        &real_children,
+        true,
+    );
+    assert_eq!(names(&shown), vec!["app", ".config", ".git", "docs", "src"]);
+    assert_eq!(
+        shown[0].subfolders, 4,
+        "the root counts the shown subfolders"
+    );
+}
+
+// P-68: the toggle is not saved: the bm-edit-open file holds only the expanded folders, and a fresh open starts hidden
+#[test]
+fn hidden_toggle_is_not_saved_and_a_fresh_open_starts_hidden() {
+    let h = Harness::new("component_edit-hidden-not-saved");
+    h.terminal.set_size(80, 24);
+    let app = h.project("app");
+    fs::create_dir_all(format!("{app}/docs")).expect("create docs");
+    fs::create_dir_all(format!("{app}/.config")).expect("create .config");
+    let projects = h.root().join("projects").display().to_string();
+    h.write_config(&format!("{{\"search_paths\": [\"{projects}\"]}}"));
+
+    h.terminal.script(vec![
+        Input::Key(KeyEvent::new(KeyCode::Char('.'), KeyModifiers::NONE)),
+        esc(),
+    ]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    // No file is written by the toggle; a cache folder that does not exist holds nothing either.
+    let cache = PathBuf::from(h.dirs.cache.as_str());
+    if let Ok(entries) = fs::read_dir(&cache) {
+        for entry in entries.flatten() {
+            let text = fs::read_to_string(entry.path()).unwrap_or_default();
+            assert!(
+                !text.contains(".config"),
+                "{} keeps the hidden toggle",
+                entry.path().display()
+            );
+        }
+    }
+
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = h
+        .terminal
+        .last_record()
+        .expect("second window opened")
+        .borrow()
+        .lines
+        .clone();
+    assert!(
+        !lines.iter().any(|line| line.contains(".config")),
+        "a fresh open is hidden: {lines:#?}"
+    );
 }

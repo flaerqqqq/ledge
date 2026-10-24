@@ -601,7 +601,7 @@ have no FR-IDs state why.
 - branch: slice/S-51-custom-commands
 
 ### S-52 Show or hide hidden folders in the bookmark edit window with '.'
-- status: in-progress
+- status: done
 - deps: S-21, S-44
 - FR-IDs: FR-EDIT-01 (proposal P-68; the user owns requirements.md)
 - scope: src/domain/bm_edit.rs (visible_rows takes a show_hidden flag), src/app/bookmark_cmd.rs (edit handler: '.' toggles, the state lives in the window only), src/tui/keys.rs or the edit window handler (the '.' key outside the search bar), src/messages.rs (no new text unless the footer needs a hint; footer text is pinned, so no change), tests/tui_edit_window.rs, tests/component_edit.rs

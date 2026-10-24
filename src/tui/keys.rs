@@ -5,7 +5,8 @@ use crate::tui::terminal::Input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 /// What a key asks for. Choose, cancel and the node or row operations are returned to the caller;
-/// movement and filter editing are applied by `PickerModel`.
+/// movement and filter editing are applied by `PickerModel`. `ToggleHidden` is the edit window's '.' (P-68); with
+/// a search filter open it is typed like any character.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Up,
@@ -20,6 +21,7 @@ pub enum Action {
     Cancel,
     Backspace,
     Type(char),
+    ToggleHidden,
     Rebuild,
     Profile,
     Kill,
@@ -90,6 +92,7 @@ pub fn map_key(key: &KeyEvent) -> Option<Action> {
             'd' => Action::DeleteNode,
             _ => return None,
         },
+        KeyCode::Char('.') => Action::ToggleHidden,
         KeyCode::Char(c) => Action::Type(c),
         _ => return None,
     };
@@ -156,6 +159,13 @@ mod tests {
         assert_eq!(key(KeyCode::Char('a')), Some(Action::Type('a')));
         assert_eq!(key(KeyCode::Char(' ')), Some(Action::Type(' ')));
         assert_eq!(key(KeyCode::Backspace), Some(Action::Backspace));
+    }
+
+    // P-68: the dot is its own action, so the edit window can use it; plain dot is not typed text
+    #[test]
+    fn dot_is_the_hidden_folders_action() {
+        assert_eq!(key(KeyCode::Char('.')), Some(Action::ToggleHidden));
+        assert_eq!(ctrl('.'), None);
     }
 
     // FR-TUI-03, architecture 6.3: left and right arrows, ctrl-h and ctrl-l
