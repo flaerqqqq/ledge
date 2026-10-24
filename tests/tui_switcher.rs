@@ -83,6 +83,16 @@ fn unmanaged(h: &Harness, name: &str) {
         .expect("create unmanaged session");
 }
 
+/// The Project cell of a switcher row: the first word after `text` (the session name).
+fn cell_after<'a>(row: &'a str, text: &str) -> &'a str {
+    let start = row.find(text).map_or(row.len(), |index| index + text.len());
+    row.get(start..)
+        .unwrap_or_default()
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+}
+
 /// The last screen drawn, one string per row.
 fn screen(h: &Harness) -> Vec<String> {
     h.terminal
@@ -249,11 +259,12 @@ fn headers_label_and_footer_are_as_specified() {
     assert!(lines.iter().any(|line| line.contains(SWITCHER_FOOTER)));
 }
 
-// D-07: the project column names the project of the session directory; a directory outside every search path leaves
-// it empty, so its name appears once (in the session name) and no project name is shown
+// D-07, P-55: the Project column names the project of the session directory; a directory outside every search path
+// shows its full path there, so the name appears in the session name and in the path
 #[test]
-fn session_outside_every_search_path_has_an_empty_project_column() {
+fn session_outside_every_search_path_shows_its_directory_in_the_project_column() {
     let h = Harness::new("tui_switcher-d07");
+    h.terminal.set_size(240, 40);
     search_config(&h);
     let alpha = h.project("alpha");
     let outside = format!("{}/elsewhere/zeta", h.root().display());
@@ -265,17 +276,33 @@ fn session_outside_every_search_path_has_an_empty_project_column() {
     let lines = screen(&h);
     let project_row = line_with(&lines, &inside_name);
     assert_eq!(
-        project_row.matches("alpha").count(),
-        2,
+        cell_after(project_row, &inside_name),
+        "alpha",
         "row {project_row:?}"
     );
     let outside_row = line_with(&lines, &outside_name);
     assert_eq!(
-        outside_row.matches("zeta").count(),
-        1,
+        cell_after(outside_row, &outside_name),
+        outside,
         "row {outside_row:?}"
     );
     assert!(!outside_row.contains("alpha"));
+}
+
+// FR-SESS-03, P-55: a session outside every project under the home folder shows `~/...` in the Project column
+#[test]
+fn session_under_home_outside_every_project_shows_tilde() {
+    let h = Harness::new("tui_switcher-home-tilde");
+    search_config(&h);
+    let notes = h.root().join("home").join("notes");
+    fs::create_dir_all(&notes).expect("create notes");
+    let notes = notes.display().to_string();
+    let name = managed(&h, &notes, FIXED_NOW - 10);
+    h.terminal.script(vec![esc()]);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    let row = line_with(&lines, &name);
+    assert_eq!(cell_after(row, &name), "~/notes", "row {row:?}");
 }
 
 // FR-SESS-04: enter attaches to the chosen session outside tmux

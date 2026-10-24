@@ -448,7 +448,7 @@ have no FR-IDs state why.
 - branch: slice/S-33-session-tree-nesting
 
 ### S-34 Session windows show a Project column
-- status: in-progress
+- status: done
 - deps: S-33, S-16
 - FR-IDs: FR-SESS-03 (column text) and FR-SESS-06 (proposal P-55; the user owns requirements.md)
 - scope: src/app/pickers.rs (session tree and switcher rows and headers), src/messages.rs (header text), src/domain/path.rs (home display, existing display_with_home)

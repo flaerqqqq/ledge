@@ -564,6 +564,22 @@ fn basename(path: &AbsPath) -> String {
         .to_string()
 }
 
+/// The home folder cleaned from HOME in the environment (FR-HIST-03 style `~`), `None` when HOME is not set.
+fn home_of(ctx: &Ctx<'_>) -> Option<AbsPath> {
+    ctx.env
+        .var("HOME")
+        .map(|home| AbsPath::clean(&home, &AbsPath::root()))
+}
+
+/// FR-SESS-03, P-55: the Project column of a session: the name of the project that contains `dir`, or `dir` with
+/// the home folder written as `~` when it is outside every project.
+fn project_text(projects: &[Project], dir: &AbsPath, home: Option<&AbsPath>) -> String {
+    match project_containing(dir, projects) {
+        Some(project) => project.name.clone(),
+        None => dir.display_with_home(home),
+    }
+}
+
 /// Architecture 6.2: the project picker chrome. The search and the missing cue are on the project column.
 fn project_chrome(label: &str) -> Chrome {
     let mut chrome = Chrome::new(
@@ -653,14 +669,15 @@ impl PickerHandler<String> for SwitcherHandler<'_, '_> {
     }
 }
 
-/// FR-SESS-02..04, D-07: one row per managed session in switcher order. The columns are session, project (the
-/// project containing the session directory; empty outside every search path, D-07), profile and activity age
+/// FR-SESS-02..04, D-07, P-55: one row per managed session in switcher order. The columns are session, project (the
+/// Project column of `project_text`; empty when the session has no directory), profile and activity age
 /// (FR-SESS-03). A session whose directory is gone is dimmed (FR-TUI-08).
 fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
     let sessions = live_sessions(ctx)?;
     let current = current_session(ctx)?;
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     let projects = load_projects(ctx.fs, &config.search_paths);
+    let home = home_of(ctx);
     let now = ctx.clock.now_secs();
     let rows = switcher_order(&sessions, current.as_deref())
         .into_iter()
@@ -668,8 +685,7 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
             let dir = session_directory(info).map(|text| AbsPath::clean(text, &ctx.cwd));
             let project = dir
                 .as_ref()
-                .and_then(|dir| project_containing(dir, &projects))
-                .map(|project| project.name.clone())
+                .map(|dir| project_text(&projects, dir, home.as_ref()))
                 .unwrap_or_default();
             let cells = vec![
                 info.name.clone(),
@@ -880,8 +896,8 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
             messages::no_ledge_sessions(),
         ),
     };
-    // FR-SESS-06, P-54: the session tree shows the session first and draws its tree on that column; the directory is
-    // the full path after it, and the filter searches the directory (the column that gives way first).
+    // FR-SESS-06, P-54, P-55: the session tree shows the session first and draws its tree on that column; the Project
+    // column comes after it, and the filter searches the value shown there.
     let (columns, tree_column, search_column) = match kind {
         TreeKind::Bookmarks => (
             vec![
@@ -895,7 +911,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
         TreeKind::Sessions => (
             vec![
                 ColumnSpec::text(messages::HEADER_SESSION),
-                ColumnSpec::text(messages::HEADER_DIRECTORY),
+                ColumnSpec::text(messages::HEADER_PROJECT),
                 ColumnSpec::text(messages::HEADER_PROFILE),
             ],
             0,
@@ -924,9 +940,10 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
         }
         TreeKind::Sessions => (session_tree(&projects, &session_dirs(ctx, &sessions)), 0),
     };
+    let home = home_of(ctx);
     let items = rows
         .into_iter()
-        .map(|row| tree_item(ctx, &sessions, kind, row))
+        .map(|row| tree_item(ctx, &sessions, kind, &projects, home.as_ref(), row))
         .collect();
     Ok((items, cursor))
 }
@@ -948,12 +965,15 @@ fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
 /// One tree row as a picker row: the label is searched, the session and profile are shown, and a row that is not
 /// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08). In the bookmark tree the
 /// session of a row is the managed session of its directory, found by name as the project picker does (FR-TREE-13,
-/// FR-PICK-06); the session tree shows the session on its row (P-54): the directory cell is the full path, and a
-/// placeholder row (a project without its own session) carries its would-be name and `(no session)`, in gray.
+/// FR-PICK-06); the session tree shows the session on its row (P-54) and the Project column of `project_text` (P-55),
+/// which the filter searches. A placeholder row (a project without its own session) carries its would-be name and
+/// `(no session)`, in gray.
 fn tree_item(
     ctx: &Ctx<'_>,
     sessions: &[ManagedSession],
     kind: TreeKind,
+    projects: &[Project],
+    home: Option<&AbsPath>,
     mut row: TreeRow<NodeKind>,
 ) -> TreeItem {
     let name = match kind {
@@ -968,20 +988,20 @@ fn tree_item(
     });
     // The ctrl actions act on `row.session` (FR-TUI-07), so a bookmark row with a live session must carry its name.
     row.session = live.map(|info| info.name.clone());
-    let cells = match kind {
-        TreeKind::Bookmarks => vec![row.label.clone(), session_text(live), profile_text(live)],
+    // The bookmark filter matches the label; the session filter matches the Project value shown.
+    let (cells, search) = match kind {
+        TreeKind::Bookmarks => (
+            vec![row.label.clone(), session_text(live), profile_text(live)],
+            row.label.clone(),
+        ),
         TreeKind::Sessions => {
             let session = match row.kind {
                 NodeKind::Placeholder => format!("{} {}", row.label, messages::no_session()),
                 _ => session_text(live),
             };
-            vec![session, row.path.as_str().to_string(), profile_text(live)]
+            let project = project_text(projects, &row.path, home);
+            (vec![session, project.clone(), profile_text(live)], project)
         }
-    };
-    // The bookmark filter matches the label; the session filter matches the directory (its basename is in the path).
-    let search = match kind {
-        TreeKind::Bookmarks => row.label.clone(),
-        TreeKind::Sessions => row.path.as_str().to_string(),
     };
     let depth = row.depth;
     let connector = !row.openable;

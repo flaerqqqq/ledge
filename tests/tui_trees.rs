@@ -137,6 +137,17 @@ fn session_fixture(h: &Harness) -> Fixture {
     Fixture { app, api, lib }
 }
 
+/// The Project cell of a session row: the first word after `text` (the session name, or `(no session)` on a
+/// placeholder). The names and paths in these tests have no spaces.
+fn cell_after<'a>(row: &'a str, text: &str) -> &'a str {
+    let start = row.find(text).map_or(row.len(), |index| index + text.len());
+    row.get(start..)
+        .unwrap_or_default()
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+}
+
 /// Makes the session `name` the one the user is in (TMUX set, client switched to it).
 fn be_inside(h: &mut Harness, name: &str) {
     h.env = h.env.clone().with_var("TMUX", TMUX_SET);
@@ -438,6 +449,59 @@ fn placeholder_row_shows_its_would_be_name_and_no_session_text() {
     );
 }
 
+// FR-SESS-03, P-55: a session inside a project shows the project name in the Project column, not its directory
+#[test]
+fn project_session_shows_the_project_name() {
+    let h = Harness::new("tui_trees-project-name");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let row = line_with(&lines, &name_of(&deep));
+    assert_eq!(
+        cell_after(row, &name_of(&deep)),
+        "app",
+        "the project name, not the directory: {row}"
+    );
+    assert!(!row.contains(deep.as_str()), "no full path: {row}");
+}
+
+// FR-SESS-03, P-55: outside every project, the Project column shows the directory with the home folder written as
+// `~`; a directory outside the home folder shows its full path
+#[test]
+fn session_outside_every_project_shows_home_as_tilde() {
+    let h = Harness::new("tui_trees-home-tilde");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let notes = h.root().join("home").join("notes");
+    let scratch = h.root().join("scratch");
+    fs::create_dir_all(&notes).expect("create notes");
+    fs::create_dir_all(&scratch).expect("create scratch");
+    let notes = abs(notes.to_str().expect("UTF-8 path"));
+    let scratch = abs(scratch.to_str().expect("UTF-8 path"));
+    live(&h, &notes, "basic", FRESH);
+    live(&h, &scratch, "basic", FRESH);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let notes_row = line_with(&lines, &name_of(&notes));
+    assert_eq!(
+        cell_after(notes_row, &name_of(&notes)),
+        "~/notes",
+        "home folder as ~: {notes_row}"
+    );
+    let scratch_row = line_with(&lines, &name_of(&scratch));
+    assert_eq!(
+        cell_after(scratch_row, &name_of(&scratch)),
+        scratch.as_str(),
+        "full path outside home: {scratch_row}"
+    );
+}
+
 // FR-SESS-06, P-54: enter on the placeholder opens the project's directory under its would-be session name
 #[test]
 fn enter_on_the_placeholder_opens_its_directory_under_its_would_be_name() {
@@ -454,8 +518,8 @@ fn enter_on_the_placeholder_opens_its_directory_under_its_would_be_name() {
     assert!(exists(&h, &name_of(&app)), "the project got its session");
 }
 
-// FR-SESS-06, P-54: the session tree shows the session name first, then the plain directory (its full path, with no
-// tree indent or glyphs), then the profile; the header lists the columns in the same order
+// FR-SESS-06, P-54, P-55: the session tree shows the session name first, then the Project column (the name of the
+// project of the session, here `app` for `app/api`), then the profile; the header lists the columns in the same order
 #[test]
 fn session_tree_row_starts_with_the_session_name() {
     let h = Harness::new("tui_trees-session-first");
@@ -464,9 +528,13 @@ fn session_tree_row_starts_with_the_session_name() {
     h.terminal.script(vec![esc()]);
     session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
     let lines = screen(&h);
-    let header = line_with(&lines, "Directory");
-    let (session_title, directory_title) = (header.find("Session"), header.find("Directory"));
-    assert!(session_title < directory_title, "header order: {header}");
+    let header = line_with(&lines, "Project");
+    let (session_title, project_title) = (header.find("Session"), header.find("Project"));
+    assert!(session_title < project_title, "header order: {header}");
+    assert!(
+        !header.contains("Directory"),
+        "no Directory header: {header}"
+    );
     let name = name_of(&f.api);
     let row = line_with(&lines, &name);
     let body = row.trim_start_matches('│').trim_start();
@@ -474,21 +542,14 @@ fn session_tree_row_starts_with_the_session_name() {
         body.starts_with(&name),
         "first column is the session: {row}"
     );
-    let rest = body.get(name.len()..).unwrap_or_default().trim_start();
-    assert!(
-        rest.starts_with(f.api.as_str()),
-        "directory is the full path, right after the session: {row}"
+    assert_eq!(
+        cell_after(row, &name),
+        "app",
+        "the Project column is the project name: {row}"
     );
-    // The gap between the session name and the path is spaces only: no tree glyphs in the directory cell.
-    let gap = body
-        .get(name.len()..)
-        .unwrap_or_default()
-        .split(f.api.as_str())
-        .next()
-        .unwrap_or_default();
     assert!(
-        !gap.chars().any(|c| "│├└─".contains(c)),
-        "the directory column has no tree glyphs: {row}"
+        !row.contains(f.api.as_str()),
+        "the full path is not shown: {row}"
     );
 }
 
@@ -732,17 +793,18 @@ fn session_tree_nests_the_p54_example_by_nearest_session() {
     session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
     let lines = screen(&h);
 
-    // Each session cell is indented two cells per depth, from the depth 0 row of ledge.
+    // Each session cell is indented two cells per depth, from the depth 0 row of ledge. The Project cell is the
+    // project name for a session inside a project, and the full path for scratch (outside every project, not under HOME).
     let base = indent_of(line_with(&lines, &name_of(&ledge)), &name_of(&ledge));
     let rows = [
-        (&ledge, 0),
-        (&docs, 1),
-        (&adr, 2),
-        (&server, 1),
-        (&web, 1),
-        (&scratch, 0),
+        (&ledge, 0, "ledge"),
+        (&docs, 1, "ledge"),
+        (&adr, 2, "ledge"),
+        (&server, 1, "api"),
+        (&web, 1, "api"),
+        (&scratch, 0, scratch.as_str()),
     ];
-    for (dir, depth) in rows {
+    for (dir, depth, project) in rows {
         let row = line_with(&lines, &name_of(dir));
         assert_eq!(
             indent_of(row, &name_of(dir)),
@@ -750,9 +812,11 @@ fn session_tree_nests_the_p54_example_by_nearest_session() {
             "depth of {}: {row}",
             dir.as_str()
         );
-        assert!(
-            row.contains(dir.as_str()),
-            "the directory is shown in full: {row}"
+        assert_eq!(
+            cell_after(row, &name_of(dir)),
+            project,
+            "project column of {}: {row}",
+            dir.as_str()
         );
         assert!(
             !row.chars().any(|c| "├└─".contains(c)),
@@ -760,7 +824,7 @@ fn session_tree_nests_the_p54_example_by_nearest_session() {
         );
     }
 
-    // The placeholder of api: its would-be name, then the text, at depth 0.
+    // The placeholder of api: its would-be name, then the text, at depth 0; its Project cell is the project name.
     let api_row = line_with(&lines, &name_of(&api));
     assert!(
         api_row.contains(&format!("{} (no session)", name_of(&api))),
@@ -771,9 +835,10 @@ fn session_tree_nests_the_p54_example_by_nearest_session() {
         base,
         "placeholder at depth 0"
     );
-    assert!(
-        api_row.contains(api.as_str()),
-        "placeholder directory: {api_row}"
+    assert_eq!(
+        cell_after(api_row, "(no session)"),
+        "api",
+        "placeholder project column: {api_row}"
     );
 
     // Tree order inside each project: a parent row comes before the rows under it.
