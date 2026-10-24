@@ -264,7 +264,7 @@ have no FR-IDs state why.
 - branch: slice/15-picker-actions
 
 ### S-16 Session switcher
-- status: in-progress
+- status: done
 - deps: S-15, S-11
 - FR-IDs: FR-SESS-01, FR-SESS-02, FR-SESS-03, FR-SESS-04
 - scope: `app/pickers.rs` (switcher), `app/session_cmd.rs` (switcher entry), `domain/age.rs`, `domain/sessions.rs` (switcher order).
@@ -277,7 +277,7 @@ have no FR-IDs state why.
 - branch: slice/16-switcher
 
 ### S-17 Command line grammar, help, and command-level checks
-- status: blocked
+- status: in-progress
 - deps: S-01
 - FR-IDs: FR-OPEN-01, FR-OPEN-02, FR-OPEN-04, FR-CMD-01, FR-CMD-02, FR-CMD-03, FR-CMD-04, FR-CMD-05, FR-CMD-06, FR-CMD-09, FR-CMD-10, FR-CMD-11, FR-PICK-11, FR-BM-14, FR-TREE-09, FR-TREE-10, FR-SESS-05
 - scope: `cli/parse.rs`, `cli/help.rs`, `cli/mod.rs` (`run`), `messages.rs` (usage and error texts), `main.rs` (wiring of `Ctx`).

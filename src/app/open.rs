@@ -86,7 +86,7 @@ fn resolve_profile(
 
 /// FR-OPEN-08: inside a tmux session (`TMUX` set and not empty) the client switches to the session; outside
 /// one the terminal attaches. The attach itself is manual (traceability, FR-OPEN-08).
-fn attach_or_switch(ctx: &Ctx<'_>, name: &str) -> Result<Outcome> {
+pub(crate) fn attach_or_switch(ctx: &Ctx<'_>, name: &str) -> Result<Outcome> {
     let result = if inside_tmux(ctx.env) {
         ctx.backend.switch_client(name)
     } else {

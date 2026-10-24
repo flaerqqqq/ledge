@@ -46,6 +46,24 @@ pub fn session_directory(session: &SessionInfo) -> Option<&str> {
         .filter(|dir| !dir.is_empty())
 }
 
+/// FR-SESS-02, A-10: the switcher order. The session the user is in (`current`, `None` outside tmux) comes first;
+/// the rest by most recent activity; equal activity by session name.
+pub fn switcher_order<'a>(
+    sessions: &'a [ManagedSession],
+    current: Option<&str>,
+) -> Vec<&'a SessionInfo> {
+    let mut infos: Vec<&SessionInfo> = sessions.iter().map(ManagedSession::info).collect();
+    infos.sort_by(|a, b| {
+        let a_current = current == Some(a.name.as_str());
+        let b_current = current == Some(b.name.as_str());
+        b_current
+            .cmp(&a_current)
+            .then(b.activity.cmp(&a.activity))
+            .then(a.name.cmp(&b.name))
+    });
+    infos
+}
+
 /// FR-PLAT-01, architecture 7.2: tmux 3.2 is the minimum. `version` is `(major, minor)`.
 pub fn tmux_version_supported(version: (u32, u32)) -> bool {
     version >= (3, 2)
@@ -67,7 +85,7 @@ pub fn group_members(entry: &AbsPath, session_dirs: &[Option<AbsPath>]) -> Vec<u
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::group_members;
+    use super::{group_members, managed, switcher_order, ManagedSession, SessionInfo};
     use crate::domain::path::AbsPath;
 
     fn abs(text: &str) -> AbsPath {
@@ -97,6 +115,68 @@ mod tests {
     fn name_prefix_is_not_membership() {
         let dirs = vec![Some(abs("/p/appx"))];
         assert!(group_members(&abs("/p/app"), &dirs).is_empty());
+    }
+
+    fn managed_session(name: &str, activity: i64) -> ManagedSession {
+        let info = SessionInfo {
+            name: name.to_string(),
+            windows: 1,
+            attached: false,
+            activity,
+            managed: true,
+            profile: None,
+            dir: None,
+            path: None,
+        };
+        managed(vec![info]).remove(0)
+    }
+
+    // FR-SESS-02: the session the user is in comes first, even when another is more recent
+    #[test]
+    fn current_session_is_first_whatever_its_activity() {
+        let sessions = vec![managed_session("a", 900), managed_session("b", 100)];
+        let order: Vec<&str> = switcher_order(&sessions, Some("b"))
+            .iter()
+            .map(|info| info.name.as_str())
+            .collect();
+        assert_eq!(order, vec!["b", "a"]);
+    }
+
+    // FR-SESS-02: the rest by most recent activity
+    #[test]
+    fn rest_is_ordered_by_most_recent_activity() {
+        let sessions = vec![
+            managed_session("old", 100),
+            managed_session("new", 900),
+            managed_session("mid", 500),
+        ];
+        let order: Vec<&str> = switcher_order(&sessions, None)
+            .iter()
+            .map(|info| info.name.as_str())
+            .collect();
+        assert_eq!(order, vec!["new", "mid", "old"]);
+    }
+
+    // FR-SESS-02, A-10: equal activity is ordered by session name
+    #[test]
+    fn equal_activity_is_ordered_by_name() {
+        let sessions = vec![managed_session("zeta", 500), managed_session("alpha", 500)];
+        let order: Vec<&str> = switcher_order(&sessions, None)
+            .iter()
+            .map(|info| info.name.as_str())
+            .collect();
+        assert_eq!(order, vec!["alpha", "zeta"]);
+    }
+
+    // FR-SESS-02: outside tmux there is no current session, so the activity order alone applies
+    #[test]
+    fn outside_tmux_only_activity_orders() {
+        let sessions = vec![managed_session("a", 1), managed_session("b", 2)];
+        let order: Vec<&str> = switcher_order(&sessions, None)
+            .iter()
+            .map(|info| info.name.as_str())
+            .collect();
+        assert_eq!(order, vec!["b", "a"]);
     }
 
     // FR-SCOPE-02: a session with no directory is in no group

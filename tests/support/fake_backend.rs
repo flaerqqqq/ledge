@@ -23,6 +23,7 @@ struct Session {
     dir: String,
     windows: Vec<Window>,
     options: BTreeMap<String, String>,
+    activity: i64,
 }
 
 #[derive(Default)]
@@ -50,6 +51,19 @@ impl FakeBackend {
             .borrow_mut()
             .push((operation.to_string(), detail.to_string()));
         self
+    }
+
+    /// FR-SESS-03 (test setup): the last activity of a session, Unix seconds, as tmux `session_activity` reports it.
+    pub fn set_activity(&self, session: &str, activity: i64) {
+        let mut sessions = self.sessions.borrow_mut();
+        if let Some(found) = sessions.iter_mut().find(|s| s.name == session) {
+            found.activity = activity;
+        }
+    }
+
+    /// FR-SESS-02 (test setup): the session the current client is in, as `current_session` reports it.
+    pub fn set_current(&self, session: &str) {
+        *self.current.borrow_mut() = Some(session.to_string());
     }
 
     pub fn with_version(self, major: u32, minor: u32) -> Self {
@@ -175,7 +189,7 @@ impl SessionBackend for FakeBackend {
                 name: s.name.clone(),
                 windows: s.windows.len() as u32,
                 attached: false,
-                activity: 0,
+                activity: s.activity,
                 managed: s.options.get("@ledge_managed").map(String::as_str) == Some("1"),
                 profile: s.options.get("@ledge_profile").cloned(),
                 dir: s.options.get("@ledge_dir").cloned(),
@@ -195,6 +209,7 @@ impl SessionBackend for FakeBackend {
         self.sessions.borrow_mut().push(Session {
             name: new.name.clone(),
             dir: new.dir.clone(),
+            activity: 0,
             windows: vec![Window {
                 id: id.clone(),
                 name: new.window_name.clone(),

@@ -2,6 +2,7 @@
 //! (SignalFlags) and `terminal` (CrosstermTerminal, the terminal factory); S-09 adds `process` (SystemProcess)
 //! and `tmux` (TmuxBackend).
 
+pub mod clock;
 pub mod env;
 pub mod fs;
 pub mod process;

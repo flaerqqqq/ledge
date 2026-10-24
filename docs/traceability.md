@@ -91,10 +91,10 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-TREE-10 | S-17 |  |  | open |  |
 | FR-TREE-11 | S-05 | domain/tree.rs | domain/tree.rs | covered | Domain flag only (`openable`). Enter handling in the tree picker is wired in a later slice. |
 | FR-TREE-12 | S-22 |  |  | open |  |
-| FR-SESS-01 | S-16 |  |  | open |  |
-| FR-SESS-02 | S-16 |  |  | open |  |
-| FR-SESS-03 | S-16 |  |  | open |  |
-| FR-SESS-04 | S-16 |  |  | open | Expected manual: attach and switch need a real client and tty; argv covered by adapter test. |
+| FR-SESS-01 | S-16 | src/domain/sessions.rs; src/app/pickers.rs | src/domain/sessions.rs (unit); tests/tui_switcher.rs | covered | Only managed sessions reach the switcher; an unmanaged session is not listed, and with none the empty message shows (D-08). |
+| FR-SESS-02 | S-16 | src/domain/sessions.rs; src/app/pickers.rs | src/domain/sessions.rs (unit); tests/tui_switcher.rs | covered | Current session first (tmux client, `TMUX` set), then most recent activity; equal activity by name (A-10). |
+| FR-SESS-03 | S-16 | src/domain/age.rs; src/messages.rs; src/adapters/clock.rs; src/ports/clock.rs | src/domain/age.rs (unit); tests/tui_switcher.rs; tests/messages_verbatim.rs | covered | Boundaries 60 s, 60 min, 24 h, rounded down, no weeks (A-10). Clock is `FakeClock` in tests. |
+| FR-SESS-04 | S-16 | src/app/pickers.rs; src/app/open.rs | tests/tui_switcher.rs | covered | The choice of switch (inside tmux) or attach (outside) is automated on `FakeBackend`. Manual: a real attach and switch on a tty (testing.md manual list); the argv is covered by the adapter test. |
 | FR-SESS-05 | S-17 |  |  | open |  |
 | FR-SESS-06 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
 | FR-SESS-07 | S-05 | domain/tree.rs | domain/tree.rs | covered | Label of a gray project root is `session_name` of its path. |

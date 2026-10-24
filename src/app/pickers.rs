@@ -1,24 +1,25 @@
-//! The project and history pickers (architecture 2, 6.2, 6.4; FR-PICK-04..13, FR-HIST-04, FR-HIST-05, FR-CMD-08,
-//! FR-CMD-12). Each entry point loads its rows through the ports, runs the picker, and on enter opens the chosen
+//! The project, history and session switcher pickers (architecture 2, 6.2, 6.4; FR-PICK-04..13, FR-HIST-04, FR-HIST-05,
+//! FR-SESS-01..04, FR-CMD-08, FR-CMD-12). Each entry point loads its rows through the ports, runs the picker, and on enter opens the chosen
 //! directory through the open flow after the terminal is restored (architecture 6.4). Rows are built here; the
 //! screen and the keys are `tui`. Row actions: ctrl-x kills, ctrl-r rebuilds, ctrl-p picks a profile in a nested
 //! picker and rebuilds with it (S-15, FR-ACT-01, FR-ACT-02, FR-ACT-04, FR-ACT-12). Alt and ctrl-d actions are not
 //! bound in these pickers.
 
-use crate::app::actions::{kill, rebuild};
+use crate::app::actions::{current_session, kill, rebuild};
 use crate::app::load_projects;
-use crate::app::open::open_dir;
+use crate::app::open::{attach_or_switch, open_dir};
 use crate::app::store;
 use crate::app::Ctx;
+use crate::domain::age::age;
 use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
 use crate::domain::profile::ProfileName;
 use crate::domain::profile_rules::{
     open_profile, profile_choices, OpenProfile, ProfileChoice, ProfileOpt,
 };
-use crate::domain::projects::{project_rows, Project};
+use crate::domain::projects::{project_containing, project_rows, Project};
 use crate::domain::sessions::SessionInfo;
-use crate::domain::sessions::{managed, ManagedSession};
+use crate::domain::sessions::{managed, session_directory, switcher_order, ManagedSession};
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::ports::backend::BackendError;
@@ -475,6 +476,169 @@ fn history_chrome() -> Chrome {
     );
     chrome.missing_column = Some(0);
     chrome
+}
+
+/// FR-SESS-01..04, D-07, D-08, D-12, S-16: runs the session switcher over the managed sessions, the session the user
+/// is in first and then by activity (FR-SESS-02). Enter switches the client inside tmux and attaches outside
+/// (FR-SESS-04). ctrl-r rebuilds the session in its directory, ctrl-p picks a profile first, ctrl-x kills and the list
+/// stays open. An empty list shows `No ledge sessions.` and stays open (D-12).
+pub fn session_switcher(ctx: &Ctx<'_>) -> Result<Outcome> {
+    let rows = switcher_rows(ctx)?;
+    let model = PickerModel::new(rows, switcher_chrome());
+    let mut handler = SwitcherHandler { ctx };
+    run_switcher(ctx, model, &mut handler)
+}
+
+/// Enter and the actions of the session switcher. The payload is the session name.
+struct SwitcherHandler<'c, 'a> {
+    ctx: &'c Ctx<'a>,
+}
+
+impl PickerHandler<String> for SwitcherHandler<'_, '_> {
+    fn choose(&mut self, _name: &String) -> Step {
+        Step::Accept
+    }
+
+    fn act(&mut self, action: Action, row: Option<&String>) -> Step {
+        let Some(name) = row else {
+            return no_action();
+        };
+        match action {
+            Action::Rebuild => switcher_rebuild(self.ctx, name),
+            Action::Kill => switcher_kill(self.ctx, name),
+            Action::Profile => Step::Profile,
+            _ => no_action(),
+        }
+    }
+
+    fn reload(&mut self) -> Result<Vec<PickerRow<String>>> {
+        switcher_rows(self.ctx)
+    }
+}
+
+/// FR-SESS-02..04, D-07: one row per managed session in switcher order. The columns are session, project (the
+/// project containing the session directory; empty outside every search path, D-07), profile and activity age
+/// (FR-SESS-03). A session whose directory is gone is dimmed (FR-TUI-08).
+fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
+    let sessions = live_sessions(ctx)?;
+    let current = current_session(ctx)?;
+    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
+    let projects = load_projects(ctx.fs, &config.search_paths);
+    let now = ctx.clock.now_secs();
+    let rows = switcher_order(&sessions, current.as_deref())
+        .into_iter()
+        .map(|info| {
+            let dir = session_directory(info).map(|text| AbsPath::clean(text, &ctx.cwd));
+            let project = dir
+                .as_ref()
+                .and_then(|dir| project_containing(dir, &projects))
+                .map(|project| project.name.clone())
+                .unwrap_or_default();
+            let cells = vec![
+                info.name.clone(),
+                project,
+                info.profile.clone().unwrap_or_default(),
+                messages::activity_age(age(now, info.activity)),
+            ];
+            let mut row = PickerRow::new(cells, &info.name, info.name.clone());
+            row.dimmed = dir
+                .as_ref()
+                .is_some_and(|dir| !ctx.fs.is_dir(Path::new(dir.as_str())));
+            row
+        })
+        .collect();
+    Ok(rows)
+}
+
+/// Architecture 6.2: the switcher chrome. The empty list shows `No ledge sessions.` and stays open (D-12).
+fn switcher_chrome() -> Chrome {
+    let mut chrome = Chrome::new(
+        messages::SESSIONS_LABEL,
+        render::icon::SESSIONS,
+        vec![
+            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::text(messages::HEADER_PROJECT),
+            ColumnSpec::text(messages::HEADER_PROFILE),
+            ColumnSpec::text(messages::HEADER_ACTIVITY),
+        ],
+        messages::SESSION_SWITCHER_FOOTER,
+    );
+    chrome.empty_message = Some(messages::no_ledge_sessions().to_string());
+    chrome.stay_open_when_empty = true;
+    chrome
+}
+
+/// The directory of the managed session `name`, cleaned against the working directory. `None` when the session is
+/// gone or has no recorded or tmux directory.
+fn session_directory_of(ctx: &Ctx<'_>, name: &str) -> Result<Option<AbsPath>> {
+    let sessions = live_sessions(ctx)?;
+    Ok(sessions
+        .iter()
+        .map(ManagedSession::info)
+        .find(|info| info.name == name)
+        .and_then(session_directory)
+        .map(|text| AbsPath::clean(text, &ctx.cwd)))
+}
+
+/// FR-ACT-02, FR-SESS-04 (ctrl-r): rebuilds the session in its directory with its recorded profile. A directory that is
+/// gone is reported as the directory pickers report it (FR-PICK-09).
+fn switcher_rebuild(ctx: &Ctx<'_>, name: &str) -> Step {
+    match session_directory_of(ctx, name) {
+        Ok(Some(dir)) => rebuild_row(ctx, &dir, &ProfileOpt::Unset),
+        Ok(None) => no_action(),
+        Err(error) => failed(error),
+    }
+}
+
+/// FR-ACT-01, FR-ACT-07, D-17: ctrl-x kills the session and the list is shown again. The refusal for the session the
+/// user is in is the status line.
+fn switcher_kill(ctx: &Ctx<'_>, name: &str) -> Step {
+    match kill(ctx, name) {
+        Ok(_) => Step::Continue {
+            status: None,
+            reload: true,
+        },
+        Err(error) => failed(error),
+    }
+}
+
+/// Runs the switcher. Enter returns the session name after the terminal is restored; the attach or switch runs then
+/// (FR-SESS-04). ctrl-p runs the profile picker for the session and reopens the switcher with that row selected.
+fn run_switcher(
+    ctx: &Ctx<'_>,
+    mut model: PickerModel<String>,
+    handler: &mut dyn PickerHandler<String>,
+) -> Result<Outcome> {
+    loop {
+        let chrome = model.chrome().clone();
+        match run_in_terminal(ctx, model, handler)? {
+            PickerResult::Chosen(name) => return attach_or_switch(ctx, &name),
+            PickerResult::Cancelled => return Ok(Outcome::Cancelled),
+            PickerResult::Closed(outcome) => return Ok(outcome),
+            PickerResult::Profile(name) => {
+                let step = match session_directory_of(ctx, &name)? {
+                    Some(dir) => profile_then_rebuild(ctx, &dir)?,
+                    None => no_action(),
+                };
+                let status = match step {
+                    Step::Close(outcome) => return Ok(outcome),
+                    Step::Continue { status, .. } => status,
+                    Step::Accept | Step::Profile => None,
+                };
+                let rows = preselect_session(handler.reload()?, &name);
+                model = PickerModel::new(rows, chrome);
+                model.set_status(status);
+            }
+        }
+    }
+}
+
+/// Selects the row of the session `name` again after a nested profile picker.
+fn preselect_session(mut rows: Vec<PickerRow<String>>, name: &str) -> Vec<PickerRow<String>> {
+    for row in rows.iter_mut() {
+        row.preselect = row.payload == name;
+    }
+    rows
 }
 
 /// Architecture 4: a backend failure as the fatal text of the picker. A missing tmux keeps its own message

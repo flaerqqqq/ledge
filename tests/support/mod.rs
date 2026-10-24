@@ -5,6 +5,7 @@
 
 pub mod ctx;
 pub mod fake_backend;
+pub mod fake_clock;
 pub mod fake_console;
 pub mod fake_env;
 pub mod fake_process;

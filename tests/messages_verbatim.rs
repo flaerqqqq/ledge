@@ -375,3 +375,30 @@ fn profile_picker_label_and_footer_are_verbatim() {
     assert_eq!(messages::PROFILES_LABEL, "Profiles");
     assert_eq!(messages::PROFILE_PICKER_FOOTER, "enter choose · esc cancel");
 }
+
+// D-08, FR-SESS-01, D-12: the switcher has no managed sessions
+#[test]
+fn no_ledge_sessions_text_is_verbatim() {
+    assert_eq!(messages::no_ledge_sessions(), "No ledge sessions.");
+}
+
+// FR-SESS-03, architecture 6.2: the switcher label, column title and key footer
+#[test]
+fn switcher_label_header_and_footer_are_verbatim() {
+    assert_eq!(messages::SESSIONS_LABEL, "Sessions");
+    assert_eq!(messages::HEADER_ACTIVITY, "Activity");
+    assert_eq!(
+        messages::SESSION_SWITCHER_FOOTER,
+        "enter switch · ^r rebuild · ^p profile · ^x kill"
+    );
+}
+
+// FR-SESS-03, A-10: the four age texts
+#[test]
+fn activity_age_texts_are_verbatim() {
+    use ledge::domain::age::Age;
+    assert_eq!(messages::activity_age(Age::JustNow), "just now");
+    assert_eq!(messages::activity_age(Age::Minutes(5)), "5m ago");
+    assert_eq!(messages::activity_age(Age::Hours(3)), "3h ago");
+    assert_eq!(messages::activity_age(Age::Days(2)), "2d ago");
+}

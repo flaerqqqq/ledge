@@ -2,6 +2,7 @@
 //! config and profile; S-03 adds history and bookmarks;
 //! S-04 adds projects and group selection; S-05 adds the bookmark and session trees.
 
+pub mod age;
 pub mod bookmarks;
 pub mod config;
 pub mod history;

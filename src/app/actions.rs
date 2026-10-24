@@ -144,7 +144,7 @@ fn default_or_basic(ctx: &Ctx<'_>, default_profile: Option<&str>) -> Profile {
 }
 
 /// D-17: the session the client is in, read only inside tmux (`TMUX` set and not empty).
-fn current_session(ctx: &Ctx<'_>) -> Result<Option<String>> {
+pub(crate) fn current_session(ctx: &Ctx<'_>) -> Result<Option<String>> {
     if !inside_tmux(ctx.env) {
         return Ok(None);
     }

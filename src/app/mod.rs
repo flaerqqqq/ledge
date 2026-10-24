@@ -5,6 +5,7 @@ use crate::domain::location::Dirs;
 use crate::domain::path::AbsPath;
 use crate::domain::projects::{project_list, Project};
 use crate::ports::backend::SessionBackend;
+use crate::ports::clock::Clock;
 use crate::ports::console::Console;
 use crate::ports::env::Env;
 use crate::ports::fs::FileSystem;
@@ -25,6 +26,8 @@ pub mod store;
 pub struct Ctx<'a> {
     pub env: &'a dyn Env,
     pub fs: &'a dyn FileSystem,
+    /// FR-SESS-03: the time the activity age text is computed from.
+    pub clock: &'a dyn Clock,
     pub backend: &'a dyn SessionBackend,
     pub console: &'a dyn Console,
     /// External programs; the editor launch (FR-LAUNCH-*) is its first user (P-21).

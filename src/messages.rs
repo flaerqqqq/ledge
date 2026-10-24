@@ -1,6 +1,8 @@
 //! User-facing strings (architecture 8.3). One const or fn per text, verified literally in
 //! tests/messages_verbatim.rs.
 
+use crate::domain::age::Age;
+
 /// FR-CMD-08, message "Cancelled." (stdout, exit 0).
 pub fn cancelled() -> &'static str {
     "Cancelled."
@@ -242,3 +244,27 @@ pub const PROFILES_LABEL: &str = "Profiles";
 
 /// Architecture 6.2 and A-03: the key footer of the profile picker.
 pub const PROFILE_PICKER_FOOTER: &str = "enter choose · esc cancel";
+
+/// FR-SESS-03, architecture 6.2: the border label of the session switcher.
+pub const SESSIONS_LABEL: &str = "Sessions";
+
+/// Architecture 6.2: the column title of the switcher's activity column.
+pub const HEADER_ACTIVITY: &str = "Activity";
+
+/// Architecture 6.2 (given): the key footer of the session switcher.
+pub const SESSION_SWITCHER_FOOTER: &str = "enter switch · ^r rebuild · ^p profile · ^x kill";
+
+/// D-08, D-12, FR-SESS-01: the switcher has no managed sessions; info, and the list stays open.
+pub fn no_ledge_sessions() -> &'static str {
+    "No ledge sessions."
+}
+
+/// FR-SESS-03, A-10: the activity age text of the switcher.
+pub fn activity_age(age: Age) -> String {
+    match age {
+        Age::JustNow => "just now".to_string(),
+        Age::Minutes(n) => format!("{n}m ago"),
+        Age::Hours(n) => format!("{n}h ago"),
+        Age::Days(n) => format!("{n}d ago"),
+    }
+}

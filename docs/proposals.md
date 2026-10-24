@@ -296,3 +296,21 @@ Format:
 - why: each choice is the smallest one that passes the S-15 tests; none changes an accepted decision. (a) and (c) are the visible ones.
 - status: Open
 
+
+### P-30 S-16 session switcher rules the spec leaves open
+- from: implementer / slice S-16
+- doc: requirements.md (Screens and interactions, Session switcher; FR-SESS-02, FR-SESS-03), docs/architecture.md (6.2, A-10, A-37) and docs/backlog.md (S-16)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) the project column shows the name of the project that contains the session directory (`project_containing` over the search paths, FR-PICK-04). A session directory outside every search path (D-07) leaves the column empty. The directory is `@ledge_dir`, else tmux's `session_path` (A-37).
+  (b) ctrl-r in the switcher rebuilds the session in its directory with its recorded profile (`ProfileOpt::Unset`). The switcher has no `--profile` option in S-16. A directory that is gone shows `Missing directory: <path>` and builds nothing (P-29 b).
+  (c) the switcher reads the config for the search paths, so a config error fails the switcher with that message, as the open flow does.
+  (d) escape cancels the switcher with `Cancelled.` (exit 0). Enter attaches or switches and returns `Outcome::Done`. Enter on an empty list cancels (A-08).
+- why: each choice is the smallest one that passes the S-16 tests in tests/tui_switcher.rs and the unit tests in domain/sessions.rs and domain/age.rs. None changes an accepted decision (D-07, D-08, D-12).
+- status: Open
+
+### P-31 S-16 switcher has no directory cell for the missing cue; session_cmd location
+- from: implementer / slice S-16
+- doc: docs/architecture.md (6.2 "Missing directory" cue, 2 module list for app/session_cmd.rs) and docs/backlog.md (S-16 scope)
+- change: (a) architecture 6.2 puts the ` (missing)` suffix on the Directory or Bookmark cell. The switcher has no such column (session, project, profile, activity). The implementation dims a row whose session directory is gone (FR-TUI-08) but adds no text cue, so with `NO_COLOR` the missing state is not shown. Proposed: the suffix goes on the project cell when the directory is gone, or the session cell. (b) the switcher service is `app::pickers::session_switcher`. `app/session_cmd.rs` is not created in S-16, because the `ss` command glue (the CLI route, FR-SESS-05) arrives with S-17 and S-23/S-25 add the list and kill subcommands. The backlog S-16 scope names `app/session_cmd.rs`; this is the change to that scope.
+- why: the screen table in requirements.md gives no missing cue for the switcher and FR-TUI-09 asks for readable cues without color. The layout is a doc gap, not a decision. The module split follows the smallest change that keeps the picker services in one file.
+- status: Open

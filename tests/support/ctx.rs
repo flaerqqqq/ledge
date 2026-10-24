@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::fake_backend::FakeBackend;
+use super::fake_clock::FakeClock;
 use super::fake_console::FakeConsole;
 use super::fake_env::FakeEnv;
 use super::fake_process::FakeProcess;
@@ -17,12 +18,16 @@ use ledge::domain::path::AbsPath;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// The clock of every harness: Unix seconds of 2026-10-24 00:00 UTC, so activity ages are exact in tests.
+pub const FIXED_NOW: i64 = 1_792_800_000;
+
 /// The fixtures of one test. The fields are public so a test can change one before it runs the flow
 /// (for example `h.env = h.env.clone().with_var("TMUX", "...")` or `h.backend = FakeBackend::new().fail_on(..)`).
 pub struct Harness {
     tree: TempTree,
     pub env: FakeEnv,
     pub fs: RealFs,
+    pub clock: FakeClock,
     pub backend: FakeBackend,
     pub console: FakeConsole,
     pub process: FakeProcess,
@@ -54,6 +59,7 @@ impl Harness {
             tree,
             env,
             fs: RealFs,
+            clock: FakeClock::at(FIXED_NOW),
             backend: FakeBackend::new(),
             console: FakeConsole::new(),
             process: FakeProcess::new(),
@@ -70,6 +76,7 @@ impl Harness {
         Ctx {
             env: &self.env,
             fs: &self.fs,
+            clock: &self.clock,
             backend: &self.backend,
             console: &self.console,
             process: &self.process,
