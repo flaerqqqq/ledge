@@ -428,3 +428,12 @@ have no FR-IDs state why.
 - acceptance: ctrl-j and ctrl-k move the selection down and up in every picker and tree window; j and k move it in the bookmark edit window (no filter). Plain j and k type into the filter elsewhere (FR-TUI-02). Arrow keys keep working. The same key map is used everywhere (FR-TUI-07). Footer text is unchanged.
 - size: S
 - branch: slice/S-28-vim-navigation
+
+### S-29 Bookmark tree shows session and profile; edit window hjkl and search
+- status: in-progress
+- deps: S-19, S-21, S-22, S-28
+- FR-IDs: FR-TREE-13 and FR-EDIT-12, FR-EDIT-13 (proposed in docs/proposals.md P-53; not yet in requirements.md). They supersede D-15 (no type-to-filter in the edit window) for the search part.
+- scope: src/app/pickers.rs (bookmark tree rows and the edit window handler), src/tui/keys.rs and src/tui/picker.rs (h, l and / in the edit window), src/tui/render.rs (session and profile columns on tree rows, the search bar), src/messages.rs (search prompt text is a new [new] message, via proposal)
+- acceptance: (a) bookmark tree rows for a directory with a managed session show the session name and its profile, as the project picker does (FR-PICK-06); rows without a session show nothing extra; the view refreshes after enter opens or builds a session. (b) edit window: h collapses the folder or moves to its parent, l expands it, j and k move (as now); / opens a search bar that filters the visible rows by fuzzy match, enter keeps the match and closes the bar, escape clears it and closes the bar; the search applies to the same rows and the expand state is unchanged.
+- size: M
+- branch: slice/S-29-tree-session-and-edit-search

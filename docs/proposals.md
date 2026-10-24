@@ -522,3 +522,14 @@ Format:
 - change: add "FR-TUI-11: ledge shall move the selection with ctrl-j and ctrl-k in every picker and tree window, and with j and k in the bookmark edit window, which has no filter. Arrow keys keep working everywhere."
 - why: the user uses vim keys for list and tree navigation. FR-TUI-03 covers only arrows and page keys. Pickers and tree windows accept typed filter text (FR-TUI-02), so a plain j or k there must type into the filter; those windows use ctrl-j and ctrl-k. The edit window has no filter (D-15), so plain j and k move there.
 - decided by coordinator: plain j and k do not move in pickers or trees; the rule above replaces the earlier draft.
+
+### P-53 Bookmark tree session and profile; edit window hjkl and search (FR-TREE-13, FR-EDIT-12, FR-EDIT-13)
+- from: user request / coordinator, slice S-29
+- status: Open
+- doc: requirements.md (new FR-TREE-13, FR-EDIT-12, FR-EDIT-13); decisions.md D-15 superseded for the search part
+- change:
+  - FR-TREE-13: ledge shall show the session name and profile of each bookmark row that has a managed session, as the project picker does, and refresh them after a session is opened or built.
+  - FR-EDIT-12: ledge shall move in the bookmark edit window with h and l as well as the arrows: h collapses an expanded folder or moves to its parent, l expands a folder with subfolders.
+  - FR-EDIT-13: ledge shall open a search bar in the bookmark edit window with /, filter the visible rows by fuzzy match as the user types, keep the match on enter and clear it on escape.
+- why: the bookmark tree did not show that a session was created for a bookmark; the edit window has no search and the user wants nvim-style keys. D-15 said no type-to-filter in the edit window; the user has now asked for search there.
+- open choice: the search bar prompt text (not in messages.rs yet) and whether j and k should move while the search bar is open (proposed: no, typed text goes to the bar).
