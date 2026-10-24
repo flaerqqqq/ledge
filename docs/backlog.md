@@ -536,3 +536,12 @@ have no FR-IDs state why.
 - acceptance: killing the session the client is in, from any ledge window or from ss kill, is allowed; the client switches to the most recent remaining tmux session (by last activity, then name); if no other session remains, the tmux server is killed and tmux closes; killing any other session is unchanged; the "cannot kill the session you are in" refusal is removed for kill (not for rebuild of the current session, which keeps its D-17 behaviour); alt-x on a node follows the same rule for the current session.
 - size: M
 - branch: slice/S-43-kill-current-session
+
+### S-44 Bookmark edit window: tree with columns (design option B)
+- status: in-progress
+- deps: S-42
+- FR-IDs: FR-EDIT-01, FR-EDIT-06 (mark position), FR-TUI-04 (frame and header); design docs/design-edit-window.md option B, chosen by the user
+- scope: src/app/bookmark_cmd.rs (edit rows: name, bookmark, session, child count), src/tui/render.rs and src/tui/columns.rs (header row, column widths; the window uses the same frame as the other pickers), src/tui/picker.rs if the row needs more cells
+- acceptance: the edit window has the framed look of the other windows and a column header row; each folder row shows its name with the tree glyphs and the + or - after the name, a bookmark mark in its own column, the session name and profile when a managed session exists, and the child count; at 120 cells and up the path column is shown; the bookmark mark moves from column 0 to its own column; keys and the search bar unchanged; text cues without colour.
+- size: M
+- branch: slice/S-44-edit-window-columns
