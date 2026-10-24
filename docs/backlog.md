@@ -500,3 +500,12 @@ have no FR-IDs state why.
 - acceptance: rounded border around each picker with the window label in the top edge and the footer keys in the bottom edge; one-cell margin inside the frame; two-cell gap between columns; header row bold with a rule under it; selected row uses reverse video over the full width with the selection bar; status line above the footer; the no-colour rendering keeps every text cue; minimum-size behaviour unchanged.
 - size: M
 - branch: slice/S-39-visual-redesign
+
+### S-40 Visual polish: header colours, rule under the prompt, edit-window glyphs, no project markers
+- status: in-progress
+- deps: S-39
+- FR-IDs: FR-TUI-04 (label colours and no icon), FR-EDIT-06 (glyphs in the edit window), FR-PICK-05 and FR-PICK-07 (marker column removed from the project picker; proposal P-61, the user owns requirements.md)
+- scope: src/tui/render.rs (top-edge label colours and no icon, rule between prompt and header), src/app/pickers.rs (edit window tree glyphs, project picker without the marker column), src/tui/picker.rs and src/tui/columns.rs where the column list changes
+- acceptance: the window label in the top edge uses the same colour as the footer keys and has no icon; a thin rule separates the prompt row from the column header row; the bookmark edit window draws branch glyphs for nesting like the session tree; the project picker has no marker column (no ●, ○ or *), and the live-session information stays in the session column; no other behaviour changes.
+- size: S
+- branch: slice/S-40-visual-polish

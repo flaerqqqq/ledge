@@ -598,3 +598,10 @@ Format:
 - why: the user chooses a palette and overrides one colour without editing code. Colour is never the only cue (FR-TUI-09), so a theme changes colours only.
 - open choice: an environment variable for one run (LEDGE_THEME), not proposed here.
 - S-37 implementation note (slice S-37, branch slice/S-37-theme-and-render): the three texts above are used as written, with the `Warning: ` prefix. One text is added, because `theme_colors` that is present but not an object had none: "Warning: theme_colors is not an object; ignored." (`messages::theme_colors_not_object`). Behaviour as built: an invalid `theme_colors` entry is ignored and the theme's own colour stays (P-60 wording), not the default theme; on a 16-colour terminal the theme falls back to the default ANSI names and its overrides are not shown (design 6.3).
+
+### P-61 Project picker has no marker column (FR-PICK-05, FR-PICK-07)
+- from: user request / coordinator, slice S-40
+- status: Open
+- doc: requirements.md (FR-PICK-05 current-directory mark, FR-PICK-07 live-session marker)
+- change: the project picker shows no marker column. The live-session state is shown by the session column (name present or empty), and the current directory is marked in the project column instead of with "*" in a separate column.
+- why: the user finds the circles and the star on the left noisy; the session column already shows whether a session exists.
