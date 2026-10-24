@@ -3,6 +3,7 @@
 //! and `tmux` (TmuxBackend).
 
 pub mod clock;
+pub mod console;
 pub mod env;
 pub mod fs;
 pub mod process;

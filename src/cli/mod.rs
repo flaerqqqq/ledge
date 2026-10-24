@@ -1,1 +1,77 @@
-//! Command layer (architecture 2). Empty until its slice.
+//! Command layer (architecture 2, 2.3). `run` parses the arguments (`parse`), checks tmux for the commands that
+//! need it (A-29, FR-CMD-10, FR-PLAT-01), and calls the use cases in `app` through `Ctx`. Help text is in `help`.
+//! Commands whose slice is not built yet fail with the plain error of proposal P-32.
+
+pub mod help;
+pub mod parse;
+
+use crate::app::open::open_dir_with_editor;
+use crate::app::pickers::{
+    history_picker_with_editor, project_picker_with_editor, session_switcher,
+};
+use crate::app::Ctx;
+use crate::domain::sessions::tmux_version_supported;
+use crate::error::{LedgeError, Outcome, Result};
+use crate::messages;
+use crate::ports::backend::BackendError;
+use parse::{parse, Command};
+
+/// FR-CMD-07, FR-OPEN-01, FR-OPEN-02, FR-CMD-01..06: parses `args` (the arguments after the program name) and runs
+/// the command. The parse error is returned as a fatal error.
+pub fn run(args: &[String], ctx: &Ctx<'_>) -> Result<Outcome> {
+    let command = parse(args).map_err(LedgeError::Fatal)?;
+    dispatch(command, ctx)
+}
+
+fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
+    match command {
+        Command::Help => Ok(Outcome::Info(help::HELP.to_string())),
+        Command::Usage(group) => Ok(Outcome::Info(help::group_usage(group).to_string())),
+        Command::Open { dir, options } => {
+            require_tmux(ctx)?;
+            open_dir_with_editor(
+                ctx,
+                dir.as_deref(),
+                &options.profile,
+                options.editor.as_ref(),
+            )
+        }
+        Command::ProjectPick(options) => {
+            require_tmux(ctx)?;
+            project_picker_with_editor(ctx, None, &options.profile, options.editor.as_ref())
+        }
+        Command::HistoryPick(options) => {
+            require_tmux(ctx)?;
+            history_picker_with_editor(ctx, &options.profile, options.editor.as_ref())
+        }
+        Command::SsSwitch(_) => {
+            require_tmux(ctx)?;
+            session_switcher(ctx)
+        }
+        other => Err(LedgeError::Fatal(messages::command_not_available(
+            other.words(),
+        ))),
+    }
+}
+
+/// FR-CMD-10, FR-PLAT-01, A-29: the tmux program is on PATH and its version is 3.2 or later. Checked at the start of
+/// each command that needs tmux, so help and the other commands run without it.
+fn require_tmux(ctx: &Ctx<'_>) -> Result<()> {
+    if !ctx.process.find_program("tmux") {
+        return Err(LedgeError::Fatal(
+            messages::tmux_not_installed().to_string(),
+        ));
+    }
+    let version = ctx.backend.version().map_err(|error| match error {
+        BackendError::NotInstalled => LedgeError::Fatal(messages::tmux_not_installed().to_string()),
+        BackendError::Failed { detail } => {
+            LedgeError::Fatal(messages::could_not_read_tmux_version(&detail))
+        }
+    })?;
+    if tmux_version_supported(version) {
+        Ok(())
+    } else {
+        let found = format!("{}.{}", version.0, version.1);
+        Err(LedgeError::Fatal(messages::tmux_version_too_old(&found)))
+    }
+}

@@ -314,3 +314,29 @@ Format:
 - change: (a) architecture 6.2 puts the ` (missing)` suffix on the Directory or Bookmark cell. The switcher has no such column (session, project, profile, activity). The implementation dims a row whose session directory is gone (FR-TUI-08) but adds no text cue, so with `NO_COLOR` the missing state is not shown. Proposed: the suffix goes on the project cell when the directory is gone, or the session cell. (b) the switcher service is `app::pickers::session_switcher`. `app/session_cmd.rs` is not created in S-16, because the `ss` command glue (the CLI route, FR-SESS-05) arrives with S-17 and S-23/S-25 add the list and kill subcommands. The backlog S-16 scope names `app/session_cmd.rs`; this is the change to that scope.
 - why: the screen table in requirements.md gives no missing cue for the switcher and FR-TUI-09 asks for readable cues without color. The layout is a doc gap, not a decision. The module split follows the smallest change that keeps the picker services in one file.
 - status: Open
+
+### P-32 S-17 commands not built yet: the plain error and the argument checks left open
+- from: implementer / slice S-17
+- doc: requirements.md (Messages), docs/architecture.md (8.3, 2.3) and docs/backlog.md (S-17 scope)
+- change: (a) the commands whose slice is later (history list and clean, bm add, remove, list, pick, edit, tree, ss list, ss tree, ss kill, doctor) parse, and the binary then fails with `'<command words>' is not available yet.` on stderr, exit 1 (FR-CMD-07). The text is `messages::command_not_available`. No message in requirements.md or architecture 8.3 fits, so this text is new; the user may give a better one. (b) Argument checks that the spec does not give a message for are not decided here, and these commands return the (a) text: `bm remove` with two directories, `bm edit` with two directories, `ss kill` with any count (its "kill requires a session name or directory." is FR-SESS-13, S-25). (c) `bm add`, `bm remove`, `bm tree` and `ss tree` argument messages are checked in S-17 because the spec names them in S-17's scope, and `bookmark remove requires a directory.` (FR-BM-10) is checked here too.
+- why: the S-17 gate needs a binary that runs the commands built so far and says something clear about the rest, and the rule for messages is "do not invent". The argument checks are the S-17 scope list; the others need the slice that owns them.
+- status: Open
+
+### P-33 S-17 start-up messages with no text in the spec
+- from: implementer / slice S-17
+- doc: requirements.md (Messages), docs/architecture.md (8.3) and docs/backlog.md (S-17 scope)
+- change: three [new] texts, each used by `main.rs` or `cli/mod.rs` at start, all errors (exit 1): `could not read the working directory: <detail>` (`env.cwd()` fails); `could not register interrupt handlers: <detail>` (`SignalFlags::new` fails, FR-TUI-06); `could not read the tmux version: <detail>` (`tmux -V` output has no version number). Each has a function in `messages.rs` and a literal test in `tests/messages_verbatim.rs`.
+- why: there is no text for these failures in the spec, and the composition root needs one to report them. The user may reword them or add them to architecture 8.3.
+- status: Open
+
+### P-34 S-17 grammar and start-up rules the spec leaves open
+- from: implementer / slice S-17
+- doc: docs/architecture.md (2.3, 9.1) and docs/backlog.md (S-17 scope)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) `ss` takes the open options (2.3 table) and accepts them, but the switcher has no profile or editor input (P-30 b), so they are ignored. An editor is not launched from the switcher, because it never creates a session (A-18 names `ss`, but the launch rule of FR-LAUNCH-01 cannot apply to it).
+  (b) the project and history pickers take the editor option (A-18); `project_picker_with_editor` and `history_picker_with_editor` pass it to `open_dir_with_editor` for the chosen row. The pickers keep the old entry points, which pass no editor.
+  (c) a value that starts with `-` is not a value: `--profile --code` and `--editor -x` are `--profile requires a profile name.` and `--editor requires a command.`.
+  (d) `main` resolves the folders (`Dirs::resolve`) before the command line is parsed, so `ledge --help` fails with `HOME is not set.` when neither HOME nor an XDG variable is set. FR-PLAT-02 and architecture 9.1 say the folders are needed only when a command needs them. Proposed: resolve the folders inside the commands that use them, or let help run first. Not changed in S-17.
+  (e) `bm edit DIR --session-scope` is not rejected at parse time; no FR gives a message for it, and S-21 (FR-EDIT-09) owns that rule.
+- why: each choice is the smallest one that passes the S-17 tests in tests/component_cli.rs and the unit tests in src/cli/parse.rs. None changes an accepted decision (D-11, D-12, D-13, D-16).
+- status: Open

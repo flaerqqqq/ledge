@@ -6,8 +6,9 @@
 //! bound in these pickers.
 
 use crate::app::actions::{current_session, kill, rebuild};
+use crate::app::launch::Editor;
 use crate::app::load_projects;
-use crate::app::open::{attach_or_switch, open_dir};
+use crate::app::open::{attach_or_switch, open_dir_with_editor};
 use crate::app::store;
 use crate::app::Ctx;
 use crate::domain::age::age;
@@ -39,6 +40,17 @@ type DirRow = PickerRow<AbsPath>;
 /// entry point takes it as the launch directory so that callers and tests can choose it. `option` is the profile
 /// option of the open (FR-PICK-12).
 pub fn project_picker(ctx: &Ctx<'_>, dir: Option<&str>, option: &ProfileOpt) -> Result<Outcome> {
+    project_picker_with_editor(ctx, dir, option, None)
+}
+
+/// FR-LAUNCH-01, A-18: as `project_picker`; `editor` is launched on the chosen project when the open creates its
+/// session (S-17 passes the `--code`, `--idea` or `--editor` option here).
+pub fn project_picker_with_editor(
+    ctx: &Ctx<'_>,
+    dir: Option<&str>,
+    option: &ProfileOpt,
+    editor: Option<&Editor>,
+) -> Result<Outcome> {
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     if config.search_paths.is_empty() {
         let file = store::config_path(&ctx.dirs);
@@ -62,12 +74,21 @@ pub fn project_picker(ctx: &Ctx<'_>, dir: Option<&str>, option: &ProfileOpt) -> 
         search_paths: config.search_paths,
         option: option.clone(),
     };
-    run_dir_picker(ctx, model, &mut handler, option)
+    run_dir_picker(ctx, model, &mut handler, option, editor)
 }
 
 /// FR-HIST-04, FR-HIST-05, D-12: runs the history picker and opens the chosen directory. A missing history file
 /// prints `No history cache found.`; an empty one prints `No history.`; both stop without a window.
 pub fn history_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
+    history_picker_with_editor(ctx, option, None)
+}
+
+/// FR-LAUNCH-01, A-18: as `history_picker`, with the editor launched when the open creates the session.
+pub fn history_picker_with_editor(
+    ctx: &Ctx<'_>,
+    option: &ProfileOpt,
+    editor: Option<&Editor>,
+) -> Result<Outcome> {
     if !ctx.fs.exists(&store::history_path(&ctx.dirs)) {
         return Ok(Outcome::Info(messages::no_history_cache().to_string()));
     }
@@ -81,7 +102,7 @@ pub fn history_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
         ctx,
         option: option.clone(),
     };
-    run_dir_picker(ctx, model, &mut handler, option)
+    run_dir_picker(ctx, model, &mut handler, option, editor)
 }
 
 /// Enter and the actions of the project picker (architecture 6.4).
@@ -247,11 +268,14 @@ fn run_dir_picker(
     mut model: PickerModel<AbsPath>,
     handler: &mut dyn PickerHandler<AbsPath>,
     option: &ProfileOpt,
+    editor: Option<&Editor>,
 ) -> Result<Outcome> {
     loop {
         let chrome = model.chrome().clone();
         match run_in_terminal(ctx, model, handler)? {
-            PickerResult::Chosen(dir) => return open_dir(ctx, Some(dir.as_str()), option),
+            PickerResult::Chosen(dir) => {
+                return open_dir_with_editor(ctx, Some(dir.as_str()), option, editor)
+            }
             PickerResult::Cancelled => return Ok(Outcome::Cancelled),
             PickerResult::Closed(outcome) => return Ok(outcome),
             PickerResult::Profile(dir) => {

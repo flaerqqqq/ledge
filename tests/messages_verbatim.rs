@@ -402,3 +402,123 @@ fn activity_age_texts_are_verbatim() {
     assert_eq!(messages::activity_age(Age::Hours(3)), "3h ago");
     assert_eq!(messages::activity_age(Age::Days(2)), "2d ago");
 }
+
+// FR-CMD-03, requirements "Messages": the unknown sub-command text
+#[test]
+fn unknown_group_command_text_is_verbatim() {
+    assert_eq!(
+        messages::unknown_group_command("history", "nope"),
+        "Unknown history command: nope (run 'ledge history' for the list)."
+    );
+}
+
+// FR-CMD-04, requirements "Messages": the unknown option text
+#[test]
+fn unknown_option_text_is_verbatim() {
+    assert_eq!(
+        messages::unknown_option("--bogus"),
+        "Unknown option: --bogus (run 'ledge help' for usage)."
+    );
+}
+
+// FR-CMD-05, FR-CMD-06, requirements "Messages"
+#[test]
+fn profile_and_editor_value_texts_are_verbatim() {
+    assert_eq!(
+        messages::profile_requires_name(),
+        "--profile requires a profile name."
+    );
+    assert_eq!(
+        messages::editor_requires_command(),
+        "--editor requires a command."
+    );
+}
+
+// Architecture 2.3 rule 6, D-11: the option conflicts
+#[test]
+fn option_conflict_texts_are_verbatim() {
+    assert_eq!(
+        messages::profile_with_no_profile(),
+        "--profile cannot be combined with --no-profile."
+    );
+    assert_eq!(
+        messages::only_one_editor_option(),
+        "only one of --code, --idea, --editor may be given."
+    );
+}
+
+// FR-PICK-11, FR-BM-14, FR-BM-07, FR-BM-10, FR-TREE-09, FR-TREE-10, FR-SESS-05: the directory-argument texts
+#[test]
+fn directory_argument_texts_are_verbatim() {
+    assert_eq!(
+        messages::project_pick_takes_no_directory(),
+        "project pick takes no directory argument."
+    );
+    assert_eq!(
+        messages::bm_pick_takes_no_directory(),
+        "bm pick takes no directory argument; use 'ledge bm add DIR'."
+    );
+    assert_eq!(
+        messages::bm_add_takes_at_most_one_directory(),
+        "bm add takes at most one directory."
+    );
+    assert_eq!(
+        messages::bookmark_remove_requires_directory(),
+        "bookmark remove requires a directory."
+    );
+    assert_eq!(
+        messages::bm_tree_takes_at_most_one_directory(),
+        "bm tree takes at most one directory."
+    );
+    assert_eq!(
+        messages::session_scope_with_directory(),
+        "--session-scope cannot be combined with a directory."
+    );
+    assert_eq!(
+        messages::ss_takes_no_directory(),
+        "ss takes no directory argument."
+    );
+    assert_eq!(
+        messages::ss_tree_takes_no_directory(),
+        "ss tree takes no directory argument."
+    );
+}
+
+// Architecture 2.3 rule 7 [new]: extra words for a command that takes none
+#[test]
+fn takes_no_arguments_text_is_verbatim() {
+    assert_eq!(
+        messages::takes_no_arguments("history list"),
+        "'history list' takes no arguments."
+    );
+}
+
+// FR-CMD-09: the helper text for a required program (proposal P-2)
+#[test]
+fn required_program_text_is_verbatim() {
+    assert_eq!(
+        messages::required_program("git"),
+        "git is required for this command."
+    );
+}
+
+// Proposals P-32, P-33 [new]: texts awaiting the user's decision
+#[test]
+fn proposed_texts_are_verbatim() {
+    assert_eq!(
+        messages::command_not_available("doctor"),
+        "'doctor' is not available yet."
+    );
+    assert_eq!(
+        messages::could_not_read_working_directory("gone"),
+        "could not read the working directory: gone"
+    );
+    assert_eq!(
+        messages::could_not_register_signals("denied"),
+        "could not register interrupt handlers: denied"
+    );
+    assert_eq!(
+        messages::could_not_read_tmux_version("garbage"),
+        "could not read the tmux version: garbage"
+    );
+}

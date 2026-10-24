@@ -268,3 +268,104 @@ pub fn activity_age(age: Age) -> String {
         Age::Days(n) => format!("{n}d ago"),
     }
 }
+
+/// FR-CMD-03: a group command has no sub-command named `word`. `group` is `project`, `history`, `bm` or `ss`.
+pub fn unknown_group_command(group: &str, word: &str) -> String {
+    format!("Unknown {group} command: {word} (run 'ledge {group}' for the list).")
+}
+
+/// FR-CMD-04: an option the command does not take, or an unknown one. `option` is the text as typed.
+pub fn unknown_option(option: &str) -> String {
+    format!("Unknown option: {option} (run 'ledge help' for usage).")
+}
+
+/// FR-CMD-05: `--profile` is the last word or is followed by another option.
+pub fn profile_requires_name() -> &'static str {
+    "--profile requires a profile name."
+}
+
+/// FR-CMD-06: `--editor` is the last word, followed by another option, or names no program.
+pub fn editor_requires_command() -> &'static str {
+    "--editor requires a command."
+}
+
+/// Architecture 2.3 rule 6: `--profile` and `--no-profile` given together.
+pub fn profile_with_no_profile() -> &'static str {
+    "--profile cannot be combined with --no-profile."
+}
+
+/// Architecture 2.3 rule 6, D-11: more than one of `--code`, `--idea`, `--editor`.
+pub fn only_one_editor_option() -> &'static str {
+    "only one of --code, --idea, --editor may be given."
+}
+
+/// FR-PICK-11: a directory given to `project pick`.
+pub fn project_pick_takes_no_directory() -> &'static str {
+    "project pick takes no directory argument."
+}
+
+/// FR-BM-14: a directory given to `bm pick`.
+pub fn bm_pick_takes_no_directory() -> &'static str {
+    "bm pick takes no directory argument; use 'ledge bm add DIR'."
+}
+
+/// FR-BM-07: two directories given to `bm add`.
+pub fn bm_add_takes_at_most_one_directory() -> &'static str {
+    "bm add takes at most one directory."
+}
+
+/// FR-TREE-09: two directories given to `bm tree`.
+pub fn bm_tree_takes_at_most_one_directory() -> &'static str {
+    "bm tree takes at most one directory."
+}
+
+/// FR-BM-10: `bm remove` without a directory.
+pub fn bookmark_remove_requires_directory() -> &'static str {
+    "bookmark remove requires a directory."
+}
+
+/// FR-TREE-10: `--session-scope` given together with a directory.
+pub fn session_scope_with_directory() -> &'static str {
+    "--session-scope cannot be combined with a directory."
+}
+
+/// FR-SESS-05: a directory given to the session switcher.
+pub fn ss_takes_no_directory() -> &'static str {
+    "ss takes no directory argument."
+}
+
+/// Architecture 8.3 [new]: a directory given to `ss tree` (same rule as FR-SESS-05).
+pub fn ss_tree_takes_no_directory() -> &'static str {
+    "ss tree takes no directory argument."
+}
+
+/// Architecture 2.3 rule 7 [new]: extra words for a command that takes none. `words` is the command, e.g. `history list`.
+pub fn takes_no_arguments(words: &str) -> String {
+    format!("'{words}' takes no arguments.")
+}
+
+/// FR-CMD-09, architecture A-01 (proposal P-2): a required program is missing. No command uses it yet.
+pub fn required_program(name: &str) -> String {
+    format!("{name} is required for this command.")
+}
+
+/// Proposal P-32 [new, not yet accepted]: a command that the binary does not build yet (its slice is later).
+/// `words` is the command as typed, e.g. `history list`.
+pub fn command_not_available(words: &str) -> String {
+    format!("'{words}' is not available yet.")
+}
+
+/// Proposal P-33 [new, not yet accepted]: the working directory cannot be read at start.
+pub fn could_not_read_working_directory(detail: &str) -> String {
+    format!("could not read the working directory: {detail}")
+}
+
+/// Proposal P-33 [new, not yet accepted]: the interrupt handlers cannot be registered at start (FR-TUI-06).
+pub fn could_not_register_signals(detail: &str) -> String {
+    format!("could not register interrupt handlers: {detail}")
+}
+
+/// Proposal P-33 [new, not yet accepted]: `tmux -V` printed text with no version number.
+pub fn could_not_read_tmux_version(detail: &str) -> String {
+    format!("could not read the tmux version: {detail}")
+}

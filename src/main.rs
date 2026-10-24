@@ -1,8 +1,21 @@
-//! Composition root (architecture 2). S-00 skeleton: `report` maps an outcome to output and exit code.
+//! Composition root (architecture 2): builds the adapters, the `Ctx`, and calls `cli::run`; maps the outcome to
+//! output and exit code. The only place that calls `std::process::exit` (FR-CMD-07).
 #![forbid(unsafe_code)]
 
-use ledge::error::{Outcome, Result};
+use ledge::adapters::clock::SystemClock;
+use ledge::adapters::console::StdConsole;
+use ledge::adapters::env::RealEnv;
+use ledge::adapters::fs::RealFs;
+use ledge::adapters::process::SystemProcess;
+use ledge::adapters::signals::SignalFlags;
+use ledge::adapters::terminal::CrosstermFactory;
+use ledge::adapters::tmux::TmuxBackend;
+use ledge::app::Ctx;
+use ledge::domain::location::Dirs;
+use ledge::domain::path::AbsPath;
+use ledge::error::{LedgeError, Outcome, Result};
 use ledge::messages;
+use ledge::ports::env::Env;
 use std::io::Write;
 
 /// FR-CMD-07: prints the outcome (architecture 8.2) and returns the exit code.
@@ -27,10 +40,49 @@ pub(crate) fn report(result: Result<Outcome>, out: &mut dyn Write, err: &mut dyn
     }
 }
 
-/// S-00: there are no commands yet, so the program only reports `Done`. The command router
-/// (`cli::run`) replaces this in a later slice.
+/// S-17: builds the real adapters and the `Ctx` (P-21, P-24), then runs the command line. The arguments are the
+/// words after the program name.
 fn run() -> Result<Outcome> {
-    Ok(Outcome::Done)
+    let args: Vec<String> = std::env::args_os()
+        .skip(1)
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    let env = RealEnv;
+    let dirs = Dirs::resolve(
+        env.var("XDG_CONFIG_HOME").as_deref(),
+        env.var("XDG_CACHE_HOME").as_deref(),
+        env.var("HOME").as_deref(),
+    )?;
+    let cwd_text = env.cwd().map_err(|error| {
+        LedgeError::Fatal(messages::could_not_read_working_directory(
+            &error.to_string(),
+        ))
+    })?;
+    let cwd = AbsPath::clean(&cwd_text, &AbsPath::root());
+    let signals = SignalFlags::new().map_err(|error| {
+        LedgeError::Fatal(messages::could_not_register_signals(&error.to_string()))
+    })?;
+    let process = SystemProcess;
+    // LEDGE_TMUX_SERVER names a tmux socket for the gate's isolated server; empty means the default server.
+    let server = env.var("LEDGE_TMUX_SERVER").filter(|name| !name.is_empty());
+    let backend = TmuxBackend::new(&process, server);
+    let fs = RealFs;
+    let clock = SystemClock;
+    let console = StdConsole;
+    let terminal = CrosstermFactory;
+    let ctx = Ctx {
+        env: &env,
+        fs: &fs,
+        clock: &clock,
+        backend: &backend,
+        console: &console,
+        process: &process,
+        dirs,
+        terminal: &terminal,
+        signals: &signals,
+        cwd,
+    };
+    ledge::cli::run(&args, &ctx)
 }
 
 fn main() {

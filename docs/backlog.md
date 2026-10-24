@@ -277,7 +277,7 @@ have no FR-IDs state why.
 - branch: slice/16-switcher
 
 ### S-17 Command line grammar, help, and command-level checks
-- status: in-progress
+- status: done
 - deps: S-01
 - FR-IDs: FR-OPEN-01, FR-OPEN-02, FR-OPEN-04, FR-CMD-01, FR-CMD-02, FR-CMD-03, FR-CMD-04, FR-CMD-05, FR-CMD-06, FR-CMD-09, FR-CMD-10, FR-CMD-11, FR-PICK-11, FR-BM-14, FR-TREE-09, FR-TREE-10, FR-SESS-05
 - scope: `cli/parse.rs`, `cli/help.rs`, `cli/mod.rs` (`run`), `messages.rs` (usage and error texts), `main.rs` (wiring of `Ctx`).
@@ -297,7 +297,7 @@ have no FR-IDs state why.
 - branch: slice/17-cli
 
 ### S-18 History and bookmark commands (file-only)
-- status: blocked
+- status: in-progress
 - deps: S-03, S-04, S-17
 - FR-IDs: FR-HIST-03, FR-HIST-06, FR-HIST-07, FR-HIST-08, FR-BM-02, FR-BM-03, FR-BM-04, FR-BM-05, FR-BM-06, FR-BM-07, FR-BM-08, FR-BM-09, FR-BM-10
 - scope: `app/history_cmd.rs` (list, clean), `app/bookmark_cmd.rs` (add, remove, list), `domain/bookmarks.rs` (status and rules).

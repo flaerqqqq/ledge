@@ -22,10 +22,10 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-TUI-08 | S-07 | src/tui/render.rs; src/tui/picker.rs | tests/tui_engine.rs | covered | Text cue and dim style automated on TestBackend; color appearance is manual. |
 | FR-TUI-09 | S-07 | src/tui/render.rs | src/tui/render.rs (unit); tests/tui_engine.rs | covered | Text cues, reverse video and NO_COLOR/TERM=dumb rule automated; color appearance is manual. |
 | FR-TUI-10 | S-07 | src/tui/picker.rs; src/app/pickers.rs | src/tui/picker.rs (unit); tests/tui_engine.rs; tests/tui_project_picker.rs | covered | Model: should_close and reload (S-07). Picker side (S-13): a choose on a missing directory keeps the history picker open with its rows. Row actions that reload (ctrl-r, ctrl-p, ctrl-x) are no-ops until S-15. |
-| FR-OPEN-01 | S-17 |  |  | open |  |
-| FR-OPEN-02 | S-17 |  |  | open |  |
+| FR-OPEN-01 | S-17 | src/cli/parse.rs; src/cli/mod.rs (run) | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
+| FR-OPEN-02 | S-17 | src/cli/parse.rs; src/cli/mod.rs (run) | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-OPEN-03 | S-11 | src/app/open.rs; src/messages.rs | tests/component_open.rs; tests/messages_verbatim.rs | covered | Missing and non-directory targets on temp folders; the argument is echoed as typed (A-15). |
-| FR-OPEN-04 | S-17 |  |  | open |  |
+| FR-OPEN-04 | S-17 | src/cli/parse.rs; src/cli/mod.rs (run) | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-OPEN-05 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered |  |
 | FR-OPEN-06 | S-01 | domain/naming.rs | domain/naming.rs | covered |  |
 | FR-OPEN-07 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Create only when no session of the name exists; existing unmanaged reused, managed with another @ledge_dir refused (D-14). Ctx not created yet (proposal P-20).
@@ -43,7 +43,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PICK-08 | S-13 | src/app/pickers.rs; src/app/open.rs | tests/tui_project_picker.rs | covered | Enter runs the open flow: session created, attach called on FakeBackend, history recorded. Manual: the real attach on a tty (FR-OPEN-08). |
 | FR-PICK-09 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Enter on a directory that is gone: status line, picker open, nothing opened. The directory is removed after the list is read (FakeTerminalFactory.remove_on_open). History entries missing from the start are marked (missing). |
 | FR-PICK-10 | S-13 | src/app/pickers.rs; src/messages.rs (no_search_paths) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | Error with the config file path; no terminal opens. |
-| FR-PICK-11 | S-17 |  |  | open |  |
+| FR-PICK-11 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-PICK-12 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | --profile applies to the session the open creates (windows of the profile). Editor options for pickers are not in this entry point (proposal P-24). |
 | FR-PICK-13 | S-13 | src/app/pickers.rs; src/messages.rs (projects_label) | tests/tui_project_picker.rs; tests/messages_verbatim.rs | covered | Label names the profile that applies: --profile, or default_profile (proposal P-25). Basic and --no-profile give the plain label. |
 | FR-HIST-01 | S-03 | domain/history.rs; app/store.rs | domain/history.rs; tests/component_store.rs | covered |  |
@@ -67,7 +67,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-BM-11 | S-19 |  |  | open |  |
 | FR-BM-12 | S-19 |  |  | open |  |
 | FR-BM-13 | S-19 |  |  | open |  |
-| FR-BM-14 | S-17 |  |  | open |  |
+| FR-BM-14 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered | The bookmark picker itself is S-19; only the directory rejection is covered here. |
 | FR-EDIT-01 | S-20 |  |  | open |  |
 | FR-EDIT-02 | S-21 |  |  | open |  |
 | FR-EDIT-03 | S-20 |  |  | open |  |
@@ -87,15 +87,15 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-TREE-06 | S-24 |  |  | open |  |
 | FR-TREE-07 | S-24 |  |  | open |  |
 | FR-TREE-08 | S-24 |  |  | open |  |
-| FR-TREE-09 | S-17 |  |  | open |  |
-| FR-TREE-10 | S-17 |  |  | open |  |
+| FR-TREE-09 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered | The bookmark tree itself is S-24; only the argument count is covered here. |
+| FR-TREE-10 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered | The bookmark tree itself is S-24; only the option conflict is covered here. |
 | FR-TREE-11 | S-05 | domain/tree.rs | domain/tree.rs | covered | Domain flag only (`openable`). Enter handling in the tree picker is wired in a later slice. |
 | FR-TREE-12 | S-22 |  |  | open |  |
 | FR-SESS-01 | S-16 | src/domain/sessions.rs; src/app/pickers.rs | src/domain/sessions.rs (unit); tests/tui_switcher.rs | covered | Only managed sessions reach the switcher; an unmanaged session is not listed, and with none the empty message shows (D-08). |
 | FR-SESS-02 | S-16 | src/domain/sessions.rs; src/app/pickers.rs | src/domain/sessions.rs (unit); tests/tui_switcher.rs | covered | Current session first (tmux client, `TMUX` set), then most recent activity; equal activity by name (A-10). |
 | FR-SESS-03 | S-16 | src/domain/age.rs; src/messages.rs; src/adapters/clock.rs; src/ports/clock.rs | src/domain/age.rs (unit); tests/tui_switcher.rs; tests/messages_verbatim.rs | covered | Boundaries 60 s, 60 min, 24 h, rounded down, no weeks (A-10). Clock is `FakeClock` in tests. |
 | FR-SESS-04 | S-16 | src/app/pickers.rs; src/app/open.rs | tests/tui_switcher.rs | covered | The choice of switch (inside tmux) or attach (outside) is automated on `FakeBackend`. Manual: a real attach and switch on a tty (testing.md manual list); the argv is covered by the adapter test. |
-| FR-SESS-05 | S-17 |  |  | open |  |
+| FR-SESS-05 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-SESS-06 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
 | FR-SESS-07 | S-05 | domain/tree.rs | domain/tree.rs | covered | Label of a gray project root is `session_name` of its path. |
 | FR-SESS-08 | S-23 |  |  | open |  |
@@ -155,17 +155,17 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-DOC-06 | S-26 |  |  | open |  |
 | FR-DOC-07 | S-26 |  |  | open |  |
 | FR-DOC-08 | S-26 |  |  | open |  |
-| FR-CMD-01 | S-17 |  |  | open |  |
-| FR-CMD-02 | S-17 |  |  | open |  |
-| FR-CMD-03 | S-17 |  |  | open |  |
-| FR-CMD-04 | S-17 |  |  | open |  |
-| FR-CMD-05 | S-17 |  |  | open |  |
-| FR-CMD-06 | S-17 |  |  | open |  |
+| FR-CMD-01 | S-17 | src/cli/help.rs (HELP); src/cli/parse.rs; src/main.rs (run, main) | tests/component_cli.rs (help words, binary --help); src/cli/parse.rs (unit) | covered |  |
+| FR-CMD-02 | S-17 | src/cli/help.rs (group_usage); src/cli/parse.rs | tests/component_cli.rs (group usage); src/cli/parse.rs (unit) | covered |  |
+| FR-CMD-03 | S-17 | src/cli/parse.rs | tests/component_cli.rs; tests/messages_verbatim.rs; src/cli/parse.rs (unit) | covered | Covers project, history and bm. |
+| FR-CMD-04 | S-17 | src/cli/parse.rs | tests/component_cli.rs; tests/messages_verbatim.rs; src/cli/parse.rs (unit) | covered |  |
+| FR-CMD-05 | S-17 | src/cli/parse.rs | tests/component_cli.rs; tests/messages_verbatim.rs; src/cli/parse.rs (unit) | covered |  |
+| FR-CMD-06 | S-17 | src/cli/parse.rs | tests/component_cli.rs; tests/messages_verbatim.rs; src/cli/parse.rs (unit) | covered |  |
 | FR-CMD-07 | S-00 | src/main.rs (report, main); src/error.rs (LedgeError Display); src/messages.rs (cancelled) | src/main.rs (report, 5 tests); tests/messages_verbatim.rs; tests/crate_targets.rs; tests/gate_scripts.rs | covered | Also covers S-00 acceptance for the gate and layer scripts (tests/gate_scripts.rs), which the backlog lists under this slice. |
 | FR-CMD-08 | S-13 | src/messages.rs (cancelled); src/app/pickers.rs | src/main.rs (cancelled test); tests/messages_verbatim.rs; tests/tui_project_picker.rs | covered | Escape in the project and history pickers gives Outcome::Cancelled, printed as Cancelled. by report. The nested profile picker cancel is S-15. |
-| FR-CMD-09 | S-17 |  |  | open | No runtime program besides tmux uses this message; helper only (proposal P-2). |
-| FR-CMD-10 | S-17 |  |  | open |  |
-| FR-CMD-11 | S-17 |  |  | open |  |
+| FR-CMD-09 | S-17 | src/messages.rs (required_program) | tests/messages_verbatim.rs | open | Helper and literal test only; no command runs a required program other than tmux, so no call site exists (proposal P-2). Stays open until P-2 is decided. |
+| FR-CMD-10 | S-17 | src/cli/mod.rs (require_tmux) | tests/component_cli.rs (missing tmux, tmux older than 3.2) | covered | Checked at start for open, project pick, history pick, ss. Help, doctor and the other commands do not check it. |
+| FR-CMD-11 | S-17 | src/cli/parse.rs | tests/component_cli.rs (flags before and after the command word); src/cli/parse.rs (unit) | covered |  |
 | FR-CMD-12 | S-13 | src/app/pickers.rs | tests/tui_project_picker.rs | covered | Empty at start: no history file, empty history file and no projects exit without a window. Empty after an action: the switcher and trees (later slices); no S-13 action empties a list. |
 | FR-LAUNCH-01 | S-12 | src/app/launch.rs; src/app/open.rs (open_dir_with_editor) | tests/component_open.rs | covered | Launch only when `ensure_session` reports Created: reuse, and a plain open without an editor, start nothing (FakeProcess). The pickers, `bm tree`, `ss` and `ss tree` open paths are not wired yet (later slices). |
 | FR-LAUNCH-02 | S-12 | src/app/launch.rs; src/ports/process.rs; src/adapters/process.rs | tests/component_open.rs; tests/messages_verbatim.rs | manual | Automated: `code`, `idea` and `--editor` argv (split on whitespace, directory last) on FakeProcess. Manual: the GUI editor really opens the directory; reason: needs a desktop session with VS Code or IntelliJ IDEA installed, which the gate does not have (testing.md, manual list). The `--editor` value parsing and the `--code`/`--idea`/`--editor` option grammar are S-17 (FR-CMD-06). |
