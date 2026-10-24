@@ -1,8 +1,7 @@
 //! History commands (architecture 2, 2.3): `history list` and `history clean` (FR-HIST-03, FR-HIST-06..08). The file
 //! work is in `app::store`; the text is in `messages`. Bookmarks are never read or written here (FR-HIST-08).
 
-use crate::app::{store, Ctx};
-use crate::domain::path::AbsPath;
+use crate::app::{home_of, store, Ctx};
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 
@@ -14,10 +13,7 @@ pub fn list(ctx: &Ctx<'_>) -> Result<Outcome> {
     if history.entries().is_empty() {
         return Ok(Outcome::Info(messages::no_history().to_string()));
     }
-    let home = ctx
-        .env
-        .var("HOME")
-        .map(|home| AbsPath::clean(&home, &AbsPath::root()));
+    let home = home_of(ctx);
     let rows: Vec<String> = history
         .entries()
         .iter()

@@ -617,3 +617,27 @@ fn ss_kill_through_the_command_reports_unknown_target() {
         "'ghost' is not a ledge session."
     );
 }
+
+// FR-SESS-09, FR-HIST-03: the Path column shows a session directory under HOME as "~"; one outside HOME is shown in full
+#[test]
+fn ss_list_shows_session_directories_under_home_as_tilde() {
+    let h = Harness::new("cli-ss-list-tilde");
+    let under = format!("{}/home/code/app", h.root().display());
+    std::fs::create_dir_all(&under).expect("create folder");
+    let outside = h.project("zeta");
+    for dir in [&under, &outside] {
+        let dir = AbsPath::clean(dir, &AbsPath::root());
+        ensure_session(&h.backend, &dir, &Profile::basic()).expect("build");
+    }
+    let text = info(run(&args(&["ss", "list"]), &h.ctx()));
+    assert!(
+        text.lines().any(|line| line.ends_with("  ~/code/app")),
+        "home folder as ~: {text}"
+    );
+    assert!(!text.contains(&under), "no full path under HOME: {text}");
+    assert!(
+        text.lines()
+            .any(|line| line.ends_with(&format!("  {outside}"))),
+        "full path outside HOME: {text}"
+    );
+}

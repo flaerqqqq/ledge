@@ -4,7 +4,7 @@
 
 use crate::app::actions::kill;
 use crate::app::pickers::backend_fatal;
-use crate::app::Ctx;
+use crate::app::{home_of, Ctx};
 use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
 use crate::domain::sessions::{managed, session_directory, ManagedSession, SessionInfo};
@@ -25,6 +25,7 @@ pub fn list(ctx: &Ctx<'_>) -> Result<Outcome> {
         return Ok(Outcome::Info(messages::no_ledge_sessions().to_string()));
     }
     infos.sort_by(|a, b| a.name.cmp(&b.name));
+    let home = home_of(ctx);
     let rows: Vec<[String; 4]> = infos
         .iter()
         .map(|info| {
@@ -37,7 +38,10 @@ pub fn list(ctx: &Ctx<'_>) -> Result<Outcome> {
                     messages::STATE_DETACHED
                 }
                 .to_string(),
-                session_directory(info).unwrap_or_default().to_string(),
+                // FR-HIST-03: a directory under HOME is shown with `~`.
+                session_directory(info)
+                    .map(|dir| AbsPath::clean(dir, &ctx.cwd).display_with_home(home.as_ref()))
+                    .unwrap_or_default(),
             ]
         })
         .collect();

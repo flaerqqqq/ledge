@@ -12,10 +12,10 @@ use crate::app::actions::{
 };
 use crate::app::bookmark_cmd::{read_bookmarks, write_bookmarks};
 use crate::app::launch::Editor;
-use crate::app::load_projects;
 use crate::app::open::{attach_or_switch, open_dir_with_editor};
 use crate::app::store;
 use crate::app::Ctx;
+use crate::app::{home_of, load_projects};
 use crate::domain::age::age;
 use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
@@ -245,14 +245,16 @@ fn choose_dir(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     if ctx.fs.is_dir(Path::new(dir.as_str())) {
         Step::Accept
     } else {
-        missing_step(dir)
+        missing_step(ctx, dir)
     }
 }
 
 /// FR-PICK-09: the directory is gone; the message is in the status line and the picker stays open.
-fn missing_step(dir: &AbsPath) -> Step {
+fn missing_step(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     Step::Continue {
-        status: Some(messages::missing_directory(dir.as_str())),
+        status: Some(messages::missing_directory(
+            &dir.display_with_home(home_of(ctx).as_ref()),
+        )),
         reload: false,
     }
 }
@@ -291,7 +293,7 @@ fn dir_action(ctx: &Ctx<'_>, option: &ProfileOpt, action: Action, row: Option<&A
 /// the picker's profile option. A directory that is gone is reported as an enter on it is.
 fn rebuild_row(ctx: &Ctx<'_>, dir: &AbsPath, option: &ProfileOpt) -> Step {
     if !ctx.fs.is_dir(Path::new(dir.as_str())) {
-        return missing_step(dir);
+        return missing_step(ctx, dir);
     }
     match rebuild(ctx, dir, option) {
         Ok(_) => Step::Continue {
@@ -472,6 +474,7 @@ fn applied_profile(option: &ProfileOpt, default_profile: Option<&str>) -> Option
 /// current-directory flag then the live flag (architecture 6.2). The launch directory's row is preselected.
 fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
+    let home = home_of(ctx);
     let rows = project_rows(from, projects)
         .into_iter()
         .map(|row| {
@@ -484,7 +487,7 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
             let shown = if row.project {
                 basename(&row.path)
             } else {
-                row.path.as_str().to_string()
+                row.path.display_with_home(home.as_ref())
             };
             let cells = vec![
                 marker,
@@ -505,16 +508,14 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
 /// the bookmarks, in stored order). Missing directories are dimmed.
 fn dir_rows(ctx: &Ctx<'_>, history: &[AbsPath]) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
+    let home = home_of(ctx);
     Ok(history
         .iter()
         .map(|dir| {
             let live = live_session(&sessions, dir);
-            let cells = vec![
-                dir.as_str().to_string(),
-                session_text(live),
-                profile_text(live),
-            ];
-            let mut picker_row = PickerRow::new(cells, dir.as_str(), dir.clone());
+            let shown = dir.display_with_home(home.as_ref());
+            let cells = vec![shown.clone(), session_text(live), profile_text(live)];
+            let mut picker_row = PickerRow::new(cells, &shown, dir.clone());
             picker_row.dimmed = !ctx.fs.is_dir(Path::new(dir.as_str()));
             picker_row
         })
@@ -569,13 +570,6 @@ fn basename(path: &AbsPath) -> String {
         .to_string()
 }
 
-/// The home folder cleaned from HOME in the environment (FR-HIST-03 style `~`), `None` when HOME is not set.
-fn home_of(ctx: &Ctx<'_>) -> Option<AbsPath> {
-    ctx.env
-        .var("HOME")
-        .map(|home| AbsPath::clean(&home, &AbsPath::root()))
-}
-
 /// FR-SESS-03, P-55: the Project column of a session: the name of the project that contains `dir`, or `dir` with
 /// the home folder written as `~` when it is outside every project.
 fn project_text(projects: &[Project], dir: &AbsPath, home: Option<&AbsPath>) -> String {
@@ -620,7 +614,7 @@ fn history_chrome() -> Chrome {
     chrome
 }
 
-/// Architecture 6.2: the bookmark picker chrome. The search is on the full path (column 0), which carries the missing cue.
+/// Architecture 6.2: the bookmark picker chrome. The search is on the path shown (column 0), which carries the missing cue.
 fn bookmark_chrome() -> Chrome {
     let mut chrome = Chrome::new(
         messages::BOOKMARKS_LABEL,
@@ -999,10 +993,18 @@ fn tree_item(
     row.session = live.map(|info| info.name.clone());
     // The bookmark filter matches the label; the session filter matches the Project value shown.
     let (cells, search) = match kind {
-        TreeKind::Bookmarks => (
-            vec![row.label.clone(), session_text(live), profile_text(live)],
-            row.label.clone(),
-        ),
+        TreeKind::Bookmarks => {
+            // A directory outside every project is labelled with its path (A-13), shown with the home folder as `~`.
+            let label = if project_containing(&row.path, projects).is_none() {
+                row.path.display_with_home(home)
+            } else {
+                row.label.clone()
+            };
+            (
+                vec![label.clone(), session_text(live), profile_text(live)],
+                label,
+            )
+        }
         TreeKind::Sessions => {
             let (session, activity) = match row.kind {
                 NodeKind::Placeholder => (

@@ -986,3 +986,29 @@ fn bookmark_tree_has_no_activity_column() {
         "no activity text: {lines:#?}"
     );
 }
+
+// FR-TREE-07, A-13: the gray root of a directory outside every project shows it with the home folder as "~"
+#[test]
+fn bookmark_tree_root_outside_every_project_under_home_shows_tilde() {
+    let h = Harness::new("tui_trees-root-home-tilde");
+    search_in_projects(&h);
+    let api = h.project("app/api");
+    write_bookmarks(&h, &[api.as_str()]);
+    let notes = h.root().join("home").join("notes");
+    fs::create_dir_all(&notes).expect("create notes");
+    let notes_text = notes.to_str().expect("UTF-8 path").to_string();
+    let notes = abs(&notes_text);
+    h.terminal.set_size(240, 40);
+    h.terminal.script(vec![esc()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::Directory(notes));
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("~/notes")),
+        "home folder as ~: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains(&notes_text)),
+        "no full path under HOME: {lines:#?}"
+    );
+}

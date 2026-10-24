@@ -466,7 +466,7 @@ have no FR-IDs state why.
 - branch: slice/S-35-session-tree-activity
 
 ### S-36 Uniform home-relative directory paths
-- status: in-progress
+- status: done
 - deps: S-18, S-26, S-34
 - FR-IDs: none new; display rule (proposal P-57)
 - scope: every place a directory path is shown: bookmark list and bookmark messages (src/app/bookmark_cmd.rs), doctor lines (src/app/doctor.rs), missing-directory and picker messages (src/app/pickers.rs), the bookmark picker and bookmark tree cells, and the history list, which already uses ~ (src/app/history_cmd.rs). Use AbsPath::display_with_home (src/domain/path.rs) with the HOME value from ctx.env.

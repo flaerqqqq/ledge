@@ -719,3 +719,47 @@ fn profile_that_fails_to_load_reports_in_the_status_line() {
     assert_eq!(windows_of(&h, &app), vec!["Terminal".to_string()]);
     assert_eq!(live_names(&h), vec![name_of(&app)]);
 }
+
+// FR-PICK-05: the extra row of a current directory under HOME shows the home folder as "~"
+#[test]
+fn non_project_current_directory_under_home_shows_tilde() {
+    let mut h = Harness::new("tui_project_picker-home-tilde");
+    search_config(&h);
+    h.terminal.set_size(220, 24);
+    h.project("app");
+    let notes = format!("{}/home/notes", h.root().display());
+    fs::create_dir_all(&notes).expect("create notes");
+    launch_from(&mut h, &notes);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    let first = line_with(&lines, "*○");
+    assert!(first.contains("~/notes"), "{first}");
+    assert!(!first.contains(&notes), "{first}");
+}
+
+// FR-HIST-04: a history entry under HOME shows the home folder as "~"; an entry outside HOME is shown in full
+#[test]
+fn history_entry_under_home_shows_tilde() {
+    let h = Harness::new("tui_history_picker-home-tilde");
+    h.terminal.set_size(220, 24);
+    let under = format!("{}/home/code/app", h.root().display());
+    fs::create_dir_all(&under).expect("create folder");
+    let outside = h.project("a");
+    write_history(&h, &format!("{under}\n{outside}\n"));
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        history_picker(&h.ctx(), &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    assert!(line_with(&lines, "~/code/app").contains("~/code/app"));
+    assert!(
+        !lines.iter().any(|line| line.contains(&under)),
+        "no full path under HOME: {lines:#?}"
+    );
+    assert!(line_with(&lines, "/projects/a").contains(&outside));
+}

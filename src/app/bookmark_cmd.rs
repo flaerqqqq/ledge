@@ -4,7 +4,7 @@
 
 use crate::app::actions::current_session;
 use crate::app::pickers::{backend_fatal, bookmark_tree_picker, run_in_terminal};
-use crate::app::{load_projects, store, Ctx};
+use crate::app::{home_of, load_projects, store, Ctx};
 use crate::domain::bm_edit::{visible_rows, EditRow, ExpandedFolders, Marker};
 use crate::domain::bookmarks::{check_candidate, status, BookmarkStatus, Bookmarks, Refusal};
 use crate::domain::path::AbsPath;
@@ -31,42 +31,40 @@ const BOOKMARK_MARK: &str = "★";
 pub fn add(ctx: &Ctx<'_>, dir: Option<&str>) -> Result<Outcome> {
     let typed = dir.unwrap_or(ctx.cwd.as_str());
     let path = AbsPath::clean(typed, &ctx.cwd);
+    let text = shown(ctx, &path);
     if !ctx.fs.is_dir(Path::new(path.as_str())) {
         return Err(LedgeError::Fatal(messages::directory_not_found(typed)));
     }
     let mut bookmarks = read_bookmarks(ctx)?;
     if bookmarks.contains(&path) {
-        return Ok(Outcome::Info(messages::already_bookmarked(path.as_str())));
+        return Ok(Outcome::Info(messages::already_bookmarked(&text)));
     }
     let projects = project_list(ctx)?;
     match check_candidate(&path, &projects) {
         Ok(()) => {}
         Err(Refusal::IsProject) => {
-            return Err(LedgeError::Fatal(messages::bookmark_is_project(
-                path.as_str(),
-            )))
+            return Err(LedgeError::Fatal(messages::bookmark_is_project(&text)))
         }
         Err(Refusal::OutsideProject) => {
-            return Err(LedgeError::Fatal(messages::bookmark_outside_project(
-                path.as_str(),
-            )))
+            return Err(LedgeError::Fatal(messages::bookmark_outside_project(&text)))
         }
     }
     bookmarks.add(path.clone());
     write_bookmarks(ctx, &bookmarks)?;
-    Ok(Outcome::Info(messages::bookmarked(path.as_str())))
+    Ok(Outcome::Info(messages::bookmarked(&text)))
 }
 
 /// FR-BM-09, FR-BM-10: removes the bookmark of `dir`. The directory need not exist (D-06). A directory that is not
 /// bookmarked gives `'<path>' is not a bookmark.`.
 pub fn remove(ctx: &Ctx<'_>, dir: &str) -> Result<Outcome> {
     let path = AbsPath::clean(dir, &ctx.cwd);
+    let text = shown(ctx, &path);
     let mut bookmarks = read_bookmarks(ctx)?;
     if !bookmarks.remove(&path) {
-        return Err(LedgeError::Fatal(messages::not_a_bookmark(path.as_str())));
+        return Err(LedgeError::Fatal(messages::not_a_bookmark(&text)));
     }
     write_bookmarks(ctx, &bookmarks)?;
-    Ok(Outcome::Info(messages::removed_bookmark(path.as_str())))
+    Ok(Outcome::Info(messages::removed_bookmark(&text)))
 }
 
 /// FR-BM-08: one bookmark per line in stored order, each with its status word (`ok`, `missing` or `outside project`).
@@ -87,7 +85,7 @@ pub fn list(ctx: &Ctx<'_>) -> Result<Outcome> {
                 BookmarkStatus::Missing => messages::BOOKMARK_STATUS_MISSING,
                 BookmarkStatus::OutsideProject => messages::BOOKMARK_STATUS_OUTSIDE,
             };
-            messages::bookmark_list_row(word, path.as_str())
+            messages::bookmark_list_row(word, &shown(ctx, path))
         })
         .collect();
     Ok(Outcome::Info(rows.join("\n")))
@@ -105,9 +103,9 @@ pub fn edit(ctx: &Ctx<'_>, dir: Option<&str>, session_scope: bool) -> Result<Out
     };
     let projects = project_list(ctx)?;
     let Some(project) = project_containing(&target, &projects) else {
-        return Err(LedgeError::Fatal(messages::edit_outside_project(
-            target.as_str(),
-        )));
+        return Err(LedgeError::Fatal(messages::edit_outside_project(&shown(
+            ctx, &target,
+        ))));
     };
     let mut handler = EditHandler {
         ctx,
@@ -147,6 +145,11 @@ pub fn tree(
         }
     };
     bookmark_tree_picker(ctx, option, &scope)
+}
+
+/// FR-HIST-03: a stored or cleaned path as the messages show it: a path under HOME starts with `~`.
+fn shown(ctx: &Ctx<'_>, path: &AbsPath) -> String {
+    path.display_with_home(home_of(ctx).as_ref())
 }
 
 /// FR-EDIT-08, FR-EDIT-09: the directory of the session the client is in. Outside tmux, or when that session has no

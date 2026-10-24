@@ -302,3 +302,77 @@ fn list_skips_relative_and_repeated_lines() {
     assert_eq!(text.lines().count(), 1, "rows: {text}");
     assert_status_row(&text, "ok", &app);
 }
+
+/// A harness whose search paths are `<root>/home/code` (under HOME) and `<root>/projects` (outside HOME).
+fn home_harness(name: &str) -> Harness {
+    let h = Harness::new(name);
+    let code = format!("{}/home/code", h.root().display());
+    let search = format!("{}/projects", h.root().display());
+    h.write_config(&format!("{{\"search_paths\": [\"{code}\", \"{search}\"]}}"));
+    h
+}
+
+// FR-BM-08, FR-HIST-03: a bookmark row shows a path under HOME as "~"; a path outside HOME is shown in full
+#[test]
+fn list_shows_bookmarks_under_home_as_tilde() {
+    let h = home_harness("bm-list-tilde");
+    let under = folder(&h, "home/code/app/src");
+    let outside = folder(&h, "projects/app/src");
+    write_bookmarks(&h, &format!("{under}\n{outside}\n"));
+    let text = info(run(&args(&["bm", "list"]), &h.ctx()));
+    assert_eq!(
+        text,
+        format!("{:<16}~/code/app/src\n{:<16}{outside}", "ok", "ok")
+    );
+}
+
+// FR-BM-05, FR-BM-06, FR-BM-09: the bookmarked, already-bookmarked and removed messages show a path under HOME as
+// "~", while the file keeps the absolute path
+#[test]
+fn add_and_remove_messages_show_home_paths_as_tilde() {
+    let h = home_harness("bm-messages-tilde");
+    let dir = folder(&h, "home/code/app/src");
+    assert_eq!(
+        info(run(&args(&["bm", "add", &dir]), &h.ctx())),
+        "Bookmarked ~/code/app/src"
+    );
+    assert_eq!(
+        bookmarks_text(&h).as_deref(),
+        Some(format!("{dir}\n").as_str())
+    );
+    assert_eq!(
+        info(run(&args(&["bm", "add", &dir]), &h.ctx())),
+        "Already bookmarked: ~/code/app/src"
+    );
+    assert_eq!(
+        info(run(&args(&["bm", "remove", &dir]), &h.ctx())),
+        "Removed bookmark ~/code/app/src"
+    );
+    let gone = folder(&h, "home/code/app/gone");
+    fs::remove_dir(&gone).expect("remove folder");
+    assert_eq!(
+        fatal(run(&args(&["bm", "remove", &gone]), &h.ctx())),
+        "'~/code/app/gone' is not a bookmark."
+    );
+}
+
+// FR-BM-03, FR-BM-04, FR-EDIT-10: the refusals name a path under HOME as "~"
+#[test]
+fn refusals_name_home_paths_as_tilde() {
+    let h = home_harness("bm-refusals-tilde");
+    folder(&h, "home/code/app/src");
+    let project = format!("{}/home/code/app", h.root().display());
+    let notes = folder(&h, "home/notes");
+    assert_eq!(
+        fatal(run(&args(&["bm", "add", &project]), &h.ctx())),
+        "~/code/app is a project; open it with 'ledge project pick'."
+    );
+    assert_eq!(
+        fatal(run(&args(&["bm", "add", &notes]), &h.ctx())),
+        "~/notes is not inside a project. Bookmarks go inside a directory from search_paths."
+    );
+    assert_eq!(
+        fatal(run(&args(&["bm", "edit", &notes]), &h.ctx())),
+        "~/notes is not inside a project from search_paths."
+    );
+}

@@ -3,9 +3,10 @@
 //! tmux is an ERR line, and the session check is skipped with a WARN line.
 
 use crate::app::store;
-use crate::app::{load_projects, Ctx};
+use crate::app::{home_of, load_projects, Ctx};
 use crate::domain::bookmarks::{self, BookmarkStatus};
 use crate::domain::config::{self, Config};
+use crate::domain::path::AbsPath;
 use crate::domain::profile::{Profile, ProfileName};
 use crate::domain::sessions::{managed, session_directory, tmux_version_supported, ManagedSession};
 use crate::error::{Outcome, Result};
@@ -224,8 +225,10 @@ fn check_bookmarks(ctx: &Ctx<'_>, config: Option<&Config>, report: &mut Report) 
         }
     };
     let projects = config.map(|config| load_projects(ctx.fs, &config.search_paths));
+    let home = home_of(ctx);
     let mark = report.lines.len();
     for path in bookmarks.entries() {
+        let shown = path.display_with_home(home.as_ref());
         let exists = ctx.fs.is_dir(Path::new(path.as_str()));
         let status = match &projects {
             Some(projects) => bookmarks::status(path, exists, projects),
@@ -234,11 +237,9 @@ fn check_bookmarks(ctx: &Ctx<'_>, config: Option<&Config>, report: &mut Report) 
         };
         match status {
             BookmarkStatus::Ok => {}
-            BookmarkStatus::Missing => {
-                report.warn(messages::doctor_bookmark_missing(path.as_str()))
-            }
+            BookmarkStatus::Missing => report.warn(messages::doctor_bookmark_missing(&shown)),
             BookmarkStatus::OutsideProject => {
-                report.warn(messages::doctor_bookmark_outside(path.as_str()))
+                report.warn(messages::doctor_bookmark_outside(&shown))
             }
         }
     }
@@ -278,9 +279,12 @@ fn check_session(ctx: &Ctx<'_>, session: &ManagedSession, report: &mut Report) {
     let info = session.info();
     let directory = session_directory(info);
     if !directory.is_some_and(|dir| ctx.fs.is_dir(Path::new(dir))) {
+        // FR-HIST-03: the session's directory is shown with a path under HOME as `~`.
+        let shown = directory
+            .map(|dir| AbsPath::clean(dir, &ctx.cwd).display_with_home(home_of(ctx).as_ref()));
         report.warn(messages::doctor_session_directory_missing(
             &info.name,
-            directory.unwrap_or("no directory"),
+            shown.as_deref().unwrap_or("no directory"),
         ));
     }
     if let Some(profile) = info.profile.as_deref().filter(|name| !name.is_empty()) {

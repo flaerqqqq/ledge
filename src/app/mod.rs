@@ -46,6 +46,14 @@ pub struct Ctx<'a> {
     pub cwd: AbsPath,
 }
 
+/// FR-HIST-03: the home folder cleaned from HOME in the environment, the value `AbsPath::display_with_home` takes.
+/// `None` when HOME is not set.
+pub fn home_of(ctx: &Ctx<'_>) -> Option<AbsPath> {
+    ctx.env
+        .var("HOME")
+        .map(|home| AbsPath::clean(&home, &AbsPath::root()))
+}
+
 /// FR-PICK-01, FR-CONF-07: the projects of the search paths, read through `fs`. A search path that cannot be
 /// read (missing, not a folder) contributes no projects and no message (architecture A-42).
 pub fn load_projects(fs: &dyn FileSystem, search_paths: &[AbsPath]) -> Vec<Project> {

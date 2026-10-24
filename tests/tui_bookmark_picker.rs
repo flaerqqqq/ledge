@@ -355,3 +355,36 @@ fn label_headers_and_footer_are_shown() {
         "{lines:#?}"
     );
 }
+
+// FR-BM-11, Architecture 6.2: a bookmark under HOME shows the home folder as "~"; one outside HOME is shown in full
+#[test]
+fn rows_under_home_show_tilde_and_others_show_their_full_path() {
+    let h = Harness::new("tui_bookmark_picker-home-tilde");
+    h.terminal.set_size(220, 24);
+    let under = format!("{}/home/code/app", h.root().display());
+    fs::create_dir_all(&under).expect("create folder");
+    let outside = h.project("app");
+    write_bookmarks(&h, &[&under, &outside]);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(run_picker(&h), Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    assert!(line_with(&lines, "~/code/app").contains("~/code/app"));
+    assert!(
+        !lines.iter().any(|line| line.contains(&under)),
+        "no full path under HOME: {lines:#?}"
+    );
+    assert!(line_with(&lines, "/projects/app").contains(&outside));
+}
+
+// FR-PICK-09, A-27: enter on a missing bookmark under HOME reports it with the home folder as "~"
+#[test]
+fn enter_on_a_missing_directory_under_home_shows_tilde() {
+    let h = Harness::new("tui_bookmark_picker-missing-tilde");
+    h.terminal.set_size(220, 24);
+    let gone = format!("{}/home/gone", h.root().display());
+    write_bookmarks(&h, &[&gone]);
+    h.terminal.script(vec![enter(), esc()]);
+    assert_eq!(run_picker(&h), Ok(Outcome::Cancelled));
+    assert_eq!(h.backend.attached_to(), None);
+    assert!(line_with(&screen(&h), "Missing directory:").contains("Missing directory: ~/gone"));
+}

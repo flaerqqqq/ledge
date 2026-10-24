@@ -427,3 +427,30 @@ fn binary_doctor_exits_one_with_error_line_when_tmux_is_missing() {
     ))
     .exists());
 }
+
+// FR-DOC-04, FR-DOC-07: bookmark and session lines show a path under HOME as "~"; the search path line keeps its
+// full path (a search path is a configured folder, not a project directory)
+#[test]
+fn bookmark_and_session_lines_show_home_paths_as_tilde() {
+    let h = Harness::new("doctor-home-tilde");
+    let code = format!("{}/home/code", h.root().display());
+    let search = format!("{}/projects", h.root().display());
+    h.write_config(&format!("{{\"search_paths\": [\"{code}\", \"{search}\"]}}"));
+    let app = folder(&h, "home/code/app");
+    let elsewhere = folder(&h, "home/elsewhere");
+    write_bookmarks(&h, &format!("{app}/gone\n{elsewhere}\n"));
+    managed_session(
+        &h,
+        "vanished-1a2b",
+        &format!("{}/home/vanished", h.root().display()),
+        None,
+    );
+    let (code_out, out) = run_doctor(&h);
+    assert_eq!(code_out, 0);
+    assert!(out.contains(&"WARN  bookmark ~/code/app/gone is missing".to_string()));
+    assert!(out.contains(&"WARN  bookmark ~/elsewhere is outside every project".to_string()));
+    assert!(
+        out.contains(&"WARN  session 'vanished-1a2b' directory is missing: ~/vanished".to_string())
+    );
+    assert!(out.contains(&format!("OK    search path {code}")));
+}
