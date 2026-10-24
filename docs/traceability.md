@@ -105,18 +105,18 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-SESS-12 | S-25 |  |  | open |  |
 | FR-SESS-13 | S-25 |  |  | open |  |
 | FR-ACT-01 | S-15 |  |  | open |  |
-| FR-ACT-02 | S-14 |  |  | open |  |
-| FR-ACT-03 | S-14 |  |  | open |  |
+| FR-ACT-02 | S-14 | src/app/actions.rs | tests/component_actions.rs | covered | `rebuild` builds a missing session from the profile (no kill). The rebuild key itself is S-15. |
+| FR-ACT-03 | S-14 | src/app/actions.rs; src/app/build.rs (build_session) | tests/component_actions.rs | covered | The managed session is killed (its windows and running commands go) and built again from the profile. |
 | FR-ACT-04 | S-15 |  |  | open |  |
-| FR-ACT-05 | S-14 |  |  | open |  |
+| FR-ACT-05 | S-14 | src/app/actions.rs (rebuild_current) | tests/component_actions.rs | covered | D-17 on FakeBackend: `<name>-rebuild` built, client switched, old killed, copy renamed to `<name>`; a copy failure keeps the original (A-07). The real switch and rename on tmux are not run by the gate; the tmux commands are in tests/component_tmux.rs. |
 | FR-ACT-06 | S-22 |  |  | open |  |
-| FR-ACT-07 | S-14 |  |  | open |  |
+| FR-ACT-07 | S-14 | src/app/actions.rs (never_touch_current, kill) | tests/component_actions.rs; src/app/actions.rs (unit) | covered | Kill of the session the user is in is refused with `cannot kill the session you are in.`; `never_touch_current` tested. The alt-key callers that skip it are S-22. |
 | FR-ACT-08 | S-22 |  |  | open |  |
 | FR-ACT-09 | S-22 |  |  | open |  |
 | FR-ACT-10 | S-24 |  |  | open |  |
 | FR-ACT-11 | S-19 |  |  | open |  |
 | FR-ACT-12 | S-15 |  |  | open |  |
-| FR-ACT-13 | S-14 |  |  | open |  |
+| FR-ACT-13 | S-14 | src/app/actions.rs | tests/component_actions.rs | covered | Kill and rebuild refuse an unmanaged session with `'<name>' is not a ledge session.` and leave it unchanged. |
 | FR-PROF-01 | S-02 | app/store.rs; domain/profile.rs | tests/component_config.rs | covered |  |
 | FR-PROF-02 | S-02 | domain/profile.rs | domain/profile.rs; tests/component_config.rs | covered |  |
 | FR-PROF-03 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Windows created in profile order, duplicate names allowed.
@@ -130,8 +130,8 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PROF-11 | S-11 | src/app/open.rs; src/app/store.rs | tests/component_open.rs | covered | Missing and invalid `--profile` return the profile error and create no session. |
 | FR-PROF-12 | S-11 | src/domain/profile_rules.rs; src/app/open.rs | src/domain/profile_rules.rs (unit); tests/component_open.rs; tests/messages_verbatim.rs | covered | Missing or invalid default profile: warning, single-window layout. Valid default applies when no option is given. |
 | FR-PROF-13 | S-15 |  |  | open |  |
-| FR-PROF-14 | S-14 |  |  | open |  |
-| FR-PROF-15 | S-14 |  |  | open |  |
+| FR-PROF-14 | S-14 | src/domain/profile_rules.rs (rebuild_profile); src/app/actions.rs | tests/component_actions.rs; src/domain/profile_rules.rs (unit) | covered | Rebuild without a profile option reuses the recorded profile, ahead of `default_profile`. |
+| FR-PROF-15 | S-14 | src/app/actions.rs (resolve_profile, default_or_basic); src/messages.rs | tests/component_actions.rs; tests/messages_verbatim.rs | covered | Warning `Warning: session profile '<name>' is missing or invalid; using the default profile.`, then the default profile, or basic with the FR-PROF-12 warning when the default fails too (D-04). |
 | FR-CONF-01 | S-02 | app/store.rs; domain/config.rs | domain/config.rs; tests/component_config.rs | covered | Default text compared literally; the trailing newline after the architecture 9.2 block is an assumption. |
 | FR-CONF-02 | S-02 | domain/config.rs; app/store.rs | domain/config.rs; tests/component_config.rs | covered |  |
 | FR-CONF-03 | S-02 | domain/config.rs | domain/config.rs; tests/component_config.rs | covered |  |

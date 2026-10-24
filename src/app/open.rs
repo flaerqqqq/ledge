@@ -14,6 +14,7 @@ use crate::domain::profile_rules::{open_profile, OpenProfile, ProfileOpt};
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::ports::backend::BackendError;
+use crate::ports::env::Env;
 use std::path::Path;
 
 /// FR-OPEN-01..03, FR-OPEN-08, FR-OPEN-10, FR-OPEN-11, FR-PROF-09..12: opens the session of `dir`, or of the
@@ -86,8 +87,7 @@ fn resolve_profile(
 /// FR-OPEN-08: inside a tmux session (`TMUX` set and not empty) the client switches to the session; outside
 /// one the terminal attaches. The attach itself is manual (traceability, FR-OPEN-08).
 fn attach_or_switch(ctx: &Ctx<'_>, name: &str) -> Result<Outcome> {
-    let inside = ctx.env.var("TMUX").is_some_and(|value| !value.is_empty());
-    let result = if inside {
+    let result = if inside_tmux(ctx.env) {
         ctx.backend.switch_client(name)
     } else {
         ctx.backend.attach(name)
@@ -96,8 +96,13 @@ fn attach_or_switch(ctx: &Ctx<'_>, name: &str) -> Result<Outcome> {
     Ok(Outcome::Done)
 }
 
+/// FR-OPEN-08: `TMUX` is set and not empty. Shared with the rebuild of the current session (FR-ACT-05).
+pub(crate) fn inside_tmux(env: &dyn Env) -> bool {
+    env.var("TMUX").is_some_and(|value| !value.is_empty())
+}
+
 /// FR-OPEN-08, FR-CMD-10: a missing tmux keeps its own message; any other failure is the attach message.
-fn attach_error(name: &str, error: BackendError) -> LedgeError {
+pub(crate) fn attach_error(name: &str, error: BackendError) -> LedgeError {
     match error {
         BackendError::NotInstalled => LedgeError::Fatal(messages::tmux_not_installed().to_string()),
         BackendError::Failed { detail } => {

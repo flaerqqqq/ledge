@@ -13,6 +13,7 @@ use crate::ports::signals::Signals;
 use crate::tui::terminal::TerminalFactory;
 use std::path::Path;
 
+pub mod actions;
 pub mod build;
 pub mod launch;
 pub mod open;

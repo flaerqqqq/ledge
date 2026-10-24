@@ -301,7 +301,15 @@ impl SessionBackend for FakeBackend {
                 detail: "duplicate session".to_string(),
             });
         }
-        self.with_session(old, |s| s.name = new.to_string())
+        self.with_session(old, |s| s.name = new.to_string())?;
+        // tmux: a client attached to the session keeps it under its new name.
+        for slot in [&self.current, &self.attached] {
+            let mut slot = slot.borrow_mut();
+            if slot.as_deref() == Some(old) {
+                *slot = Some(new.to_string());
+            }
+        }
+        Ok(())
     }
 
     fn current_session(&self) -> Result<Option<String>, BackendError> {

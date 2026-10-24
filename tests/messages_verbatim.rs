@@ -316,3 +316,48 @@ fn new_picker_detail_messages_are_verbatim() {
         "could not list sessions: boom"
     );
 }
+
+// FR-ACT-13, FR-SESS-11, D-14 (error): the target is not a managed session
+#[test]
+fn not_a_ledge_session_text_is_verbatim() {
+    assert_eq!(
+        messages::not_a_ledge_session("app-1a2b"),
+        "'app-1a2b' is not a ledge session."
+    );
+}
+
+// FR-ACT-07, D-17 (error in the command form, status line in pickers)
+#[test]
+fn cannot_kill_current_session_text_is_verbatim() {
+    assert_eq!(
+        messages::cannot_kill_current_session(),
+        "cannot kill the session you are in."
+    );
+}
+
+// FR-PROF-15, D-04 (warning, the prefix comes from messages::warning)
+#[test]
+fn session_profile_missing_text_is_verbatim() {
+    assert_eq!(
+        messages::warning(&messages::session_profile_missing("dev")),
+        "Warning: session profile 'dev' is missing or invalid; using the default profile."
+    );
+}
+
+// Proposal P-26 [new]: a failed kill during a rebuild or kill
+#[test]
+fn could_not_kill_session_text_is_verbatim() {
+    assert_eq!(
+        messages::could_not_kill_session("app-1a2b", "can't find session"),
+        "could not kill session 'app-1a2b': can't find session"
+    );
+}
+
+// Proposal P-26 [new]: a failed rename of the rebuilt copy (D-17)
+#[test]
+fn could_not_rename_session_text_is_verbatim() {
+    assert_eq!(
+        messages::could_not_rename_session("app-1a2b-rebuild", "app-1a2b", "duplicate session"),
+        "could not rename session 'app-1a2b-rebuild' to 'app-1a2b': duplicate session"
+    );
+}

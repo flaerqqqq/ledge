@@ -251,3 +251,28 @@ Format:
 - change: (a) D-12 says an empty project list at start prints `No projects found in search paths.` (info, no window). A-16 always shows the launch directory as a first row, so the picker would never be empty. S-13 follows D-12: when the search paths list no projects, the info line is printed and no window opens; with at least one project the A-16 rows apply. Confirm or reverse. (b) FR-PICK-13 "when a non-basic profile applies": S-13 counts `default_profile` as applying (open_profile, F-18 precedence), so the label names it. `basic` never gives a profile label. (c) Project rows: the marker cell is the launch-directory flag `*` or a space, then the live flag `●` or `○`; the Project cell is the basename, or the path for a launch directory that is not a project; the Session and Profile cells come from the managed session of the same name (D-14), empty when none. (d) History rows: the Project cell is the cleaned absolute path (architecture 6.2 path cells), with no marker column. (e) A chosen directory that is missing is reported with `Missing directory: <path>` in the status line; the history picker dims it and shows ` (missing)` (A-27).
 - why: each choice is the smallest one that passes the S-13 tests; the user can reverse any of them. (a) is a conflict between D-12 and A-16 that only the user can settle.
 - status: Open
+
+### P-26 [new] messages for a failed kill and a failed rename during a rebuild
+- from: implementer / slice S-14
+- doc: requirements.md (Messages) and docs/architecture.md 8.3
+- change: confirm two [new] error messages (stderr, `Error: ` prefix, exit 1; in pickers the status line):
+  `could not kill session '<name>': <detail>` (a kill of the old session fails during a rebuild or kill, D-17, A-07) and
+  `could not rename session '<old>' to '<new>': <detail>` (the rebuilt copy cannot take the original name, D-17).
+  Both are in `messages.rs` and in `tests/messages_verbatim.rs`.
+- why: architecture 7.2 says the caller formats "the kill/rename message" but gives no text, so the rebuild of the current
+  session (FR-ACT-05, D-17) has no literal message for those two failures. The copy-name collision reuses
+  `could not create session '<name>-rebuild': name already used` from A-07.
+- status: Open
+
+### P-27 S-14 rebuild and kill rules the spec leaves open
+- from: implementer / slice S-14
+- doc: docs/architecture.md (A-07, A-20, A-38) and docs/backlog.md (S-14, S-22, S-25)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) kill of a name with no session is a no-op (`Outcome::Done`). The picker row has nothing to kill (S-15). `ss kill` (S-25) keeps the FR-SESS-11 error for an unknown target.
+  (b) kill refuses the session the user is in with `cannot kill the session you are in.` on every kill path (ctrl-x, `ss kill`). The alt-key paths (S-22) skip it silently through `never_touch_current` and do not print this message; FR-ACT-07 does not say how the alt-key report looks.
+  (c) rebuild refuses a managed session whose recorded directory (`@ledge_dir`) is another directory, with the D-14 text `could not create session '<name>': name already used by <dir>`. A-24 states the collision rule for open only.
+  (d) the profile is resolved before anything is killed, so a bad `--profile` (FR-PROF-11) leaves the session running.
+  (e) rebuild of the current session: when the switch to the copy fails, the copy is killed and the error is `could not attach to '<copy>': <detail>`. A-07 covers build failures only.
+  (f) D-04 warning order: a recorded profile that fails gives the FR-PROF-15 warning, then the default profile; a default that also fails gives the FR-PROF-12 warning and the single window. Each warning once per rebuild.
+- why: each choice is the smallest one that passes the S-14 tests; none changes an accepted decision. Items (b) and (e) are the open edges.
+- status: Open

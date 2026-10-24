@@ -199,3 +199,30 @@ pub fn could_not_read_history(detail: &str) -> String {
 pub fn could_not_list_sessions(detail: &str) -> String {
     format!("could not list sessions: {detail}")
 }
+
+/// FR-ACT-13, FR-SESS-11, D-14, D-16: the target is a session without the managed marker (error).
+pub fn not_a_ledge_session(name: &str) -> String {
+    format!("'{name}' is not a ledge session.")
+}
+
+/// FR-ACT-07, D-17, A-20: the session the user is in is refused for kill (error in the command form, status line in
+/// pickers).
+pub fn cannot_kill_current_session() -> &'static str {
+    "cannot kill the session you are in."
+}
+
+/// FR-PROF-15, D-04: the recorded profile of a session cannot be loaded during a rebuild; a warning, and the default
+/// profile is used.
+pub fn session_profile_missing(name: &str) -> String {
+    format!("session profile '{name}' is missing or invalid; using the default profile.")
+}
+
+/// Proposal P-26 [new]: tmux could not kill a session during a rebuild or kill.
+pub fn could_not_kill_session(name: &str, detail: &str) -> String {
+    format!("could not kill session '{name}': {detail}")
+}
+
+/// Proposal P-26 [new]: tmux could not rename the rebuilt copy back to the original name (D-17).
+pub fn could_not_rename_session(old: &str, new: &str, detail: &str) -> String {
+    format!("could not rename session '{old}' to '{new}': {detail}")
+}

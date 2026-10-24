@@ -300,7 +300,7 @@ fn history_chrome() -> Chrome {
 
 /// Architecture 4: a backend failure as the fatal text of the picker. A missing tmux keeps its own message
 /// (FR-CMD-10).
-fn backend_fatal(error: BackendError) -> LedgeError {
+pub(crate) fn backend_fatal(error: BackendError) -> LedgeError {
     match error {
         BackendError::NotInstalled => LedgeError::Fatal(messages::tmux_not_installed().to_string()),
         BackendError::Failed { detail } => {

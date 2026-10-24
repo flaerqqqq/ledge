@@ -53,9 +53,10 @@ pub fn ensure_session(
     Ok(Ensured::Created)
 }
 
-/// FR-OPEN-07, FR-PROF-03..07, FR-NAME-03: creates the session, marks it, types the commands and selects the
-/// first window. A failure after `create_session` kills the partial session (A-07).
-fn build_session(
+/// FR-OPEN-07, FR-PROF-03..07, FR-NAME-03: creates the session `name` in `dir`, marks it, types the commands and
+/// selects the first window. A failure after `create_session` kills the partial session (A-07). Rebuilds use it
+/// too, with the copy name of D-17.
+pub fn build_session(
     backend: &dyn SessionBackend,
     name: &str,
     dir: &str,

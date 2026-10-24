@@ -234,7 +234,7 @@ have no FR-IDs state why.
 - branch: slice/13-project-history-pickers
 
 ### S-14 Rebuild and kill services
-- status: in-progress
+- status: done
 - deps: S-10, S-09
 - FR-IDs: FR-ACT-02, FR-ACT-03, FR-ACT-05, FR-ACT-07, FR-ACT-13, FR-PROF-14, FR-PROF-15
 - scope: `app/actions.rs` (kill of managed sessions, rebuild, rebuild of the current session, refusal rules), `domain/profile_rules.rs`
@@ -250,7 +250,7 @@ have no FR-IDs state why.
 - branch: slice/14-rebuild-kill
 
 ### S-15 Picker actions and the profile picker
-- status: blocked
+- status: in-progress
 - deps: S-13, S-14, S-08
 - FR-IDs: FR-ACT-01, FR-ACT-04, FR-ACT-12, FR-PROF-13
 - scope: `app/pickers.rs` (action wiring: ctrl-r, ctrl-p, ctrl-x for project, history, switcher-ready helpers), `domain/profile_rules.rs`
