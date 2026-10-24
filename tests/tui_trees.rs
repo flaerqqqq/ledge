@@ -349,6 +349,27 @@ fn alt_d_on_a_bookmark_node_deletes_the_bookmarks_under_it() {
     assert!(screen(&h).iter().any(|line| line.contains("x")));
 }
 
+// FR-BM-13, FR-TUI-07: ctrl-d on a selected bookmark row deletes that bookmark and keeps the window open;
+// the other bookmark stays
+#[test]
+fn ctrl_d_on_a_bookmark_row_deletes_that_bookmark_and_stays_open() {
+    let h = Harness::new("tui_trees-ctrl-d-bookmark");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let api = abs(&format!("{}/api", app.as_str()));
+    let web = abs(&format!("{}/web", app.as_str()));
+    write_bookmarks(&h, &[api.as_str(), web.as_str()]);
+    h.terminal.script(vec![
+        down(),
+        Input::Key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL)),
+        esc(),
+    ]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    // The root row is first, so one down moves to `api` (sorted before `web`): `api` goes, `web` stays.
+    assert_eq!(bookmarks_text(&h).trim(), web.as_str());
+}
+
 // Architecture 6.2, Screens: the footers of the two trees are the given texts
 #[test]
 fn trees_show_their_given_footers() {

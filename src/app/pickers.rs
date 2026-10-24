@@ -1003,6 +1003,12 @@ impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
             Action::DeleteNode if self.kind == TreeKind::Bookmarks => {
                 node_step(delete_node_bookmarks(self.ctx, &row.path))
             }
+            // FR-BM-13, FR-TUI-07: ctrl-d deletes the selected bookmark row, as in the bookmark picker.
+            Action::DeleteBookmark
+                if self.kind == TreeKind::Bookmarks && row.kind == NodeKind::Bookmark =>
+            {
+                delete_bookmark(self.ctx, &row.path)
+            }
             _ => no_action(),
         }
     }
