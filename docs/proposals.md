@@ -627,3 +627,10 @@ Format:
 - doc: requirements.md (FR-PROF-13)
 - change: the profile picker shows a preview of the highlighted profile: its source (built-in, or the file path with ~), its window count, and one line per window with its command. A profile whose file is missing or invalid keeps its row, and the preview shows its error. New texts: built-in, 1 window, N windows, + N more, Preview.
 - why: the user picks a profile without knowing what it starts, and a rebuild kills the running session.
+
+### P-65 Custom projects (FR-CONF-07, FR-PICK-01, FR-BM-02)
+- from: user request / coordinator, slice S-49
+- status: Open
+- doc: requirements.md (FR-CONF-07, FR-PICK-01, FR-BM-02, and a new rule for ctrl-d in the project picker)
+- change: a directory opened from the command line that is outside every project joins a persisted list, custom-projects in the cache folder. Custom projects are projects: they appear in the project picker with a ◆ mark, accept bookmarks inside them, and can be removed with ctrl-d, which also deletes their bookmarks and kills their managed sessions. Opens from pickers never add to the list.
+- why: the user wants to bookmark directories opened outside the project folders without filling the list with bookmark-like directories; subdirectories of a project are never added.

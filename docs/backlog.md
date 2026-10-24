@@ -572,3 +572,12 @@ have no FR-IDs state why.
 - acceptance: a path wider than its column is shortened from the middle with … (one cell): the start (~ or the root and the first folder) and as many final folders as fit stay visible; a path that fits is unchanged; the cut keeps display width (CJK counts two cells); names are not affected (they already use the name middle cut).
 - size: S
 - branch: slice/S-47-path-middle-cut
+
+### S-49 Custom projects: directories opened from outside the project folders
+- status: in-progress
+- deps: S-04, S-18, S-24, S-25, S-30, S-43
+- FR-IDs: FR-CONF-07, FR-PICK-01, FR-BM-02 (proposal P-65; the user owns requirements.md)
+- scope: src/domain/custom_projects.rs (new), src/domain/projects.rs (custom flag, merge_projects, should_record), src/app/store.rs (custom-projects file), src/app/mod.rs (load_projects with the custom list), src/app/open.rs and src/cli/mod.rs (record on the command-line open only), src/app/pickers.rs (◆ mark in the project cell, ctrl-d on custom rows), src/app/actions.rs (delete_custom_project), src/messages.rs, tests/*
+- acceptance: `ledge DIR` (and `ledge project open DIR`) on an existing directory that is not a project, not inside a project and not already listed adds it to the custom-projects cache file; picker-initiated opens never add; custom projects appear in the project picker with a ◆ (ASCII # without UTF-8) in the project cell, search matches the plain name; bookmarks may be added inside a custom project and the custom root is refused as a project; ctrl-d on a custom row removes it from the list, deletes its bookmarks and kills its managed sessions; ctrl-d on a regular row shows a one-line notice; a missing custom directory stays listed, dimmed, (missing), and removable; an unreadable or unwritable cache file is a warning and nothing fails.
+- size: L
+- branch: slice/S-49-custom-projects
