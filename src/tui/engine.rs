@@ -28,6 +28,9 @@ pub enum Step {
     Accept,
     /// Return this outcome to the caller.
     Close(Outcome),
+    /// ctrl-p on a row (S-15, FR-ACT-04): the picker returns the row as `PickerResult::Profile`, so the caller can
+    /// run the profile picker for it and open this picker again. Only meaningful from `act`.
+    Profile,
 }
 
 /// What the picker returned. `Closed` carries the outcome of an interrupt or a handler `Close`.
@@ -36,6 +39,8 @@ pub enum PickerResult<T> {
     Chosen(T),
     Cancelled,
     Closed(Outcome),
+    /// ctrl-p on this row: the caller picks a profile for it and then reopens the picker.
+    Profile(T),
 }
 
 /// The caller's side of a picker: what enter, actions and reloads do (architecture 6.4).
@@ -111,6 +116,8 @@ fn handle<T: Clone>(
             match (step, payload) {
                 (Step::Accept, Some(payload)) => Ok(Some(PickerResult::Chosen(payload))),
                 (Step::Accept, None) => Ok(Some(PickerResult::Cancelled)),
+                (Step::Profile, Some(payload)) => Ok(Some(PickerResult::Profile(payload))),
+                (Step::Profile, None) => Ok(None),
                 (other, _) => apply_step(model, handler, other),
             }
         }
@@ -138,6 +145,8 @@ fn apply_step<T: Clone>(
     match step {
         Step::Accept => Ok(Some(PickerResult::Cancelled)),
         Step::Close(outcome) => Ok(Some(PickerResult::Closed(outcome))),
+        // Only `act` returns Profile, and `handle` answers it with the row; here there is no row to hand back.
+        Step::Profile => Ok(None),
         Step::Continue { status, reload } => {
             model.set_status(status);
             if reload {

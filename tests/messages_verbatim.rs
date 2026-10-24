@@ -361,3 +361,17 @@ fn could_not_rename_session_text_is_verbatim() {
         "could not rename session 'app-1a2b-rebuild' to 'app-1a2b': duplicate session"
     );
 }
+
+// FR-PROF-13: the profile picker row labels
+#[test]
+fn profile_row_labels_are_verbatim() {
+    assert_eq!(messages::profile_current("dev"), "[Current: dev]");
+    assert_eq!(messages::profile_default("web"), "[Default: web]");
+}
+
+// FR-PROF-13, architecture 6.2: the profile picker border label and key footer
+#[test]
+fn profile_picker_label_and_footer_are_verbatim() {
+    assert_eq!(messages::PROFILES_LABEL, "Profiles");
+    assert_eq!(messages::PROFILE_PICKER_FOOTER, "enter choose · esc cancel");
+}

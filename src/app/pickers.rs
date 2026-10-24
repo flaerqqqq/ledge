@@ -1,8 +1,11 @@
 //! The project and history pickers (architecture 2, 6.2, 6.4; FR-PICK-04..13, FR-HIST-04, FR-HIST-05, FR-CMD-08,
 //! FR-CMD-12). Each entry point loads its rows through the ports, runs the picker, and on enter opens the chosen
 //! directory through the open flow after the terminal is restored (architecture 6.4). Rows are built here; the
-//! screen and the keys are `tui`. Row actions (ctrl-r, ctrl-p, ctrl-x) are wired by S-15 and do nothing here.
+//! screen and the keys are `tui`. Row actions: ctrl-x kills, ctrl-r rebuilds, ctrl-p picks a profile in a nested
+//! picker and rebuilds with it (S-15, FR-ACT-01, FR-ACT-02, FR-ACT-04, FR-ACT-12). Alt and ctrl-d actions are not
+//! bound in these pickers.
 
+use crate::app::actions::{kill, rebuild};
 use crate::app::load_projects;
 use crate::app::open::open_dir;
 use crate::app::store;
@@ -10,7 +13,9 @@ use crate::app::Ctx;
 use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
 use crate::domain::profile::ProfileName;
-use crate::domain::profile_rules::{open_profile, OpenProfile, ProfileOpt};
+use crate::domain::profile_rules::{
+    open_profile, profile_choices, OpenProfile, ProfileChoice, ProfileOpt,
+};
 use crate::domain::projects::{project_rows, Project};
 use crate::domain::sessions::SessionInfo;
 use crate::domain::sessions::{managed, ManagedSession};
@@ -54,6 +59,7 @@ pub fn project_picker(ctx: &Ctx<'_>, dir: Option<&str>, option: &ProfileOpt) -> 
         ctx,
         from,
         search_paths: config.search_paths,
+        option: option.clone(),
     };
     run_dir_picker(ctx, model, &mut handler, option)
 }
@@ -70,7 +76,10 @@ pub fn history_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
     }
     let rows = history_dir_rows(ctx, &history)?;
     let model = PickerModel::new(rows, history_chrome());
-    let mut handler = HistoryHandler { ctx };
+    let mut handler = HistoryHandler {
+        ctx,
+        option: option.clone(),
+    };
     run_dir_picker(ctx, model, &mut handler, option)
 }
 
@@ -79,6 +88,7 @@ struct ProjectHandler<'c, 'a> {
     ctx: &'c Ctx<'a>,
     from: AbsPath,
     search_paths: Vec<AbsPath>,
+    option: ProfileOpt,
 }
 
 impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
@@ -86,8 +96,8 @@ impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
         choose_dir(self.ctx, row)
     }
 
-    fn act(&mut self, _action: Action, _row: Option<&AbsPath>) -> Step {
-        no_action()
+    fn act(&mut self, action: Action, row: Option<&AbsPath>) -> Step {
+        dir_action(self.ctx, &self.option, action, row)
     }
 
     fn reload(&mut self) -> Result<Vec<DirRow>> {
@@ -99,6 +109,7 @@ impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
 /// Enter and the actions of the history picker (architecture 6.4).
 struct HistoryHandler<'c, 'a> {
     ctx: &'c Ctx<'a>,
+    option: ProfileOpt,
 }
 
 impl PickerHandler<AbsPath> for HistoryHandler<'_, '_> {
@@ -106,8 +117,8 @@ impl PickerHandler<AbsPath> for HistoryHandler<'_, '_> {
         choose_dir(self.ctx, row)
     }
 
-    fn act(&mut self, _action: Action, _row: Option<&AbsPath>) -> Step {
-        no_action()
+    fn act(&mut self, action: Action, row: Option<&AbsPath>) -> Step {
+        dir_action(self.ctx, &self.option, action, row)
     }
 
     fn reload(&mut self) -> Result<Vec<DirRow>> {
@@ -122,14 +133,19 @@ fn choose_dir(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     if ctx.fs.is_dir(Path::new(dir.as_str())) {
         Step::Accept
     } else {
-        Step::Continue {
-            status: Some(messages::missing_directory(dir.as_str())),
-            reload: false,
-        }
+        missing_step(dir)
     }
 }
 
-/// An action with no behaviour yet: the status line is cleared and the picker stays open.
+/// FR-PICK-09: the directory is gone; the message is in the status line and the picker stays open.
+fn missing_step(dir: &AbsPath) -> Step {
+    Step::Continue {
+        status: Some(messages::missing_directory(dir.as_str())),
+        reload: false,
+    }
+}
+
+/// An action with no behaviour: the status line is cleared and the picker stays open.
 fn no_action() -> Step {
     Step::Continue {
         status: None,
@@ -137,24 +153,187 @@ fn no_action() -> Step {
     }
 }
 
+/// A failed action: its message in the status line, the list kept as it was.
+fn failed(error: LedgeError) -> Step {
+    Step::Continue {
+        status: Some(error.to_string()),
+        reload: false,
+    }
+}
+
+/// FR-ACT-01, FR-ACT-02, FR-ACT-04, FR-ACT-12, FR-ACT-13: the row actions of the directory pickers. `row` is `None`
+/// on an empty list, which does nothing. Ctrl-p is answered by the picker loop (`Step::Profile`).
+fn dir_action(ctx: &Ctx<'_>, option: &ProfileOpt, action: Action, row: Option<&AbsPath>) -> Step {
+    let Some(dir) = row else {
+        return no_action();
+    };
+    match action {
+        Action::Rebuild => rebuild_row(ctx, dir, option),
+        Action::Kill => kill_row(ctx, dir),
+        Action::Profile => Step::Profile,
+        _ => no_action(),
+    }
+}
+
+/// FR-ACT-02, FR-ACT-12, FR-PICK-09: ctrl-r rebuilds the session of the row, or creates it when it is missing, with
+/// the picker's profile option. A directory that is gone is reported as an enter on it is.
+fn rebuild_row(ctx: &Ctx<'_>, dir: &AbsPath, option: &ProfileOpt) -> Step {
+    if !ctx.fs.is_dir(Path::new(dir.as_str())) {
+        return missing_step(dir);
+    }
+    match rebuild(ctx, dir, option) {
+        Ok(_) => Step::Continue {
+            status: None,
+            reload: true,
+        },
+        Err(error) => failed(error),
+    }
+}
+
+/// FR-ACT-01, FR-ACT-13, FR-ACT-07, D-17: ctrl-x kills the managed session of the row and the list is shown again.
+/// A row without a managed session has nothing to kill. The refusal for the session the user is in is the status line.
+fn kill_row(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
+    let sessions = match live_sessions(ctx) {
+        Ok(sessions) => sessions,
+        Err(error) => return failed(error),
+    };
+    if live_session(&sessions, dir).is_none() {
+        return no_action();
+    }
+    match kill(ctx, &session_name(dir)) {
+        Ok(_) => Step::Continue {
+            status: None,
+            reload: true,
+        },
+        Err(error) => failed(error),
+    }
+}
+
+/// FR-PROF-13, FR-ACT-04, FR-ACT-12, A-08: ctrl-p. The nested profile picker lists the profile of the session of `dir`
+/// first (when the session exists), then the default profile, then the others and basic by name. Enter rebuilds the
+/// session with the chosen profile; a failure is its message in the status line. Escape changes nothing.
+fn profile_then_rebuild(ctx: &Ctx<'_>, dir: &AbsPath) -> Result<Step> {
+    let sessions = live_sessions(ctx)?;
+    let current = live_session(&sessions, dir).and_then(|info| info.profile.clone());
+    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
+    let files = store::profile_files(ctx.fs, &ctx.dirs);
+    let choices = profile_choices(
+        &files,
+        current.as_deref(),
+        config.default_profile.as_deref(),
+    );
+    let rows: Vec<PickerRow<String>> = choices.iter().map(profile_row).collect();
+    let model = PickerModel::new(rows.clone(), profile_chrome());
+    let mut handler = ProfileHandler { rows };
+    match run_in_terminal(ctx, model, &mut handler)? {
+        PickerResult::Chosen(name) => Ok(match rebuild(ctx, dir, &ProfileOpt::Named(name)) {
+            Ok(_) => Step::Continue {
+                status: None,
+                reload: true,
+            },
+            Err(error) => failed(error),
+        }),
+        PickerResult::Cancelled | PickerResult::Profile(_) => Ok(no_action()),
+        PickerResult::Closed(outcome) => Ok(Step::Close(outcome)),
+    }
+}
+
 /// Runs a directory picker and opens the chosen directory (FR-PICK-08, FR-HIST-04). The open runs after the
-/// picker has restored the terminal, so an attach works on a normal terminal (architecture 6.5).
+/// picker has restored the terminal, so an attach works on a normal terminal (architecture 6.5). A ctrl-p request
+/// runs the profile picker for the row, then the directory picker is opened again with its rows and the row selected.
 fn run_dir_picker(
     ctx: &Ctx<'_>,
-    model: PickerModel<AbsPath>,
+    mut model: PickerModel<AbsPath>,
     handler: &mut dyn PickerHandler<AbsPath>,
     option: &ProfileOpt,
 ) -> Result<Outcome> {
+    loop {
+        let chrome = model.chrome().clone();
+        match run_in_terminal(ctx, model, handler)? {
+            PickerResult::Chosen(dir) => return open_dir(ctx, Some(dir.as_str()), option),
+            PickerResult::Cancelled => return Ok(Outcome::Cancelled),
+            PickerResult::Closed(outcome) => return Ok(outcome),
+            PickerResult::Profile(dir) => {
+                let status = match profile_then_rebuild(ctx, &dir)? {
+                    Step::Close(outcome) => return Ok(outcome),
+                    Step::Continue { status, .. } => status,
+                    Step::Accept | Step::Profile => None,
+                };
+                let rows = preselect_row(handler.reload()?, &dir);
+                model = PickerModel::new(rows, chrome);
+                model.set_status(status);
+            }
+        }
+    }
+}
+
+/// Opens one picker on a fresh terminal and runs it. The terminal is restored when the picker returns (FR-TUI-06).
+fn run_in_terminal<T: Clone>(
+    ctx: &Ctx<'_>,
+    model: PickerModel<T>,
+    handler: &mut dyn PickerHandler<T>,
+) -> Result<PickerResult<T>> {
     let term = ctx.terminal.open().map_err(LedgeError::Fatal)?;
     let color = render::color_enabled(
         ctx.env.var("NO_COLOR").as_deref(),
         ctx.env.var("TERM").as_deref(),
     );
-    match run_picker(model, handler, term, ctx.signals, color)? {
-        PickerResult::Chosen(dir) => open_dir(ctx, Some(dir.as_str()), option),
-        PickerResult::Cancelled => Ok(Outcome::Cancelled),
-        PickerResult::Closed(outcome) => Ok(outcome),
+    run_picker(model, handler, term, ctx.signals, color)
+}
+
+/// Selects the row of `dir` again after a nested picker (the selection returns to the row that was acted on).
+fn preselect_row(mut rows: Vec<DirRow>, dir: &AbsPath) -> Vec<DirRow> {
+    for row in rows.iter_mut() {
+        row.preselect = row.payload.as_str() == dir.as_str();
     }
+    rows
+}
+
+/// Enter and the keys of the profile picker. Ctrl and alt keys do nothing here, so the picker is never nested.
+struct ProfileHandler {
+    rows: Vec<PickerRow<String>>,
+}
+
+impl PickerHandler<String> for ProfileHandler {
+    fn choose(&mut self, _row: &String) -> Step {
+        Step::Accept
+    }
+
+    fn act(&mut self, _action: Action, _row: Option<&String>) -> Step {
+        no_action()
+    }
+
+    fn reload(&mut self) -> Result<Vec<PickerRow<String>>> {
+        Ok(self.rows.clone())
+    }
+}
+
+/// FR-PROF-13: one row of the profile picker. The current and default labels come first; a profile with both labels
+/// is one row (A-11). The search matches the profile name.
+fn profile_row(choice: &ProfileChoice) -> PickerRow<String> {
+    let mut labels = Vec::new();
+    if choice.current {
+        labels.push(messages::profile_current(&choice.name));
+    }
+    if choice.default {
+        labels.push(messages::profile_default(&choice.name));
+    }
+    let text = if labels.is_empty() {
+        choice.name.clone()
+    } else {
+        labels.join(" ")
+    };
+    PickerRow::new(vec![text], &choice.name, choice.name.clone())
+}
+
+/// Architecture 6.2: the profile picker chrome.
+fn profile_chrome() -> Chrome {
+    Chrome::new(
+        messages::PROFILES_LABEL,
+        render::icon::PROFILES,
+        vec![ColumnSpec::text(messages::HEADER_PROFILE)],
+        messages::PROFILE_PICKER_FOOTER,
+    )
 }
 
 /// FR-PICK-13, D-13: the name of the non-basic profile the open uses, or `None` for the basic layout.

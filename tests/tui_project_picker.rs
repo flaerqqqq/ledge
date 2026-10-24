@@ -10,10 +10,10 @@ use ledge::app::build::ensure_session;
 use ledge::app::pickers::{history_picker, project_picker};
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
-use ledge::domain::profile::Profile;
+use ledge::domain::profile::{Profile, ProfileName};
 use ledge::domain::profile_rules::ProfileOpt;
 use ledge::error::{LedgeError, Outcome};
-use ledge::ports::backend::SessionBackend;
+use ledge::ports::backend::{NewSession, SessionBackend, OPT_PROFILE};
 use ledge::tui::terminal::Input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
@@ -429,4 +429,293 @@ fn missing_history_entry_is_marked_and_keeps_the_picker_open() {
         line_with(&lines, "Missing directory: ").contains(&format!("Missing directory: {gone}"))
     );
     assert_eq!(restores(&h), 1);
+}
+
+// ---------------------------------------------------------------------------------------------
+// S-15: session actions on the picker rows (ctrl-x kill, ctrl-r rebuild, ctrl-p profile then rebuild)
+// ---------------------------------------------------------------------------------------------
+
+const WEB_PROFILE: &str = r#"{"windows": [{"name": "server", "command": "npm start"}]}"#;
+const TMUX_SET: &str = "/tmp/tmux-1000/default,1,0";
+
+fn ctrl(c: char) -> Input {
+    Input::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL))
+}
+
+/// Names of the sessions on the fake server.
+fn live_names(h: &Harness) -> Vec<String> {
+    h.backend
+        .list_sessions()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|session| session.name)
+        .collect()
+}
+
+/// Window names of the session of `dir`.
+fn windows_of(h: &Harness, dir: &str) -> Vec<String> {
+    h.backend.window_names(&name_of(dir))
+}
+
+/// The recorded profile option (`@ledge_profile`) of the session of `dir`.
+fn profile_of(h: &Harness, dir: &str) -> Option<String> {
+    h.backend.option(&name_of(dir), OPT_PROFILE)
+}
+
+/// A managed session of `dir` built from the profile `name` with the given text.
+fn live_with_profile(h: &Harness, dir: &str, name: &str, text: &str) {
+    let profile_name = ProfileName::parse(name).expect("valid profile name");
+    let profile = Profile::parse(&profile_name, text).expect("valid profile");
+    ensure_session(&h.backend, &AbsPath::clean(dir, &AbsPath::root()), &profile)
+        .expect("create session");
+}
+
+// FR-ACT-01: ctrl-x kills the managed session of the selected row, and the list is shown again without it
+#[test]
+fn kill_key_kills_the_selected_session_and_reopens_the_list() {
+    let mut h = Harness::new("tui_actions-kill");
+    search_config(&h);
+    h.terminal.set_size(220, 24);
+    let app = h.project("app");
+    let lib = h.project("lib");
+    live(&h, &lib);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![down(), ctrl('x'), esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert!(!live_names(&h).contains(&name_of(&lib)));
+    let lines = screen(&h);
+    let lib_row = line_with(&lines, "lib");
+    assert!(lib_row.contains("○"), "{lib_row}");
+    assert!(!lib_row.contains(&name_of(&lib)), "{lib_row}");
+    assert_eq!(restores(&h), 1);
+}
+
+// FR-ACT-01, FR-ACT-13: ctrl-x on a row without a managed session does nothing; an unmanaged session of the
+// same name is left alone and the other session is untouched
+#[test]
+fn kill_key_on_a_row_without_a_managed_session_does_nothing() {
+    let mut h = Harness::new("tui_actions-kill-noop");
+    search_config(&h);
+    let app = h.project("app");
+    let lib = h.project("lib");
+    live(&h, &lib);
+    h.backend
+        .create_session(&NewSession {
+            name: name_of(&app),
+            dir: app.clone(),
+            window_name: "main".to_string(),
+        })
+        .expect("create unmanaged session");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('x'), esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let names = live_names(&h);
+    assert!(names.contains(&name_of(&app)), "{names:?}");
+    assert!(names.contains(&name_of(&lib)), "{names:?}");
+}
+
+// FR-ACT-07, D-17: ctrl-x on the session the user is in is refused; the status line says so and nothing is killed
+#[test]
+fn kill_key_refuses_the_session_the_user_is_in() {
+    let mut h = Harness::new("tui_actions-kill-current");
+    search_config(&h);
+    h.terminal.set_size(220, 24);
+    let app = h.project("app");
+    live(&h, &app);
+    h.env = h.env.clone().with_var("TMUX", TMUX_SET);
+    h.backend
+        .switch_client(&name_of(&app))
+        .expect("switch client");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('x'), esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(live_names(&h), vec![name_of(&app)]);
+    assert!(
+        line_with(&screen(&h), "cannot kill the session you are in.")
+            .contains("cannot kill the session you are in."),
+    );
+}
+
+// FR-ACT-01: ctrl-x works in the history picker as well
+#[test]
+fn kill_key_works_in_the_history_picker() {
+    let h = Harness::new("tui_actions-kill-history");
+    let a = h.project("a");
+    let b = h.project("b");
+    write_history(&h, &format!("{b}\n{a}\n"));
+    live(&h, &b);
+    h.terminal.script(vec![ctrl('x'), esc()]);
+    let outcome = history_picker(&h.ctx(), &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert!(live_names(&h).is_empty());
+}
+
+// FR-ACT-02, FR-ACT-12: ctrl-r creates the missing session of the selected row with the --profile option
+#[test]
+fn rebuild_key_creates_the_missing_session_with_the_profile_option() {
+    let mut h = Harness::new("tui_actions-rebuild-create");
+    search_config(&h);
+    h.write_profile("dev", DEV_PROFILE);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('r'), esc()]);
+    let option = ProfileOpt::Named("dev".to_string());
+    assert_eq!(
+        project_picker(&h.ctx(), None, &option),
+        Ok(Outcome::Cancelled)
+    );
+    assert_eq!(
+        windows_of(&h, &app),
+        vec!["editor".to_string(), "shell".to_string()]
+    );
+    assert_eq!(profile_of(&h, &app), Some("dev".to_string()));
+}
+
+// FR-ACT-03, FR-ACT-12: ctrl-r on a live session kills it and builds it again from the --profile option
+#[test]
+fn rebuild_key_rebuilds_a_live_session_from_the_profile_option() {
+    let mut h = Harness::new("tui_actions-rebuild-live");
+    search_config(&h);
+    h.write_profile("dev", DEV_PROFILE);
+    let app = h.project("app");
+    live(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('r'), esc()]);
+    let option = ProfileOpt::Named("dev".to_string());
+    assert_eq!(
+        project_picker(&h.ctx(), None, &option),
+        Ok(Outcome::Cancelled)
+    );
+    assert_eq!(
+        windows_of(&h, &app),
+        vec!["editor".to_string(), "shell".to_string()]
+    );
+}
+
+// FR-PICK-09: ctrl-r on a directory that is gone shows its message, builds nothing and keeps the picker open
+#[test]
+fn rebuild_key_on_a_missing_directory_keeps_the_picker_open() {
+    let mut h = Harness::new("tui_actions-rebuild-missing");
+    search_config(&h);
+    h.terminal.set_size(220, 24);
+    let app = h.project("app");
+    let gone = h.project("gone");
+    h.terminal.remove_on_open(PathBuf::from(&gone));
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![down(), ctrl('r'), esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert!(live_names(&h).is_empty());
+    assert!(line_with(&screen(&h), "Missing directory: ")
+        .contains(&format!("Missing directory: {gone}")));
+}
+
+// FR-PROF-13, A-11: ctrl-p opens the profile picker with the current profile first, then the default, then the
+// other profiles and basic by name; its border label and key footer are the profile picker's
+#[test]
+fn profile_key_opens_the_profile_picker_in_the_listed_order() {
+    let mut h = Harness::new("tui_actions-profile-order");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\"], \"default_profile\": \"web\"}}",
+        h.root().join("projects").display()
+    ));
+    h.write_profile("dev", DEV_PROFILE);
+    h.write_profile("web", WEB_PROFILE);
+    h.write_profile("ops", WEB_PROFILE);
+    let app = h.project("app");
+    live_with_profile(&h, &app, "ops", WEB_PROFILE);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let records = h.terminal.records();
+    assert_eq!(records.len(), 3, "parent, profile picker, parent again");
+    let nested = records[1].borrow().lines.clone();
+    let rows = ["[Current: ops]", "[Default: web]", "basic", "dev"];
+    let positions: Vec<usize> = rows
+        .iter()
+        .map(|needle| {
+            nested
+                .iter()
+                .position(|line| line.contains(needle))
+                .unwrap_or_else(|| panic!("no row {needle:?} in {nested:#?}"))
+        })
+        .collect();
+    assert!(
+        positions.windows(2).all(|pair| pair[0] < pair[1]),
+        "{nested:#?}"
+    );
+    assert!(line_with(&nested, "≡ Profiles").contains("≡ Profiles"));
+    assert!(line_with(&nested, "enter choose · esc cancel").contains("enter choose · esc cancel"));
+}
+
+// FR-ACT-04, FR-ACT-12: ctrl-p, then a profile, rebuilds the selected session with the chosen profile
+#[test]
+fn profile_key_then_choice_rebuilds_the_session_with_that_profile() {
+    let mut h = Harness::new("tui_actions-profile-rebuild");
+    search_config(&h);
+    h.write_profile("dev", DEV_PROFILE);
+    let app = h.project("app");
+    live(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), enter()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(
+        windows_of(&h, &app),
+        vec!["editor".to_string(), "shell".to_string()]
+    );
+    assert_eq!(profile_of(&h, &app), Some("dev".to_string()));
+}
+
+// A-08: escape in the nested profile picker returns to the parent with no change to the session
+#[test]
+fn escape_in_the_profile_picker_returns_to_the_parent_without_change() {
+    let mut h = Harness::new("tui_actions-profile-escape");
+    search_config(&h);
+    h.write_profile("dev", DEV_PROFILE);
+    let app = h.project("app");
+    live(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![esc()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(h.terminal.opened(), 3);
+    assert_eq!(windows_of(&h, &app), vec!["Terminal".to_string()]);
+    assert_eq!(live_names(&h), vec![name_of(&app)]);
+}
+
+// FR-PROF-11 (S-15 acceptance): a profile that fails to load shows its message in the status line of the parent,
+// which stays open; the session keeps running
+#[test]
+fn profile_that_fails_to_load_reports_in_the_status_line() {
+    let mut h = Harness::new("tui_actions-profile-broken");
+    search_config(&h);
+    h.write_profile("broken", "{");
+    let app = h.project("app");
+    live(&h, &app);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![ctrl('p')]);
+    h.terminal.queue(vec![down(), enter()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let records = h.terminal.records();
+    let parent = records[2].borrow().lines.clone();
+    assert!(
+        line_with(&parent, "profile 'broken' is invalid JSON")
+            .contains("profile 'broken' is invalid JSON"),
+        "{parent:#?}"
+    );
+    assert_eq!(windows_of(&h, &app), vec!["Terminal".to_string()]);
+    assert_eq!(live_names(&h), vec![name_of(&app)]);
 }

@@ -250,7 +250,7 @@ have no FR-IDs state why.
 - branch: slice/14-rebuild-kill
 
 ### S-15 Picker actions and the profile picker
-- status: in-progress
+- status: done
 - deps: S-13, S-14, S-08
 - FR-IDs: FR-ACT-01, FR-ACT-04, FR-ACT-12, FR-PROF-13
 - scope: `app/pickers.rs` (action wiring: ctrl-r, ctrl-p, ctrl-x for project, history, switcher-ready helpers), `domain/profile_rules.rs`
@@ -264,7 +264,7 @@ have no FR-IDs state why.
 - branch: slice/15-picker-actions
 
 ### S-16 Session switcher
-- status: blocked
+- status: in-progress
 - deps: S-15, S-11
 - FR-IDs: FR-SESS-01, FR-SESS-02, FR-SESS-03, FR-SESS-04
 - scope: `app/pickers.rs` (switcher), `app/session_cmd.rs` (switcher entry), `domain/age.rs`, `domain/sessions.rs` (switcher order).

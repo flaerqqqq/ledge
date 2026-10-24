@@ -644,3 +644,14 @@ fn resize_keeps_the_selected_row_visible_in_the_engine() {
     assert!(screen.contains("row19"), "{screen}");
     assert_eq!(record.borrow().restores, 1);
 }
+
+// FR-ACT-04, D-12: a Profile step returns the row to the caller as a profile request; the picker is not closed
+// by the engine's own rules and nothing else runs
+#[test]
+fn profile_step_returns_the_row_as_a_profile_request() {
+    let mut handler = Recorder::new(3);
+    handler.act_step = Step::Profile;
+    let (result, record) = run_engine(3, vec![ctrl('p')], &mut handler, &FakeSignals::none());
+    assert_eq!(result.unwrap(), PickerResult::Profile(0));
+    assert_eq!(record.borrow().restores, 1);
+}

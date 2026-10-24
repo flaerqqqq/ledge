@@ -96,6 +96,18 @@ pub fn load_profile(fs: &dyn FileSystem, dirs: &Dirs, name: &str) -> Result<Prof
     }
 }
 
+/// FR-PROF-13: the names of the profile files in the profiles folder, without the `.json` suffix. A missing folder
+/// gives none. Names are not checked here; the profile rules skip invalid ones.
+pub fn profile_files(fs: &dyn FileSystem, dirs: &Dirs) -> Vec<String> {
+    let profiles = PathBuf::from(dirs.config.as_str()).join(PROFILES_FOLDER);
+    fs.list_files(&profiles)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|file| file.strip_suffix(".json"))
+        .map(str::to_string)
+        .collect()
+}
+
 /// FR-HIST-01, FR-HIST-02, architecture 9.4: reads the history file from the cache folder. A missing
 /// file gives an empty history.
 pub fn load_history(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<History> {

@@ -226,3 +226,19 @@ pub fn could_not_kill_session(name: &str, detail: &str) -> String {
 pub fn could_not_rename_session(old: &str, new: &str, detail: &str) -> String {
     format!("could not rename session '{old}' to '{new}': {detail}")
 }
+
+/// FR-PROF-13: the profile picker row label of the profile the session being rebuilt uses.
+pub fn profile_current(name: &str) -> String {
+    format!("[Current: {name}]")
+}
+
+/// FR-PROF-13: the profile picker row label of the config's default profile.
+pub fn profile_default(name: &str) -> String {
+    format!("[Default: {name}]")
+}
+
+/// FR-PROF-13: the border label of the profile picker (architecture 6.2).
+pub const PROFILES_LABEL: &str = "Profiles";
+
+/// Architecture 6.2 and A-03: the key footer of the profile picker.
+pub const PROFILE_PICKER_FOOTER: &str = "enter choose · esc cancel";

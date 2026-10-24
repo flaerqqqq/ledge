@@ -276,3 +276,23 @@ Format:
   (f) D-04 warning order: a recorded profile that fails gives the FR-PROF-15 warning, then the default profile; a default that also fails gives the FR-PROF-12 warning and the single window. Each warning once per rebuild.
 - why: each choice is the smallest one that passes the S-14 tests; none changes an accepted decision. Items (b) and (e) are the open edges.
 - status: Open
+
+### P-28 S-15 picker engine: ctrl-p hands the row to the caller
+- from: implementer / slice S-15
+- doc: docs/architecture.md (6.4 engine loop, the `Step` and `PickerResult` listings; 6.3 ctrl-p row)
+- change: (a) `tui::engine::Step` gains `Step::Profile`, returned by `act` for ctrl-p on a row. The engine returns `PickerResult::Profile(row)` for it (`PickerResult` gains that variant). `Step::Profile` with no row is a no-op. (b) The caller (`app::pickers`) then runs the profile picker in a new terminal, applies the choice with the rebuild service (FR-ACT-04, FR-ACT-12), and opens the directory picker again on a new terminal with its rows reloaded and the acted row selected. The profile picker is never nested inside the engine loop, because the engine owns the one terminal. Architecture 6.4 lists the three `Step` variants and three `PickerResult` variants; this is the change to those listings.
+- why: the engine owns the terminal and returns only a result, so a second picker cannot run inside its loop without a redesign. The smallest change keeps the policy in the handler and the loop in the engine. Tests: tests/tui_engine.rs (profile_step_returns_the_row_as_a_profile_request), tests/tui_project_picker.rs (profile_* and escape_in_the_profile_picker_*).
+- status: Open
+
+### P-29 S-15 picker action rules the spec leaves open
+- from: implementer / slice S-15
+- doc: requirements.md (Screens and interactions, Profiles FR-PROF-13, FR-ACT-02), docs/architecture.md (6.2, A-11, A-08) and docs/backlog.md (S-15)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) after a profile choice or an escape in the profile picker, the directory picker reopens with its rows reloaded and the acted row selected; the filter text is cleared (A-08 says "no change"; keeping the filter needs the engine to return the model, see P-28).
+  (b) ctrl-r on a directory that is gone shows `Missing directory: <path>` and builds nothing, as enter does (FR-PICK-09). The spec says ctrl-r is "Always" and says nothing about a missing directory.
+  (c) a profile row shows its labels as the row text, joined with one space when both apply: `[Current: dev] [Default: dev]`, `[Current: ops]`, `[Default: web]`; other rows show the profile name. FR-PROF-13 names the labels but not the row layout.
+  (d) the profile list is the profile files whose names are valid (D-13), plus `basic`, minus those already listed as current or default. A current or default profile is listed even when its file is missing, so choosing it reports the profile error (A-11).
+  (e) ctrl-x on a row without a managed session does nothing and does not reopen the list; ctrl-x on the session the user is in shows `cannot kill the session you are in.` in the status line (D-17), as P-27 (b) already states.
+- why: each choice is the smallest one that passes the S-15 tests; none changes an accepted decision. (a) and (c) are the visible ones.
+- status: Open
+

@@ -124,11 +124,12 @@ impl TerminalSession for FakeTerminal {
 /// from the scripted inputs and keeps its record for the test. `remove_on_open` deletes a folder when the
 /// picker opens, after its rows were read, to model a directory that vanishes while the list is open (FR-PICK-09).
 pub struct FakeTerminalFactory {
-    inputs: RefCell<Vec<Input>>,
+    /// One script per picker that opens, in order (a nested picker takes the next one).
+    scripts: RefCell<VecDeque<Vec<Input>>>,
     width: StdCell<u16>,
     height: StdCell<u16>,
     opened: StdCell<usize>,
-    last: RefCell<Option<Rc<RefCell<Record>>>>,
+    records: RefCell<Vec<Rc<RefCell<Record>>>>,
     vanish: RefCell<Vec<PathBuf>>,
 }
 
@@ -136,11 +137,11 @@ impl FakeTerminalFactory {
     /// An 80x24 screen with no scripted input.
     pub fn new() -> Self {
         Self {
-            inputs: RefCell::new(Vec::new()),
+            scripts: RefCell::new(VecDeque::new()),
             width: StdCell::new(80),
             height: StdCell::new(24),
             opened: StdCell::new(0),
-            last: RefCell::new(None),
+            records: RefCell::new(Vec::new()),
             vanish: RefCell::new(Vec::new()),
         }
     }
@@ -151,9 +152,17 @@ impl FakeTerminalFactory {
         self.height.set(height);
     }
 
-    /// The inputs the next picker reads, in order.
+    /// The inputs the next picker reads, in order. Replaces any queued scripts.
     pub fn script(&self, inputs: Vec<Input>) {
-        *self.inputs.borrow_mut() = inputs;
+        let mut scripts = self.scripts.borrow_mut();
+        scripts.clear();
+        scripts.push_back(inputs);
+    }
+
+    /// Adds the inputs of a later picker: the first picker takes the first script, the next one (for
+    /// example a nested profile picker) takes the next.
+    pub fn queue(&self, inputs: Vec<Input>) {
+        self.scripts.borrow_mut().push_back(inputs);
     }
 
     /// Deletes `path` when the next picker opens.
@@ -168,7 +177,12 @@ impl FakeTerminalFactory {
 
     /// The record of the last terminal opened: restores, draws and the last screen.
     pub fn last_record(&self) -> Option<Rc<RefCell<Record>>> {
-        self.last.borrow().clone()
+        self.records.borrow().last().cloned()
+    }
+
+    /// The records of every terminal opened, in order (the screen of each picker of a flow).
+    pub fn records(&self) -> Vec<Rc<RefCell<Record>>> {
+        self.records.borrow().clone()
     }
 }
 
@@ -178,10 +192,10 @@ impl TerminalFactory for FakeTerminalFactory {
         for path in self.vanish.borrow().iter() {
             let _ = fs::remove_dir_all(path);
         }
-        let inputs = std::mem::take(&mut *self.inputs.borrow_mut());
+        let inputs = self.scripts.borrow_mut().pop_front().unwrap_or_default();
         let term = FakeTerminal::new(self.width.get(), self.height.get(), inputs)
             .map_err(|e| e.to_string())?;
-        *self.last.borrow_mut() = Some(term.record());
+        self.records.borrow_mut().push(term.record());
         Ok(Box::new(term))
     }
 }
