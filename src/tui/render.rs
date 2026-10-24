@@ -11,13 +11,22 @@ use crate::tui::theme::{Theme, Token};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, BorderType, Paragraph};
 use ratatui::Frame;
 
 /// The selection bar, drawn in column 0 of the selected row (design 3.1, 9.2a).
 const BAR: &str = "▌";
 /// Cells the selection bar takes from the inner width.
 const BAR_WIDTH: usize = 1;
+/// Blank cells inside the frame on the left and on the right of every line (design 3.1).
+const MARGIN: usize = 1;
+/// The header rule under the column titles (design 3.1).
+const RULE: &str = "─";
+
+/// Cells of a list line that the columns take: the inner width less both margins and the selection bar.
+fn content_width(full: usize) -> usize {
+    full.saturating_sub(2 * MARGIN + BAR_WIDTH)
+}
 
 /// Smallest terminal the picker draws in (A-06). Below it only the too-small line is shown.
 pub const MIN_WIDTH: u16 = 40;
@@ -70,23 +79,33 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
         frame.render_widget(Block::new().style(Style::new().bg(background)), area);
     }
     let chrome = model.chrome();
+    // The label as the section 3 mock-ups draw it: the icon at the corner, one blank before the rule.
     let title = Span::styled(
-        format!("{} {}", chrome.icon, chrome.label),
+        format!("{} {} ", chrome.icon, chrome.label),
         paint(theme, Token::Accent, color),
     );
+    // The footer keys sit in the bottom edge, fitted to the cells between the corners and the one-cell padding of
+    // the edge (design 3.1). Pairs are dropped from the end when they do not fit (design 4.2).
+    let footer_source = match (&chrome.empty_footer, model.rows().is_empty()) {
+        (Some(empty), true) => empty.as_str(),
+        _ => chrome.footer.as_str(),
+    };
+    let footer_text = columns::fit_pairs(footer_source, usize::from(area.width).saturating_sub(4));
     let block = Block::bordered()
+        .border_type(BorderType::Rounded)
         .border_style(paint(theme, Token::Border, color))
-        .title(Line::from(title));
+        .title(Line::from(title))
+        .title_bottom(footer_line(&footer_text, theme, color));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     // The prompt row has no height unless the picker filters (architecture 6.2, D-15) or the edit window's search bar
     // is open or keeps a match (FR-EDIT-13).
     let prompted = model.has_prompt();
-    let [prompt, header, list, status, footer] = Layout::vertical([
+    let [prompt, header, rule, list, status] = Layout::vertical([
         Constraint::Length(u16::from(prompted)),
         Constraint::Length(1),
-        Constraint::Min(0),
         Constraint::Length(1),
+        Constraint::Min(0),
         Constraint::Length(1),
     ])
     .areas(inner);
@@ -101,22 +120,24 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
             messages::edit_search_prompt()
         };
         let line = Line::from(vec![
+            Span::raw(" ".repeat(MARGIN)),
             Span::styled(lead.to_string(), paint(theme, Token::TextMuted, color)),
             Span::styled(filter.to_string(), paint(theme, Token::Text, color)),
         ]);
         frame.render_widget(Paragraph::new(line), prompt);
         let cursor = prompt
             .x
-            .saturating_add(u16::try_from(columns::width(lead)).unwrap_or(u16::MAX))
+            .saturating_add(u16::try_from(MARGIN + columns::width(lead)).unwrap_or(u16::MAX))
             .saturating_add(u16::try_from(columns::width(filter)).unwrap_or(u16::MAX))
             .min(prompt.right().saturating_sub(1));
         frame.set_cursor_position((cursor, prompt.y));
     }
 
     let full = usize::from(inner.width);
-    let widths = column_widths(model, full.saturating_sub(BAR_WIDTH));
+    let widths = column_widths(model, content_width(full));
 
-    // Column titles: text_muted and bold (design 3.1). Column 0 is blank, where the selection bar is drawn.
+    // Column titles: text_muted and bold (design 3.1). The first cell after the margin is blank, where the selection
+    // bar is drawn.
     let title_style = paint(theme, Token::TextMuted, color).add_modifier(Modifier::BOLD);
     let header_parts: Vec<Vec<Span<'static>>> = chrome
         .columns
@@ -129,44 +150,46 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
             )]
         })
         .collect();
-    let mut header_line = vec![Span::raw(" ".repeat(BAR_WIDTH))];
+    let mut header_line = vec![Span::raw(" ".repeat(MARGIN + BAR_WIDTH))];
     header_line.extend(join(header_parts));
     frame.render_widget(Paragraph::new(Line::from(header_line)), header);
+
+    // The rule under the titles: a dim line across the inner width (design 3.1).
+    let mut rule_style = paint(theme, Token::Border, color);
+    if color {
+        rule_style = rule_style.add_modifier(Modifier::DIM);
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(RULE.repeat(full), rule_style))),
+        rule,
+    );
 
     let lines = list_lines(model, &widths, theme, color, full);
     frame.render_widget(Paragraph::new(lines), list);
 
-    // Status row: an error is in the error token and bold; information is in text (design 4.5).
+    // Status row, above the bottom border: an error is in the error token and bold; information is dim (design 4.5).
     let status_text = model.status().unwrap_or("");
     let status_token = if model.status_is_error() {
         Token::Error
     } else {
-        Token::Text
+        Token::TextMuted
     };
     let status_line = Span::styled(
-        columns::cut_end(status_text, usize::from(inner.width)),
+        columns::cut_end(status_text, full.saturating_sub(2 * MARGIN)),
         paint(theme, status_token, color),
     );
-    frame.render_widget(Paragraph::new(Line::from(status_line)), status);
-
-    // Footer: whole key pairs are dropped from the end when too wide (design 4.2); keys in text, labels in text_muted.
-    // A window with no rows may have its own footer (design 3.2: `esc close`, P-59).
-    let footer_source = match (&chrome.empty_footer, model.rows().is_empty()) {
-        (Some(empty), true) => empty.as_str(),
-        _ => chrome.footer.as_str(),
-    };
-    let footer_text = columns::fit_pairs(footer_source, usize::from(inner.width));
     frame.render_widget(
-        Paragraph::new(footer_line(&footer_text, theme, color)),
-        footer,
+        Paragraph::new(Line::from(vec![Span::raw(" ".repeat(MARGIN)), status_line])),
+        status,
     );
 }
 
-/// A footer: each key and label pair is `key label`, pairs separated by the separator (design 4.2).
+/// A footer, in the bottom edge of the frame: each key and label pair is `key label`, pairs separated by the separator
+/// (design 4.2). One blank cell is left on each side of the text, so it does not touch the corners.
 fn footer_line(text: &str, theme: &Theme, color: bool) -> Line<'static> {
     let key = paint(theme, Token::Text, color);
     let label = paint(theme, Token::TextMuted, color);
-    let mut spans = Vec::new();
+    let mut spans = vec![Span::raw(" ")];
     for (index, pair) in text.split(columns::PAIR_SEP).enumerate() {
         if index > 0 {
             spans.push(Span::styled(columns::PAIR_SEP.to_string(), label));
@@ -179,6 +202,7 @@ fn footer_line(text: &str, theme: &Theme, color: bool) -> Line<'static> {
             None => spans.push(Span::styled(pair.to_string(), key)),
         }
     }
+    spans.push(Span::raw(" "));
     Line::from(spans)
 }
 
@@ -294,10 +318,10 @@ fn list_lines<T>(
             .empty_message
             .iter()
             .map(|text| {
-                Line::from(Span::styled(
-                    text.clone(),
-                    paint(theme, Token::TextMuted, color),
-                ))
+                Line::from(vec![
+                    Span::raw(" ".repeat(MARGIN)),
+                    Span::styled(text.clone(), paint(theme, Token::TextMuted, color)),
+                ])
             })
             .collect();
     }
@@ -368,11 +392,16 @@ fn row_line<T>(
             )
         })
         .collect();
-    let mut spans = vec![if selected {
-        Span::styled(BAR, paint(theme, Token::Accent, color))
-    } else {
-        Span::raw(" ".repeat(BAR_WIDTH))
-    }];
+    // The left margin, the bar (or a blank in its place), the cells, and the padding that runs to the right edge of
+    // the inner width, so a selected row covers both margins too (design 3.1, 5).
+    let mut spans = vec![
+        Span::raw(" ".repeat(MARGIN)),
+        if selected {
+            Span::styled(BAR, paint(theme, Token::Accent, color))
+        } else {
+            Span::raw(" ".repeat(BAR_WIDTH))
+        },
+    ];
     spans.extend(join(parts));
     if selected {
         let used: usize = spans.iter().map(Span::width).sum();
@@ -385,7 +414,7 @@ fn row_line<T>(
             for (index, span) in spans.iter_mut().enumerate() {
                 // The bar keeps the accent colour; the rest of the row takes the selection colours.
                 span.style = span.style.bg(bg);
-                if index > 0 {
+                if index > 1 {
                     span.style = span.style.fg(fg);
                 }
             }

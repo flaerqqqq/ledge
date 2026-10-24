@@ -7,7 +7,8 @@ use crate::tui::fuzzy;
 use crate::tui::keys::Action;
 use std::ops::Range;
 
-/// Screen rows that are not list rows: the two border rows, prompt, header, status and footer.
+/// Screen rows that are not list rows: the two border rows (the footer is in the bottom one), prompt, header, the
+/// header rule and the status line (design 3.1).
 const CHROME_ROWS: u16 = 6;
 
 /// Rows of the list for a terminal `term_height` rows high (FR-TUI-05).

@@ -3,8 +3,8 @@
 
 use ratatui::text::Span;
 
-/// Cells between two columns.
-pub const GAP: usize = 1;
+/// Cells between two columns (design 3.2).
+pub const GAP: usize = 2;
 const ELLIPSIS: char = '…';
 // A-06 shrink floors: last column 6, search column 12, other columns 4.
 const FLOOR_LAST: usize = 6;
@@ -247,9 +247,9 @@ mod tests {
     fn shrinks_last_then_search_then_others() {
         let natural = [2, 30, 30, 10];
         let fixed = [Some(2), None, None, None];
-        // 40 cells minus 3 gaps leaves 37: the last column goes to 6, the search column to 12,
-        // then the third column to fit.
-        assert_eq!(widths(&natural, &fixed, Some(1), 40), vec![2, 12, 19, 4]);
+        // 40 cells minus 3 gaps of 2 leaves 34: the last column goes to 6, the search column to 12,
+        // then the last column to 4 and the third column to 16 to fit.
+        assert_eq!(widths(&natural, &fixed, Some(1), 40), vec![2, 12, 16, 4]);
     }
 
     // FR-TUI-05, A-06: a row that fits keeps its natural widths

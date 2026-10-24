@@ -493,7 +493,7 @@ have no FR-IDs state why.
 - branch: slice/S-38-picker-design
 
 ### S-39 Visual redesign of the pickers (frame, spacing, header, selection, status)
-- status: in-progress
+- status: done
 - deps: S-38
 - FR-IDs: FR-TUI-04 (header, label, footer), FR-TUI-05 (fit), FR-TUI-09 (cues stay); user direction 2026-10-24: rounded frame, 2-cell column gap, terminal colours kept for the default theme
 - scope: src/tui/render.rs (frame, title, header row, selection, footer, status), src/tui/columns.rs (column gap of 2, margin of 1 inside the frame), theme tokens only where needed (no new colours in the default theme)

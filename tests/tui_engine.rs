@@ -167,12 +167,13 @@ fn chrome_shows_label_prompt_header_status_and_footer() {
     assert!(lines[2].contains("Project"), "header: {:?}", lines[2]);
     assert!(lines[2].contains("Session"), "header: {:?}", lines[2]);
     assert!(lines[2].contains("Profile"), "header: {:?}", lines[2]);
-    assert!(lines[3].contains("/home/u/dev/alpha"), "{:?}", lines[3]);
-    assert!(lines[17].contains("cannot kill the session you are in."));
+    assert!(lines[3].starts_with("│───"), "header rule: {:?}", lines[3]);
+    assert!(lines[4].contains("/home/u/dev/alpha"), "{:?}", lines[4]);
+    assert!(lines[18].contains("cannot kill the session you are in."));
     assert!(
-        lines[18].contains(PROJECT_FOOTER),
+        lines[19].contains(PROJECT_FOOTER),
         "footer: {:?}",
-        lines[18]
+        lines[19]
     );
 }
 
@@ -329,16 +330,16 @@ fn missing_directory_has_the_cue_and_is_dimmed_with_color() {
     drive(&mut model, &mut term, true);
     let (y, line) = line_containing(&term, "(missing)").unwrap();
     assert!(line.contains("/x/gone (missing)"), "{line:?}");
-    assert!(term.cell(2, y).unwrap().modifier.contains(Modifier::DIM));
+    assert!(term.cell(3, y).unwrap().modifier.contains(Modifier::DIM));
     let (y, _) = line_containing(&term, "/x/here").unwrap();
-    assert!(!term.cell(2, y).unwrap().modifier.contains(Modifier::DIM));
+    assert!(!term.cell(3, y).unwrap().modifier.contains(Modifier::DIM));
 
     let mut model = PickerModel::new(rows, chrome);
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
     let (y, line) = line_containing(&term, "(missing)").unwrap();
     assert!(line.contains("/x/gone (missing)"));
-    assert!(!term.cell(2, y).unwrap().modifier.contains(Modifier::DIM));
+    assert!(!term.cell(3, y).unwrap().modifier.contains(Modifier::DIM));
 }
 
 // FR-TUI-09, A-04: the selected row is reverse video, so it shows without color
@@ -368,14 +369,14 @@ fn connector_is_parenthesised_and_gray_with_color() {
     drive(&mut model, &mut term, true);
     let (y, line) = line_containing(&term, "(work)").unwrap();
     assert!(line.contains("  (work)"), "{line:?}");
-    assert_eq!(term.cell(2, y).unwrap().fg, Color::DarkGray);
+    assert_eq!(term.cell(3, y).unwrap().fg, Color::DarkGray);
 
     let mut model = PickerModel::new(vec![connector], chrome);
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
     let (y, line) = line_containing(&term, "(work)").unwrap();
     assert!(line.contains("  (work)"));
-    assert_ne!(term.cell(2, y).unwrap().fg, Color::DarkGray);
+    assert_ne!(term.cell(3, y).unwrap().fg, Color::DarkGray);
 }
 
 /// Column of the first cell of `text` on the row that contains it.
@@ -464,7 +465,7 @@ fn matched_characters_are_bold_and_underlined() {
     let mut term = FakeTerminal::new(60, 12, typed("le")).unwrap();
     drive(&mut model, &mut term, false);
     let (y, _) = line_containing(&term, "ledge").unwrap();
-    for x in [2, 3] {
+    for x in [3, 4] {
         let modifier = term.cell(x, y).unwrap().modifier;
         assert!(
             modifier.contains(Modifier::BOLD | Modifier::UNDERLINED),
@@ -472,7 +473,7 @@ fn matched_characters_are_bold_and_underlined() {
         );
     }
     assert!(!term
-        .cell(4, y)
+        .cell(5, y)
         .unwrap()
         .modifier
         .contains(Modifier::UNDERLINED));
@@ -506,8 +507,9 @@ fn selection_bar_and_reverse_video_cover_the_whole_row() {
     let mut term = FakeTerminal::new(60, 12, vec![key(KeyCode::Down)]).unwrap();
     drive(&mut model, &mut term, false);
     let (y, _) = line_containing(&term, "row01-1a2b").unwrap();
-    assert_eq!(term.cell(1, y).unwrap().symbol(), "▌");
-    // The gap between Name (x 2..=6) and Session is x 7; the row runs to the inner edge (x 58).
+    // The bar is in column 0 of the row, after the left margin (x 1). Reverse video runs from the left margin (x 1)
+    // to the right margin (x 58), gaps included.
+    assert_eq!(term.cell(2, y).unwrap().symbol(), "▌");
     for x in 1..=58 {
         assert!(
             term.cell(x, y)
@@ -517,10 +519,11 @@ fn selection_bar_and_reverse_video_cover_the_whole_row() {
             "x={x}"
         );
     }
+    // The gap between Name (x 3..=7) and Session is x 8..=9.
     let (other, _) = line_containing(&term, "row00-1a2b").unwrap();
-    assert_eq!(term.cell(1, other).unwrap().symbol(), " ");
+    assert_eq!(term.cell(2, other).unwrap().symbol(), " ");
     assert!(!term
-        .cell(7, other)
+        .cell(8, other)
         .unwrap()
         .modifier
         .contains(Modifier::REVERSED));
@@ -535,12 +538,13 @@ fn selection_gap_takes_the_theme_selection_background() {
     drive_themed(&mut model, &mut term, &ink, true);
     let (y, _) = line_containing(&term, "row01-1a2b").unwrap();
     let selection_bg = Color::Rgb(0x39, 0x3b, 0x44);
-    for x in [1, 2, 6, 7, 8, 18, 58] {
+    // Left margin, bar, Name, the gap, Session, its padding, and the right margin.
+    for x in [1, 2, 3, 7, 8, 9, 10, 20, 58] {
         let cell = term.cell(x, y).unwrap();
         assert_eq!(cell.bg, selection_bg, "x={x}");
         assert!(!cell.modifier.contains(Modifier::REVERSED), "x={x}");
     }
-    assert_eq!(term.cell(1, y).unwrap().fg, Color::Rgb(0x7f, 0xb4, 0xca));
+    assert_eq!(term.cell(2, y).unwrap().fg, Color::Rgb(0x7f, 0xb4, 0xca));
 }
 
 // FR-TUI-04, design 4.2: at 60 cells the footer drops whole key pairs from the end, never half a pair
@@ -550,8 +554,11 @@ fn footer_drops_whole_key_pairs_from_the_end_at_60_cells() {
     let mut model = PickerModel::new(named_rows(2), name_chrome(footer));
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
-    let footer = term.lines()[10]
-        .trim_matches(|c: char| c == '│' || c == ' ')
+    // The footer is in the bottom edge, between the corner and the one-cell padding (line 11 at 60x12).
+    let footer = term.lines()[11]
+        .trim_start_matches('╰')
+        .trim_end_matches(|c: char| "─╯ ".contains(c))
+        .trim()
         .to_string();
     assert_eq!(footer, "enter open · ^r rebuild · ^p profile · ^x kill");
 }
@@ -569,8 +576,8 @@ fn long_session_name_is_cut_in_the_middle_keeping_the_hash() {
     let mut model = PickerModel::new(vec![PickerRow::new(vec![name.into()], name, 0)], chrome);
     let mut term = FakeTerminal::new(40, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
-    // 40 cells, 38 inside the border, 1 for the selection bar: 37 cells, the hash is 5 of them.
-    let expected = format!("▌{}…-91bc", &name[..31]);
+    // 40 cells, 38 inside the border, 2 for the margins and 1 for the selection bar: 35 cells, the hash is 5 of them.
+    let expected = format!("▌{}…-91bc", &name[..29]);
     let (_, line) = line_containing(&term, "…-91bc").unwrap();
     assert!(line.contains(&expected), "{line:?}");
 }
@@ -583,9 +590,105 @@ fn error_status_is_bold_and_keeps_its_text() {
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, true);
     let (y, line) = line_containing(&term, "could not kill session").unwrap();
-    assert_eq!(y, 9, "status row");
+    assert_eq!(y, 10, "status row");
     assert!(line.contains("could not kill session 'x'."));
-    assert!(term.cell(1, y).unwrap().modifier.contains(Modifier::BOLD));
+    assert!(term.cell(2, y).unwrap().modifier.contains(Modifier::BOLD));
+}
+
+// design 3.1, 3.3: the frame is rounded; the window label is in the top edge and the footer keys in the bottom edge
+#[test]
+fn frame_is_rounded_with_label_on_top_and_footer_on_bottom() {
+    let mut model = PickerModel::new(named_rows(3), projects_chrome());
+    let mut term = FakeTerminal::new(80, 20, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let lines = term.lines();
+    assert!(
+        lines[0].starts_with("╭▸ Projects & Submodules "),
+        "{:?}",
+        lines[0]
+    );
+    assert!(lines[0].ends_with('╮'), "{:?}", lines[0]);
+    assert!(
+        lines[19].starts_with(&format!("╰ {PROJECT_FOOTER} ")),
+        "footer in the bottom edge: {:?}",
+        lines[19]
+    );
+    assert!(lines[19].ends_with('╯'), "{:?}", lines[19]);
+    assert_eq!(term.cell(0, 0).unwrap().symbol(), "╭");
+    assert_eq!(term.cell(79, 0).unwrap().symbol(), "╮");
+    assert_eq!(term.cell(0, 19).unwrap().symbol(), "╰");
+    assert_eq!(term.cell(79, 19).unwrap().symbol(), "╯");
+    for y in 1..19 {
+        assert_eq!(term.cell(0, y).unwrap().symbol(), "│", "y={y}");
+        assert_eq!(term.cell(79, y).unwrap().symbol(), "│", "y={y}");
+    }
+    // The status row above the bottom border holds no footer keys.
+    assert!(!lines[18].contains(PROJECT_FOOTER), "{:?}", lines[18]);
+}
+
+// design 3.1, 3.2: two cells between columns, in the header row and in the list
+#[test]
+fn columns_are_two_cells_apart_in_the_header_and_the_rows() {
+    let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let lines = term.lines();
+    let header = &lines[2];
+    let (y, row) = line_containing(&term, "row00-1a2b").unwrap();
+    // The name column is 5 cells wide (the widest name), so Session starts 5 + 2 cells after Name.
+    let name_at = cell_x(&row, "row00");
+    let session_at = cell_x(&row, "row00-1a2b");
+    assert_eq!(session_at - name_at, 5 + 2, "{row:?}");
+    assert_eq!(cell_x(header, "Name"), name_at, "{header:?}");
+    assert_eq!(cell_x(header, "Session"), session_at, "{header:?}");
+    for x in name_at + 5..session_at {
+        assert_eq!(term.cell(x, y).unwrap().symbol(), " ", "x={x}");
+    }
+}
+
+// design 3.1: a one-cell margin inside the frame on the left and the right, in the prompt and the list
+#[test]
+fn one_cell_margin_inside_the_frame_on_both_sides() {
+    let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let lines = term.lines();
+    assert!(lines[1].starts_with("│ > "), "{:?}", lines[1]);
+    assert!(lines[1].ends_with(" │"), "{:?}", lines[1]);
+    let (y, _) = line_containing(&term, "row00-1a2b").unwrap();
+    assert_eq!(term.cell(1, y).unwrap().symbol(), " ", "left margin");
+    assert_eq!(term.cell(58, y).unwrap().symbol(), " ", "right margin");
+    assert_eq!(term.cell(59, y).unwrap().symbol(), "│");
+}
+
+// design 3.1: the header row is bold and a dim rule of ─ runs under it across the inner width
+#[test]
+fn header_row_is_bold_and_has_a_dim_rule_under_it() {
+    let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, true);
+    assert!(term.cell(3, 2).unwrap().modifier.contains(Modifier::BOLD));
+    assert_eq!(term.cell(0, 3).unwrap().symbol(), "│");
+    for x in 1..=58 {
+        let cell = term.cell(x, 3).unwrap();
+        assert_eq!(cell.symbol(), "─", "x={x}");
+        assert!(cell.modifier.contains(Modifier::DIM), "x={x}");
+    }
+    assert_eq!(term.cell(59, 3).unwrap().symbol(), "│");
+}
+
+// design 3.1, 4.5: the status line sits above the bottom border; information is dim, an error is bold
+#[test]
+fn status_line_sits_above_the_bottom_border_and_is_dim_unless_error() {
+    let mut model = PickerModel::new(named_rows(2), name_chrome("enter open"));
+    model.set_status(Some("Killed session 'x'.".into()));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, true);
+    let (y, _) = line_containing(&term, "Killed session").unwrap();
+    assert_eq!(y, 10, "status row");
+    assert_eq!(term.cell(2, y).unwrap().fg, Color::DarkGray);
+    assert!(!term.cell(2, y).unwrap().modifier.contains(Modifier::BOLD));
+    assert!(term.lines()[11].starts_with('╰'), "{:?}", term.lines()[11]);
 }
 
 // ---------------------------------------------------------------------------------------------
