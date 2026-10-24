@@ -6,7 +6,8 @@
 
 mod support;
 
-use ledge::app::open::open_dir;
+use ledge::app::launch::{split_command, Editor};
+use ledge::app::open::{open_dir, open_dir_with_editor};
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
 use ledge::domain::profile_rules::ProfileOpt;
@@ -14,6 +15,7 @@ use ledge::error::{LedgeError, Outcome};
 use ledge::ports::backend::{SessionBackend, OPT_PROFILE};
 use support::ctx::Harness;
 use support::fake_backend::FakeBackend;
+use support::fake_process::FakeProcess;
 
 const HISTORY_WARNING: &str = "Warning: could not update history: ";
 
@@ -326,4 +328,165 @@ fn invalid_default_profile_warns_and_uses_single_window() {
         vec!["Warning: default_profile 'bad' is missing or invalid; using single-window layout."]
     );
     assert_eq!(window_names(&h, &name), vec!["Terminal"]);
+}
+
+/// A `--code`, `--idea` or `--editor` open of `dir` with no profile option.
+fn open_with_editor(h: &Harness, dir: &str, editor: &Editor) -> Result<Outcome, LedgeError> {
+    open_dir_with_editor(&h.ctx(), Some(dir), &ProfileOpt::Unset, Some(editor))
+}
+
+/// The detached spawns the fake process recorded: program and arguments.
+fn detached_spawns(h: &Harness) -> Vec<(String, Vec<String>)> {
+    h.process
+        .calls()
+        .into_iter()
+        .filter(|call| call.detached)
+        .map(|call| (call.program, call.args))
+        .collect()
+}
+
+// FR-LAUNCH-01: the editor starts when the open creates the session, and the terminal still attaches
+#[test]
+fn editor_launches_when_open_creates_session() {
+    let h = Harness::new("launch_created");
+    let dir = h.project("app");
+    let name = name_of(&dir);
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Code),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(
+        detached_spawns(&h),
+        vec![(
+            "setsid".to_string(),
+            vec!["-f".into(), "code".into(), dir.clone()]
+        )]
+    );
+    assert_eq!(h.backend.attached_to(), Some(name));
+    assert!(h.console.err_lines().is_empty());
+}
+
+// FR-LAUNCH-01: an open that reuses an existing session does not start an editor
+#[test]
+fn editor_not_launched_when_session_is_reused() {
+    let h = Harness::new("launch_reused");
+    let dir = h.project("app");
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Code),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(detached_spawns(&h).len(), 1);
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Code),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(detached_spawns(&h).len(), 1, "reuse must not launch");
+}
+
+// FR-LAUNCH-01: without an editor option nothing is started
+#[test]
+fn no_editor_option_starts_nothing() {
+    let h = Harness::new("launch_none");
+    let dir = h.project("app");
+    assert_eq!(
+        open_dir(&h.ctx(), Some(dir.as_str()), &ProfileOpt::Unset),
+        Ok(Outcome::Done)
+    );
+    assert!(detached_spawns(&h).is_empty());
+}
+
+// FR-LAUNCH-02: the idea option runs the program `idea` on the directory
+#[test]
+fn idea_option_runs_idea_on_directory() {
+    let h = Harness::new("launch_idea");
+    let dir = h.project("app");
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Idea),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(
+        detached_spawns(&h),
+        vec![(
+            "setsid".to_string(),
+            vec!["-f".into(), "idea".into(), dir.clone()]
+        )]
+    );
+}
+
+// FR-LAUNCH-02: the editor option is split on whitespace and the directory is appended last
+#[test]
+fn editor_command_is_split_on_whitespace_with_directory_last() {
+    assert_eq!(
+        split_command("  nvim   --wait\tfoo "),
+        vec!["nvim", "--wait", "foo"]
+    );
+    let h = Harness::new("launch_command");
+    let dir = h.project("app");
+    let editor = Editor::Command(split_command("nvim   --wait"));
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &editor),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(
+        detached_spawns(&h),
+        vec![(
+            "setsid".to_string(),
+            vec!["-f".into(), "nvim".into(), "--wait".into(), dir.clone()]
+        )]
+    );
+}
+
+// FR-LAUNCH-03: with setsid present the editor is started as `setsid -f <cmd> <dir>`
+#[test]
+fn detached_start_uses_setsid_when_present() {
+    let h = Harness::new("launch_setsid");
+    let dir = h.project("app");
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Code),
+        Ok(Outcome::Done)
+    );
+    let spawns = detached_spawns(&h);
+    assert_eq!(spawns.len(), 1);
+    assert_eq!(spawns[0].0, "setsid");
+    assert_eq!(spawns[0].1.first().map(String::as_str), Some("-f"));
+}
+
+// FR-LAUNCH-03, A-18: without setsid the editor is started directly, with the warning
+#[test]
+fn detached_start_without_setsid_warns_and_starts_directly() {
+    let mut h = Harness::new("launch_no_setsid");
+    h.process = FakeProcess::new().absent(&["setsid"]);
+    let dir = h.project("app");
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Code),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(
+        h.console.err_lines(),
+        vec!["Warning: setsid is not installed; the editor is started without detaching."]
+    );
+    assert_eq!(
+        detached_spawns(&h),
+        vec![("code".to_string(), vec![dir.clone()])]
+    );
+}
+
+// A-18: a missing editor is a warning, and the session still opens
+#[test]
+fn missing_editor_warns_and_session_still_opens() {
+    let mut h = Harness::new("launch_missing_editor");
+    h.process = FakeProcess::new().absent(&["code"]);
+    let dir = h.project("app");
+    let name = name_of(&dir);
+    assert_eq!(
+        open_with_editor(&h, dir.as_str(), &Editor::Code),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(
+        h.console.err_lines(),
+        vec!["Warning: could not start editor 'code': command not found"]
+    );
+    assert!(detached_spawns(&h).is_empty());
+    assert_eq!(session_names(&h), vec![name.clone()]);
+    assert_eq!(h.backend.attached_to(), Some(name));
 }

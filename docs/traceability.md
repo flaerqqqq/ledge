@@ -167,6 +167,6 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-CMD-10 | S-17 |  |  | open |  |
 | FR-CMD-11 | S-17 |  |  | open |  |
 | FR-CMD-12 | S-13 |  |  | open |  |
-| FR-LAUNCH-01 | S-12 |  |  | open |  |
-| FR-LAUNCH-02 | S-12 |  |  | open | Argv via FakeProcess; GUI editor start is manual. |
-| FR-LAUNCH-03 | S-12 |  |  | open | Detached spawn checked through FakeProcess argv. |
+| FR-LAUNCH-01 | S-12 | src/app/launch.rs; src/app/open.rs (open_dir_with_editor) | tests/component_open.rs | covered | Launch only when `ensure_session` reports Created: reuse, and a plain open without an editor, start nothing (FakeProcess). The pickers, `bm tree`, `ss` and `ss tree` open paths are not wired yet (later slices). |
+| FR-LAUNCH-02 | S-12 | src/app/launch.rs; src/ports/process.rs; src/adapters/process.rs | tests/component_open.rs; tests/messages_verbatim.rs | manual | Automated: `code`, `idea` and `--editor` argv (split on whitespace, directory last) on FakeProcess. Manual: the GUI editor really opens the directory; reason: needs a desktop session with VS Code or IntelliJ IDEA installed, which the gate does not have (testing.md, manual list). The `--editor` value parsing and the `--code`/`--idea`/`--editor` option grammar are S-17 (FR-CMD-06). |
+| FR-LAUNCH-03 | S-12 | src/app/launch.rs; src/adapters/process.rs (spawn_detached) | tests/component_open.rs | covered | Detached spawn checked on FakeProcess argv: `setsid -f <cmd> <dir>` with setsid present, direct start with the setsid warning without it. The process outliving ledge is the setsid mechanism itself and is not run by the gate. |

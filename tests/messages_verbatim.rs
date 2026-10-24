@@ -223,3 +223,21 @@ fn could_not_attach_text_is_verbatim() {
         "could not attach to 'my_app-d7d2': no server running"
     );
 }
+
+// FR-LAUNCH-03, A-18, architecture 8.3 [new]: setsid is missing when an editor is launched
+#[test]
+fn setsid_not_installed_text_is_verbatim() {
+    assert_eq!(
+        messages::setsid_not_installed(),
+        "setsid is not installed; the editor is started without detaching."
+    );
+}
+
+// FR-LAUNCH-02, A-18, architecture 8.3 [new]: the editor program cannot be started
+#[test]
+fn could_not_start_editor_text_is_verbatim() {
+    assert_eq!(
+        messages::could_not_start_editor("code", "command not found"),
+        "could not start editor 'code': command not found"
+    );
+}

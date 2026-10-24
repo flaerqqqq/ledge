@@ -204,7 +204,7 @@ have no FR-IDs state why.
 - branch: slice/11-open-flow
 
 ### S-12 Editor launch
-- status: in-progress
+- status: done
 - deps: S-11
 - FR-IDs: FR-LAUNCH-01, FR-LAUNCH-02, FR-LAUNCH-03
 - scope: `app/launch.rs`, `adapters/process.rs` (`spawn_detached`, `setsid` lookup).
@@ -217,7 +217,7 @@ have no FR-IDs state why.
 - branch: slice/12-editor-launch
 
 ### S-13 Project and history pickers (open, navigation, empty states)
-- status: blocked
+- status: in-progress
 - deps: S-03, S-04, S-08, S-09, S-11
 - FR-IDs: FR-PICK-06, FR-PICK-07, FR-PICK-08, FR-PICK-09, FR-PICK-10, FR-PICK-12, FR-PICK-13, FR-HIST-04, FR-HIST-05, FR-CMD-08, FR-CMD-12
 - scope: `app/pickers.rs` (project and history pickers), `app/history_cmd.rs` (pick), `tui/` wiring of the project and

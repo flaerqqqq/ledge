@@ -6,6 +6,7 @@
 use super::fake_backend::FakeBackend;
 use super::fake_console::FakeConsole;
 use super::fake_env::FakeEnv;
+use super::fake_process::FakeProcess;
 use super::temp::TempTree;
 use ledge::adapters::fs::RealFs;
 use ledge::app::Ctx;
@@ -22,6 +23,7 @@ pub struct Harness {
     pub fs: RealFs,
     pub backend: FakeBackend,
     pub console: FakeConsole,
+    pub process: FakeProcess,
     pub dirs: Dirs,
     pub cwd: AbsPath,
     root: String,
@@ -50,6 +52,7 @@ impl Harness {
             fs: RealFs,
             backend: FakeBackend::new(),
             console: FakeConsole::new(),
+            process: FakeProcess::new(),
             dirs,
             cwd: AbsPath::clean(&projects, &AbsPath::root()),
             root,
@@ -63,6 +66,7 @@ impl Harness {
             fs: &self.fs,
             backend: &self.backend,
             console: &self.console,
+            process: &self.process,
             dirs: self.dirs.clone(),
             cwd: self.cwd.clone(),
         }

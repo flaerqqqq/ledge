@@ -8,9 +8,11 @@ use crate::ports::backend::SessionBackend;
 use crate::ports::console::Console;
 use crate::ports::env::Env;
 use crate::ports::fs::FileSystem;
+use crate::ports::process::ProcessRunner;
 use std::path::Path;
 
 pub mod build;
+pub mod launch;
 pub mod open;
 pub mod store;
 
@@ -21,6 +23,8 @@ pub struct Ctx<'a> {
     pub fs: &'a dyn FileSystem,
     pub backend: &'a dyn SessionBackend,
     pub console: &'a dyn Console,
+    /// External programs; the editor launch (FR-LAUNCH-*) is its first user (P-21).
+    pub process: &'a dyn ProcessRunner,
     /// Resolved once from `Env` (FR-PLAT-02, FR-CONF-08).
     pub dirs: Dirs,
     /// The working directory, cleaned and absolute.

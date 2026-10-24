@@ -2,7 +2,8 @@
 //! Order: check the directory, read the config, record the directory in the history, choose the profile,
 //! create or reuse the session, then attach or switch. Only the ports in `Ctx` are used.
 
-use crate::app::build::ensure_session;
+use crate::app::build::{ensure_session, Ensured};
+use crate::app::launch::{launch_editor, Editor};
 use crate::app::store;
 use crate::app::Ctx;
 use crate::domain::history::History;
@@ -19,6 +20,18 @@ use std::path::Path;
 /// working directory when `dir` is `None`. `dir` is the argument as typed; it is cleaned against the working
 /// directory before use (D-06), and the message for a missing directory echoes it as typed (A-15).
 pub fn open_dir(ctx: &Ctx<'_>, dir: Option<&str>, option: &ProfileOpt) -> Result<Outcome> {
+    open_dir_with_editor(ctx, dir, option, None)
+}
+
+/// FR-LAUNCH-01, A-18: as `open_dir`, and when `editor` is given the editor is launched on the directory only
+/// if this open created the session. The launch happens before the attach, which blocks. A failed launch is
+/// a warning and the open goes on.
+pub fn open_dir_with_editor(
+    ctx: &Ctx<'_>,
+    dir: Option<&str>,
+    option: &ProfileOpt,
+    editor: Option<&Editor>,
+) -> Result<Outcome> {
     let typed = dir.unwrap_or(ctx.cwd.as_str());
     let path = AbsPath::clean(typed, &ctx.cwd);
     if !ctx.fs.is_dir(Path::new(path.as_str())) {
@@ -27,7 +40,10 @@ pub fn open_dir(ctx: &Ctx<'_>, dir: Option<&str>, option: &ProfileOpt) -> Result
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     record_in_history(ctx, &path);
     let profile = resolve_profile(ctx, option, config.default_profile.as_deref())?;
-    ensure_session(ctx.backend, &path, &profile)?;
+    let ensured = ensure_session(ctx.backend, &path, &profile)?;
+    if let (Ensured::Created, Some(editor)) = (ensured, editor) {
+        launch_editor(ctx.process, ctx.console, editor, path.as_str());
+    }
     attach_or_switch(ctx, &session_name(&path))
 }
 

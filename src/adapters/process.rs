@@ -33,6 +33,20 @@ impl ProcessRunner for SystemProcess {
         let status = Command::new(program).args(args).status()?;
         Ok(status.code().unwrap_or(-1))
     }
+
+    fn spawn_detached(&self, program: &str, args: &[String]) -> io::Result<()> {
+        let mut child = Command::new(program)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
+        // FR-LAUNCH-03: `setsid -f` returns once the forked child runs; the others are left running.
+        if program == "setsid" {
+            child.wait()?;
+        }
+        Ok(())
+    }
 }
 
 /// `true` for a regular file with an execute bit set.

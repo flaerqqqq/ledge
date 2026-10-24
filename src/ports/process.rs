@@ -21,4 +21,8 @@ pub trait ProcessRunner {
     /// Runs `program` with the terminal inherited (for example `tmux attach-session`), waits, and
     /// returns the exit status (-1 when there is none).
     fn inherit(&self, program: &str, args: &[String]) -> io::Result<i32>;
+    /// FR-LAUNCH-03, architecture 4: starts `program` with stdio closed and does not wait for it, so the
+    /// started program outlives ledge. The one exception is `setsid`, which is waited for: `setsid -f`
+    /// forks and returns at once. A program that cannot be started gives an error of kind `NotFound`.
+    fn spawn_detached(&self, program: &str, args: &[String]) -> io::Result<()>;
 }

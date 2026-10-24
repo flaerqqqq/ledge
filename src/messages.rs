@@ -123,6 +123,22 @@ pub fn default_profile_missing(name: &str) -> String {
     format!("default_profile '{name}' is missing or invalid; using single-window layout.")
 }
 
+/// FR-LAUNCH-02, A-18, architecture 8.3 [new]: the editor program cannot be started. `<detail>` is the
+/// reason (`command not found` when the program is not on PATH).
+pub fn could_not_start_editor(command: &str, detail: &str) -> String {
+    format!("could not start editor '{command}': {detail}")
+}
+
+/// A-18: the detail of an editor that is not on PATH (proposal P-23).
+pub fn command_not_found() -> &'static str {
+    "command not found"
+}
+
+/// FR-LAUNCH-03, A-18, architecture 8.3 [new]: `setsid` is missing when an editor is launched; a warning.
+pub fn setsid_not_installed() -> &'static str {
+    "setsid is not installed; the editor is started without detaching."
+}
+
 /// FR-OPEN-08, FR-SESS-04: attaching to or switching to a session failed.
 pub fn could_not_attach(name: &str, detail: &str) -> String {
     format!("could not attach to '{name}': {detail}")
