@@ -617,3 +617,12 @@ have no FR-IDs state why.
 - acceptance: a folder whose name starts with '.' shows dimmed (the same gray as missing folders) in the bookmark edit window when hidden folders are shown; the name and the rest of the row are unchanged; without colour the row still shows its name.
 - size: S
 - branch: slice/S-53-hidden-gray
+
+### S-54 Session windows search by session name
+- status: in-progress
+- deps: S-34, S-35
+- FR-IDs: FR-TUI-02 (search over the first visible column; the session switcher and the session tree show the session name first)
+- scope: src/app/pickers.rs (switcher_rows and tree_item search key for session rows and the placeholder), tests/tui_switcher.rs, tests/tui_trees.rs
+- acceptance: in the session switcher and the session tree, typing filters by session name (the name shown in the Session column), not by the Project column; the Project column is unchanged; placeholder rows match their would-be session name; the bookmark tree and project picker are unchanged.
+- size: S
+- branch: slice/S-54-session-search
