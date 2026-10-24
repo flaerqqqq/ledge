@@ -212,8 +212,9 @@ pub fn not_a_ledge_session(name: &str) -> String {
     format!("'{name}' is not a ledge session.")
 }
 
-/// FR-ACT-07, D-17, A-20: the session the user is in is refused for kill (error in the command form, status line in
-/// pickers).
+/// FR-BM-13, FR-ACT-11, D-17, A-39: ctrl-d on a bookmark does not kill the session the user is in; the status line
+/// says so and the bookmark is still deleted. Kill itself switches away from that session (P-63), so this is not a kill
+/// refusal.
 pub fn cannot_kill_current_session() -> &'static str {
     "cannot kill the session you are in."
 }

@@ -104,19 +104,92 @@ fn kill_refuses_an_unmanaged_session() {
     assert!(exists(&h, &name));
 }
 
-// FR-ACT-07, D-17: the session the user is in is refused for kill, with the D-17 text
+// FR-ACT-07, FR-SESS-12, P-63: killing the session the user is in switches the client to the most recent other
+// managed session first, then kills the original
 #[test]
-fn kill_refuses_the_session_the_user_is_in() {
-    let mut h = Harness::new("act_kill_current");
-    let dir = dir_of(&h, "app");
-    let name = session_name(&dir);
-    build_managed(&h, &dir, &Profile::basic());
-    be_inside(&mut h, &name);
-    assert_eq!(
-        kill(&h.ctx(), &name),
-        Err(fatal("cannot kill the session you are in."))
-    );
-    assert!(exists(&h, &name));
+fn kill_of_the_current_session_switches_to_the_most_recent_other() {
+    let mut h = Harness::new("act_kill_current_switch");
+    let app = session_name(&dir_of(&h, "app"));
+    let api = session_name(&dir_of(&h, "api"));
+    let lib = session_name(&dir_of(&h, "lib"));
+    build_managed(&h, &dir_of(&h, "app"), &Profile::basic());
+    build_managed(&h, &dir_of(&h, "api"), &Profile::basic());
+    build_managed(&h, &dir_of(&h, "lib"), &Profile::basic());
+    h.backend.set_activity(&api, 900);
+    h.backend.set_activity(&lib, 100);
+    be_inside(&mut h, &app);
+    assert_eq!(kill(&h.ctx(), &app), Ok(Outcome::Done));
+    assert!(!exists(&h, &app));
+    assert_eq!(h.backend.current_session(), Ok(Some(api)));
+    assert!(exists(&h, &lib));
+    assert!(!h.backend.server_killed());
+}
+
+// FR-ACT-07, FR-SESS-12, P-63: the most recent other session is chosen among every session, not only managed ones
+#[test]
+fn kill_of_the_current_session_switches_to_the_most_recent_session_of_any_kind() {
+    let mut h = Harness::new("act_kill_current_unmanaged");
+    let app = session_name(&dir_of(&h, "app"));
+    let lib = session_name(&dir_of(&h, "lib"));
+    build_managed(&h, &dir_of(&h, "app"), &Profile::basic());
+    build_managed(&h, &dir_of(&h, "lib"), &Profile::basic());
+    h.backend
+        .create_session(&NewSession {
+            name: "scratch".to_string(),
+            dir: h.cwd.as_str().to_string(),
+            window_name: "Terminal".to_string(),
+        })
+        .expect("unmanaged session");
+    h.backend.set_activity("scratch", 500);
+    h.backend.set_activity(&lib, 100);
+    be_inside(&mut h, &app);
+    assert_eq!(kill(&h.ctx(), &app), Ok(Outcome::Done));
+    assert_eq!(h.backend.current_session(), Ok(Some("scratch".to_string())));
+    assert!(exists(&h, &lib));
+}
+
+// FR-ACT-07, FR-SESS-12, P-63: killing the last session the user is in kills the tmux server, so tmux closes
+#[test]
+fn kill_of_the_last_session_kills_the_server() {
+    let mut h = Harness::new("act_kill_last");
+    let app = session_name(&dir_of(&h, "app"));
+    build_managed(&h, &dir_of(&h, "app"), &Profile::basic());
+    be_inside(&mut h, &app);
+    assert_eq!(kill(&h.ctx(), &app), Ok(Outcome::Done));
+    assert!(h.backend.server_killed());
+    assert_eq!(h.backend.list_sessions(), Ok(Vec::new()));
+}
+
+// FR-ACT-07, P-63: a kill of another session leaves the client in its session and the server running
+#[test]
+fn kill_of_another_session_leaves_the_client_alone() {
+    let mut h = Harness::new("act_kill_other");
+    let app = session_name(&dir_of(&h, "app"));
+    let api = session_name(&dir_of(&h, "api"));
+    build_managed(&h, &dir_of(&h, "app"), &Profile::basic());
+    build_managed(&h, &dir_of(&h, "api"), &Profile::basic());
+    be_inside(&mut h, &app);
+    assert_eq!(kill(&h.ctx(), &api), Ok(Outcome::Done));
+    assert!(!exists(&h, &api));
+    assert!(exists(&h, &app));
+    assert_eq!(h.backend.current_session(), Ok(Some(app)));
+    assert!(!h.backend.server_killed());
+}
+
+// FR-ACT-07, P-63: when the client cannot switch, the session the user is in is kept
+#[test]
+fn kill_of_the_current_session_keeps_it_when_the_switch_fails() {
+    let mut h = Harness::new("act_kill_current_switch_fails");
+    h.backend = FakeBackend::new().fail_on("switch_client", "no client");
+    let app = session_name(&dir_of(&h, "app"));
+    let api = session_name(&dir_of(&h, "api"));
+    build_managed(&h, &dir_of(&h, "app"), &Profile::basic());
+    build_managed(&h, &dir_of(&h, "api"), &Profile::basic());
+    h.env = h.env.clone().with_var("TMUX", TMUX_SET);
+    h.backend.set_current(&app);
+    assert!(kill(&h.ctx(), &app).is_err());
+    assert!(exists(&h, &app));
+    assert!(exists(&h, &api));
 }
 
 // FR-ACT-13: a kill of a row with no session has nothing to do
@@ -633,16 +706,18 @@ fn node_kill_removes_managed_sessions_under_the_node_only() {
     assert!(exists(&h, "stray-0000"));
 }
 
-// FR-ACT-07: alt-x never kills the session the user is in, even when it is under the node
+// FR-ACT-06, FR-ACT-07, P-63: alt-x on a node that holds the session the user is in kills it too, and the client
+// goes to the most recent session outside the node
 #[test]
-fn node_kill_spares_the_session_the_user_is_in() {
+fn node_kill_of_the_session_the_user_is_in_switches_to_the_one_outside() {
     let mut h = Harness::new("component_actions-node-kill-current");
     let n = node_fixture(&mut h);
     be_inside(&mut h, &session_name(&n.api));
     kill_node(&h.ctx(), &n.app).expect("node kill");
     assert!(!exists(&h, &session_name(&n.app)));
-    assert!(exists(&h, &session_name(&n.api)));
+    assert!(!exists(&h, &session_name(&n.api)));
     assert!(exists(&h, &session_name(&n.lib)));
+    assert_eq!(h.backend.current_session(), Ok(Some(session_name(&n.lib))));
 }
 
 // FR-ACT-10 (service part of alt-d): every bookmark under the node is deleted and the managed sessions of those
@@ -797,17 +872,19 @@ fn ss_kill_of_an_unmanaged_directory_session_is_refused_and_kept() {
     assert!(exists(&h, &name));
 }
 
-// FR-SESS-10, A-20, D-17: the session the user is in is refused with the D-17 text and kept
+// FR-SESS-10, FR-SESS-12, P-63: `ss kill` of the session the user is in switches to the most recent other one
 #[test]
-fn ss_kill_of_the_current_session_is_refused_and_kept() {
+fn ss_kill_of_the_current_session_switches_to_the_most_recent_other() {
     let mut h = Harness::new("sess_kill_current");
-    let dir = dir_of(&h, "app");
-    let name = session_name(&dir);
-    build_managed(&h, &dir, &Profile::basic());
-    be_inside(&mut h, &name);
+    let app = session_name(&dir_of(&h, "app"));
+    let api = session_name(&dir_of(&h, "api"));
+    build_managed(&h, &dir_of(&h, "app"), &Profile::basic());
+    build_managed(&h, &dir_of(&h, "api"), &Profile::basic());
+    be_inside(&mut h, &app);
     assert_eq!(
-        session_cmd::kill_target(&h.ctx(), &name),
-        Err(fatal("cannot kill the session you are in."))
+        session_cmd::kill_target(&h.ctx(), &app),
+        Ok(Outcome::Info(format!("Killed session '{app}'.")))
     );
-    assert!(exists(&h, &name));
+    assert!(!exists(&h, &app));
+    assert_eq!(h.backend.current_session(), Ok(Some(api)));
 }

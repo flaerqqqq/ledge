@@ -36,6 +36,7 @@ pub struct FakeBackend {
     next_window: Cell<u32>,
     failures: RefCell<Vec<(String, String)>>,
     version: Cell<(u32, u32)>,
+    server_killed: Cell<bool>,
 }
 
 impl FakeBackend {
@@ -137,6 +138,11 @@ impl FakeBackend {
     /// The session attached to by `attach`, if any (test inspection).
     pub fn attached_to(&self) -> Option<String> {
         self.attached.borrow().clone()
+    }
+
+    /// True once `kill_server` has run (test inspection, FR-SESS-12, P-63).
+    pub fn server_killed(&self) -> bool {
+        self.server_killed.get()
     }
 
     fn session(&self, name: &str) -> Option<Session> {
@@ -345,6 +351,9 @@ impl SessionBackend for FakeBackend {
     fn kill_server(&self) -> Result<(), BackendError> {
         self.check("kill_server")?;
         self.sessions.borrow_mut().clear();
+        *self.current.borrow_mut() = None;
+        *self.attached.borrow_mut() = None;
+        self.server_killed.set(true);
         Ok(())
     }
 }

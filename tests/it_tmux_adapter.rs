@@ -67,6 +67,22 @@ fn first_session_starts_the_server() {
     assert_eq!(listed[0].windows, 1);
 }
 
+// FR-PLAT-01, FR-SESS-12, P-63: kill-server stops the server, so no session is listed afterwards and tmux closes
+#[test]
+#[ignore = "requires tmux"]
+fn kill_server_stops_the_server() {
+    let process = SystemProcess;
+    let server = TestServer::new("kill-server");
+    let backend = server.backend(&process);
+    backend
+        .create_session(&new_session("app-1a2b", "/"))
+        .expect("create starts the server");
+    assert_eq!(backend.list_sessions().expect("list").len(), 1);
+
+    backend.kill_server().expect("kill server");
+    assert_eq!(backend.list_sessions(), Ok(Vec::new()));
+}
+
 // FR-PLAT-01: the installed tmux is 3.2 or later (the minimum of architecture 7.2)
 #[test]
 #[ignore = "requires tmux"]

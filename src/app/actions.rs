@@ -12,7 +12,7 @@ use crate::domain::path::AbsPath;
 use crate::domain::profile::Profile;
 use crate::domain::profile_rules::{rebuild_profile, ProfileOpt, RebuildProfile};
 use crate::domain::sessions::{
-    group_members, managed, session_directory, ManagedSession, SessionInfo,
+    group_members, managed, most_recent_other, session_directory, ManagedSession, SessionInfo,
 };
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
@@ -24,8 +24,9 @@ pub fn never_touch_current(name: &str, current: Option<&str>) -> bool {
     current == Some(name)
 }
 
-/// FR-ACT-13, FR-ACT-07, D-14, D-17: kills the managed session `name`. A missing session is a no-op (the picker row
-/// has nothing to kill). An unmanaged session is refused, and so is the session the user is in.
+/// FR-ACT-13, FR-ACT-07, FR-SESS-12, D-14, P-63: kills the managed session `name`. A missing session is a no-op (the
+/// picker row has nothing to kill). An unmanaged session is refused. The session the user is in is killed too: the
+/// client first switches to the most recent other tmux session (`kill_current`).
 pub fn kill(ctx: &Ctx<'_>, name: &str) -> Result<Outcome> {
     let sessions = list_sessions(ctx)?;
     let Some(session) = find_session(&sessions, name) else {
@@ -34,14 +35,33 @@ pub fn kill(ctx: &Ctx<'_>, name: &str) -> Result<Outcome> {
     if !session.managed {
         return Err(LedgeError::Fatal(messages::not_a_ledge_session(name)));
     }
-    if never_touch_current(name, current_session(ctx)?.as_deref()) {
-        return Err(LedgeError::Fatal(
-            messages::cannot_kill_current_session().to_string(),
-        ));
+    if current_session(ctx)?.as_deref() == Some(name) {
+        return kill_current(ctx, name, &sessions);
     }
     ctx.backend
         .kill_session(name)
         .map_err(|error| kill_error(name, error))?;
+    Ok(Outcome::Done)
+}
+
+/// FR-SESS-12, FR-ACT-07, P-63: kills the session the client is in. When another tmux session remains (any kind, the
+/// most recent first), the client switches to it and then `name` is killed; a failed switch keeps `name`. With no other
+/// session the tmux server is killed, so tmux closes.
+fn kill_current(ctx: &Ctx<'_>, name: &str, sessions: &[SessionInfo]) -> Result<Outcome> {
+    match most_recent_other(sessions, name) {
+        Some(next) => {
+            ctx.backend
+                .switch_client(&next.name)
+                .map_err(|error| attach_error(&next.name, error))?;
+            ctx.backend
+                .kill_session(name)
+                .map_err(|error| kill_error(name, error))?;
+        }
+        None => ctx
+            .backend
+            .kill_server()
+            .map_err(|error| kill_error(name, error))?,
+    }
     Ok(Outcome::Done)
 }
 
@@ -123,13 +143,16 @@ pub fn rebuild_node(ctx: &Ctx<'_>, node: &AbsPath, option: &ProfileOpt) -> Resul
     first.map_or(Ok(()), Err)
 }
 
-/// FR-ACT-06, FR-ACT-07: kills every managed session under `node`, except the session the user is in. Every session is
-/// tried; the first failure is returned.
+/// FR-ACT-06, FR-ACT-07, P-63: kills every managed session under `node`. The session the user is in is killed last, so
+/// the client switches to a session outside the node when one remains. Every session is tried; the first failure is
+/// returned.
 pub fn kill_node(ctx: &Ctx<'_>, node: &AbsPath) -> Result<()> {
     let current = current_session(ctx)?;
     let mut first = None;
+    let mut current_in_node = false;
     for (name, _) in node_sessions(ctx, node)? {
         if never_touch_current(&name, current.as_deref()) {
+            current_in_node = true;
             continue;
         }
         if let Err(error) = ctx
@@ -137,6 +160,11 @@ pub fn kill_node(ctx: &Ctx<'_>, node: &AbsPath) -> Result<()> {
             .kill_session(&name)
             .map_err(|error| kill_error(&name, error))
         {
+            first.get_or_insert(error);
+        }
+    }
+    if let Some(name) = current.as_deref().filter(|_| current_in_node) {
+        if let Err(error) = kill(ctx, name) {
             first.get_or_insert(error);
         }
     }

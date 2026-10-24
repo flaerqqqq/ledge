@@ -155,7 +155,8 @@ impl PickerHandler<AbsPath> for BookmarkHandler<'_, '_> {
 }
 
 /// FR-BM-13, FR-ACT-11, D-12, D-17, A-39: ctrl-d on a bookmark row deletes the bookmark, then kills the managed session of
-/// its directory. The session the user is in is not killed; the status line says so and the bookmark is still deleted.
+/// its directory. The session the user is in is not killed here; the status line says so and the bookmark is still
+/// deleted (ctrl-d is a delete, not a kill, so P-63 does not apply).
 /// Deleting the last bookmark closes the picker (D-12).
 fn delete_bookmark(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     let mut bookmarks = match read_bookmarks(ctx) {
@@ -316,9 +317,9 @@ fn rebuild_row(ctx: &Ctx<'_>, dir: &AbsPath, option: &ProfileOpt) -> Step {
     }
 }
 
-/// FR-ACT-01, FR-ACT-13, FR-ACT-07, D-17: ctrl-x kills the managed session of the row and the list is shown again.
-/// A row without a managed session has nothing to kill: the status line says so (P-59). The refusal for the session
-/// the user is in is the status line.
+/// FR-ACT-01, FR-ACT-13, FR-ACT-07, FR-SESS-12, P-63: ctrl-x kills the managed session of the row and the list is shown
+/// again. The session the user is in is killed too, after the client switches to another session. A row without a
+/// managed session has nothing to kill: the status line says so (P-59).
 fn kill_row(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     let sessions = match live_sessions(ctx) {
         Ok(sessions) => sessions,
@@ -819,8 +820,8 @@ fn switcher_rebuild(ctx: &Ctx<'_>, name: &str) -> Step {
     }
 }
 
-/// FR-ACT-01, FR-ACT-07, D-17: ctrl-x kills the session and the list is shown again. The refusal for the session the
-/// user is in is the status line.
+/// FR-ACT-01, FR-ACT-07, FR-SESS-12, P-63: ctrl-x kills the session and the list is shown again. The session the user is
+/// in is killed after the client switches to the most recent other session.
 fn switcher_kill(ctx: &Ctx<'_>, name: &str) -> Step {
     match kill(ctx, name) {
         Ok(_) => Step::Continue {

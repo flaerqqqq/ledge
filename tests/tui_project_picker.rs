@@ -553,14 +553,17 @@ fn kill_key_on_a_row_without_a_managed_session_does_nothing() {
     assert!(names.contains(&name_of(&lib)), "{names:?}");
 }
 
-// FR-ACT-07, D-17: ctrl-x on the session the user is in is refused; the status line says so and nothing is killed
+// FR-ACT-01, FR-ACT-07, P-63: ctrl-x on the session the user is in switches the client to the most recent other
+// session, kills the row's session, and the list is shown again
 #[test]
-fn kill_key_refuses_the_session_the_user_is_in() {
+fn kill_key_on_the_session_the_user_is_in_switches_to_another_session() {
     let mut h = Harness::new("tui_actions-kill-current");
     search_config(&h);
     h.terminal.set_size(220, 24);
     let app = h.project("app");
+    let lib = h.project("lib");
     live(&h, &app);
+    live(&h, &lib);
     h.env = h.env.clone().with_var("TMUX", TMUX_SET);
     h.backend
         .switch_client(&name_of(&app))
@@ -569,11 +572,8 @@ fn kill_key_refuses_the_session_the_user_is_in() {
     h.terminal.script(vec![ctrl('x'), esc()]);
     let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
-    assert_eq!(live_names(&h), vec![name_of(&app)]);
-    assert!(
-        line_with(&screen(&h), "cannot kill the session you are in.")
-            .contains("cannot kill the session you are in."),
-    );
+    assert_eq!(live_names(&h), vec![name_of(&lib)]);
+    assert_eq!(h.backend.current_session(), Ok(Some(name_of(&lib))));
 }
 
 // FR-ACT-01: ctrl-x works in the history picker as well

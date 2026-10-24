@@ -56,12 +56,23 @@ pub fn switcher_order<'a>(
     infos.sort_by(|a, b| {
         let a_current = current == Some(a.name.as_str());
         let b_current = current == Some(b.name.as_str());
-        b_current
-            .cmp(&a_current)
-            .then(b.activity.cmp(&a.activity))
-            .then(a.name.cmp(&b.name))
+        b_current.cmp(&a_current).then_with(|| by_recency(a, b))
     });
     infos
+}
+
+/// FR-SESS-02, A-10: most recent activity first, equal activity by session name.
+fn by_recency(a: &SessionInfo, b: &SessionInfo) -> std::cmp::Ordering {
+    b.activity.cmp(&a.activity).then(a.name.cmp(&b.name))
+}
+
+/// FR-SESS-12, P-63: the session the client switches to before `killed` is killed: the first of the switcher's
+/// activity order without `killed`. Every tmux session counts, managed or not. `None` when no other session remains.
+pub fn most_recent_other<'a>(sessions: &'a [SessionInfo], killed: &str) -> Option<&'a SessionInfo> {
+    sessions
+        .iter()
+        .filter(|session| session.name != killed)
+        .min_by(|a, b| by_recency(a, b))
 }
 
 /// FR-PLAT-01, architecture 7.2: tmux 3.2 is the minimum. `version` is `(major, minor)`.
@@ -85,7 +96,9 @@ pub fn group_members(entry: &AbsPath, session_dirs: &[Option<AbsPath>]) -> Vec<u
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{group_members, managed, switcher_order, ManagedSession, SessionInfo};
+    use super::{
+        group_members, managed, most_recent_other, switcher_order, ManagedSession, SessionInfo,
+    };
     use crate::domain::path::AbsPath;
 
     fn abs(text: &str) -> AbsPath {
@@ -177,6 +190,51 @@ mod tests {
             .map(|info| info.name.as_str())
             .collect();
         assert_eq!(order, vec!["b", "a"]);
+    }
+
+    // FR-SESS-12, P-63: the switch target is the most recent session other than the one killed, managed or not
+    #[test]
+    fn most_recent_other_is_the_first_of_the_activity_order_without_the_killed_one() {
+        let info = |name: &str, activity: i64| SessionInfo {
+            name: name.to_string(),
+            windows: 1,
+            attached: false,
+            activity,
+            managed: false,
+            profile: None,
+            dir: None,
+            path: None,
+        };
+        let all = vec![
+            info("app", 999),
+            info("old", 100),
+            info("new", 900),
+            info("mid", 500),
+        ];
+        assert_eq!(
+            most_recent_other(&all, "app").map(|s| s.name.as_str()),
+            Some("new")
+        );
+        assert_eq!(
+            most_recent_other(&all[..2], "app").map(|s| s.name.as_str()),
+            Some("old")
+        );
+    }
+
+    // FR-SESS-12, P-63: no other session gives no target, which is the kill of the server
+    #[test]
+    fn most_recent_other_is_none_when_only_the_killed_session_remains() {
+        let only = vec![SessionInfo {
+            name: "app".to_string(),
+            windows: 1,
+            attached: false,
+            activity: 1,
+            managed: true,
+            profile: None,
+            dir: None,
+            path: None,
+        }];
+        assert!(most_recent_other(&only, "app").is_none());
     }
 
     // FR-SCOPE-02: a session with no directory is in no group

@@ -529,7 +529,7 @@ have no FR-IDs state why.
 - branch: slice/S-42-design-b-zen
 
 ### S-43 Kill the current session: switch to the most recent one, or close tmux when none remain
-- status: in-progress
+- status: done
 - deps: S-14, S-25, S-19, S-16
 - FR-IDs: FR-ACT-07 and D-17 change for kill (proposal P-63; the user owns requirements.md); FR-ACT-01, FR-SESS-12
 - scope: src/ports/backend.rs (kill_server on SessionBackend), src/adapters/tmux.rs (kill-server), tests/support/fake_backend.rs, src/app/actions.rs (kill of the session the client is in), src/app/pickers.rs and src/app/session_cmd.rs (kill paths use it; ctrl-x and ss kill), src/messages.rs only if a new message is needed (proposal P-63)

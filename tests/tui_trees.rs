@@ -288,16 +288,20 @@ fn alt_p_escape_in_the_profile_picker_changes_nothing() {
     );
 }
 
-// FR-ACT-07: alt-x on a node never kills the session the user is in; the others under the node are killed
+// FR-ACT-07, FR-ACT-06, P-63: alt-x on a node kills the session the user is in too; the client first switches to the
+// most recent session outside the node, and the sessions outside stay
 #[test]
-fn alt_x_spares_the_session_the_user_is_in() {
+fn alt_x_on_the_session_the_user_is_in_switches_to_the_one_outside() {
     let mut h = Harness::new("tui_trees-alt-x-current");
     let f = session_fixture(&h);
     be_inside(&mut h, &name_of(&f.app));
     h.terminal.script(vec![alt('x'), esc()]);
     let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
-    assert!(exists(&h, &name_of(&f.app)), "the current session stays");
+    assert!(
+        !exists(&h, &name_of(&f.app)),
+        "the current session is killed"
+    );
     assert!(
         !exists(&h, &name_of(&f.api)),
         "the other session under the node is killed"
@@ -306,6 +310,7 @@ fn alt_x_spares_the_session_the_user_is_in() {
         exists(&h, &name_of(&f.lib)),
         "a session outside the node stays"
     );
+    assert_eq!(h.backend.current_session(), Ok(Some(name_of(&f.lib))));
 }
 
 // FR-ACT-07: alt-r on a node never rebuilds the session the user is in

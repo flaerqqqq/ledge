@@ -356,21 +356,22 @@ fn kill_key_removes_the_row_and_the_list_stays_open() {
     assert_eq!(restores(&h), 1);
 }
 
-// FR-ACT-07, D-17: ctrl-x on the session the user is in is refused; the status line says so and nothing is killed
+// FR-ACT-01, FR-ACT-07, P-63: ctrl-x on the session the user is in switches the client to the most recent other
+// session and kills this one; the list stays open without it
 #[test]
-fn kill_key_refuses_the_session_the_user_is_in() {
+fn kill_key_on_the_session_the_user_is_in_switches_to_another_session() {
     let mut h = Harness::new("tui_switcher-kill-current");
     search_config(&h);
     inside_tmux(&mut h);
     let app = h.project("app");
+    let lib = h.project("lib");
     let name = managed(&h, &app, FIXED_NOW - 10);
+    let lib_name = managed(&h, &lib, FIXED_NOW - 20);
     h.backend.set_current(&name);
     h.terminal.script(vec![ctrl('x'), esc()]);
     session_switcher(&h.ctx()).expect("switcher runs");
-    assert_eq!(live_names(&h), vec![name]);
-    assert!(screen(&h)
-        .iter()
-        .any(|line| line.contains("cannot kill the session you are in.")));
+    assert_eq!(live_names(&h), vec![lib_name.clone()]);
+    assert_eq!(h.backend.current_session(), Ok(Some(lib_name)));
 }
 
 // D-12, FR-TUI-10: killing the last session leaves the switcher open with the empty message

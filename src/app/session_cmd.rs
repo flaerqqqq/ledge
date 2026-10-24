@@ -1,6 +1,7 @@
 //! Session commands (architecture 2): `ss list` (FR-SESS-09, A-34) and `ss kill NAME|DIR` (FR-SESS-10..13, A-20).
 //! Only managed sessions are listed or killed (FR-NAME-04, FR-ACT-13). The kill itself is `app::actions::kill`, which
-//! keeps the current-session refusal (D-17). The table layout is here; the cell widths come from `tui::columns`.
+//! switches the client away from the session it is in first (FR-SESS-12, P-63). The table layout is here; the cell
+//! widths come from `tui::columns`.
 
 use crate::app::actions::kill;
 use crate::app::pickers::backend_fatal;
@@ -50,7 +51,7 @@ pub fn list(ctx: &Ctx<'_>) -> Result<Outcome> {
 
 /// FR-SESS-10, FR-SESS-11, FR-SESS-12, A-20: kills the managed session named exactly `target`, or else the managed
 /// session of the directory `target` (cleaned against the working directory). Neither is a managed session gives
-/// `'<target>' is not a ledge session.` (error). The current session is refused by `app::actions::kill` (D-17).
+/// `'<target>' is not a ledge session.` (error). The current session is killed after the client switches (P-63).
 pub fn kill_target(ctx: &Ctx<'_>, target: &str) -> Result<Outcome> {
     let sessions: Vec<ManagedSession> = ctx
         .backend

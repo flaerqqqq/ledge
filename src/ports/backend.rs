@@ -51,11 +51,12 @@ pub trait SessionBackend {
     fn attach(&self, session: &str) -> Result<(), BackendError>;
     /// FR-OPEN-08, FR-SESS-04: switches the current client to the session.
     fn switch_client(&self, session: &str) -> Result<(), BackendError>;
+    /// Kills a session by its exact name (FR-ACT-13); the caller decides when the client has left it (D-17, P-63).
     fn kill_session(&self, session: &str) -> Result<(), BackendError>;
     /// D-17: renames a session.
     fn rename_session(&self, old: &str, new: &str) -> Result<(), BackendError>;
     /// Name of the session the current client is in; `None` when there is none.
     fn current_session(&self) -> Result<Option<String>, BackendError>;
-    /// Tests only: stops the server (architecture 4).
+    /// FR-SESS-12, P-63: stops the server, so tmux closes. Used when the session the client is in is the last one.
     fn kill_server(&self) -> Result<(), BackendError>;
 }
