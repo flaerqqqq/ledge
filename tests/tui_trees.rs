@@ -1517,3 +1517,93 @@ fn placeholder_row_matches_its_would_be_name() {
         "the placeholder row of app is kept: {lines:#?}"
     );
 }
+
+// FR-ACT-02, FR-ACT-12, P-69: ctrl-r on a bookmark with no session creates it with the --profile option, and the
+// session is listed afterwards
+#[test]
+fn ctrl_r_on_a_bookmark_without_a_session_creates_it() {
+    let h = Harness::new("tui_trees-ctrl-r-creates");
+    search_in_projects(&h);
+    h.write_profile("dev", DEV);
+    let api = abs(&format!("{}/api", h.project("app")));
+    fs::create_dir_all(api.as_str()).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    h.terminal.script(vec![down(), ctrl('r'), esc()]);
+    let outcome = bookmark_tree_picker(
+        &h.ctx(),
+        &ProfileOpt::Named("dev".to_string()),
+        &TreeScope::All,
+    );
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert!(exists(&h, &name_of(&api)), "ctrl-r creates the session");
+    assert_eq!(
+        windows(&h, &name_of(&api)),
+        expected(&[("editor", &["nvim"]), ("shell", &[])])
+    );
+    let lines = screen(&h);
+    assert!(
+        line_with(&lines, &name_of(&api)).contains("dev"),
+        "the session is listed on its row: {lines:#?}"
+    );
+}
+
+// FR-PROF-13, FR-ACT-04, P-69: ctrl-p on a bookmark with no session opens the profile picker, and the chosen profile
+// creates the session
+#[test]
+fn ctrl_p_on_a_bookmark_without_a_session_creates_it_with_the_chosen_profile() {
+    let h = Harness::new("tui_trees-ctrl-p-creates");
+    search_in_projects(&h);
+    h.write_profile("dev", DEV);
+    h.write_profile("web", WEB);
+    let api = abs(&format!("{}/api", h.project("app")));
+    fs::create_dir_all(api.as_str()).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    h.terminal.script(vec![down(), ctrl('p')]);
+    // Profile picker rows: basic, dev, web. Down twice reaches web.
+    h.terminal.queue(vec![down(), down(), enter()]);
+    h.terminal.queue(vec![esc()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(h.terminal.opened(), 3, "tree, profile picker, tree again");
+    assert!(exists(&h, &name_of(&api)), "ctrl-p creates the session");
+    assert_eq!(
+        h.backend.option(&name_of(&api), OPT_PROFILE).as_deref(),
+        Some("web")
+    );
+    assert_eq!(
+        windows(&h, &name_of(&api)),
+        expected(&[("server", &["npm start"]), ("logs", &[])])
+    );
+}
+
+// FR-ACT-01, design 4.5 (P-59), P-69: ctrl-x on a bookmark without a session still says so and creates nothing
+#[test]
+fn ctrl_x_on_a_bookmark_without_a_session_still_says_so_and_creates_nothing() {
+    let h = Harness::new("tui_trees-ctrl-x-still-notice");
+    search_in_projects(&h);
+    let api = abs(&format!("{}/api", h.project("app")));
+    fs::create_dir_all(api.as_str()).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    h.terminal.script(vec![down(), ctrl('x'), esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    assert!(!exists(&h, &name_of(&api)), "ctrl-x creates nothing");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("No session on this row.")));
+}
+
+// FR-TUI-07, design 4.6 (P-59): ctrl-r on a session tree row with no session still says so and creates nothing
+#[test]
+fn ctrl_r_on_a_session_tree_row_without_a_session_still_says_so() {
+    let h = Harness::new("tui_trees-session-ctrl-r-notice");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    h.terminal.script(vec![ctrl('r'), esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    assert!(!exists(&h, &name_of(&app)), "ctrl-r creates nothing");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("No session on this row.")));
+}

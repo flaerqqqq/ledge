@@ -1373,6 +1373,14 @@ impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
             return no_action();
         };
         match action {
+            // P-69: in the bookmark tree ctrl-r and ctrl-p create the session of a row with a directory, as the
+            // directory pickers do. A gray root that is not openable has no directory to open and keeps the notice.
+            Action::Rebuild | Action::Profile
+                if self.kind == TreeKind::Bookmarks
+                    && (row.openable || row.kind == NodeKind::Connector) =>
+            {
+                dir_action(self.ctx, &self.option, action, Some(&row.path))
+            }
             // The ctrl keys act on the selected session only (FR-TUI-07, architecture 6.3). A row with no session
             // has nothing to act on: the status line says so (P-59, FR-TUI-14).
             Action::Rebuild | Action::Kill | Action::Profile if row.session.is_some() => {

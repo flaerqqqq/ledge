@@ -628,7 +628,7 @@ have no FR-IDs state why.
 - branch: slice/S-54-session-search
 
 ### S-55 Bookmark tree: ctrl-r and ctrl-p create the session of a bookmark that has none
-- status: in-progress
+- status: done
 - deps: S-22, S-38
 - FR-IDs: FR-ACT-02 (ctrl-r creates the session when it is missing), FR-ACT-12 (profile option); proposal P-69 (replaces the P-59 no-op notice for ctrl-r and ctrl-p on bookmark rows)
 - scope: src/app/pickers.rs (TreeHandler::act for TreeKind::Bookmarks), tests/tui_trees.rs
