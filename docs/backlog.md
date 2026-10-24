@@ -425,6 +425,6 @@ have no FR-IDs state why.
 - deps: S-07, S-22, S-21
 - FR-IDs: FR-TUI-11 (proposed in docs/proposals.md P-52; not yet in requirements.md)
 - scope: src/tui/keys.rs (key map), src/tui/picker.rs and src/tui/render.rs only where the footer or cue changes; the edit window and tree windows use the same map. No new keys for actions.
-- acceptance: j/k move the selection down and up in every picker and tree window, like the down and up arrows; the same key map is used everywhere (FR-TUI-07); in pickers where a letter is typed into the filter, j and k still type into the filter, so vim keys apply only when the filter is empty or the window has no filter (tree and edit windows). Footer text is unchanged.
+- acceptance: ctrl-j and ctrl-k move the selection down and up in every picker and tree window; j and k move it in the bookmark edit window (no filter). Plain j and k type into the filter elsewhere (FR-TUI-02). Arrow keys keep working. The same key map is used everywhere (FR-TUI-07). Footer text is unchanged.
 - size: S
 - branch: slice/S-28-vim-navigation

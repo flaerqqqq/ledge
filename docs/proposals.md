@@ -519,5 +519,6 @@ Format:
 - from: user request / coordinator, slice S-28
 - status: Open
 - doc: requirements.md (new FR-TUI-11)
-- change: add "FR-TUI-11: ledge shall move the selection with j and k in the tree and edit windows, which have no filter, and with ctrl-j and ctrl-k in the pickers that filter as you type, so that j and k can be typed into the filter there. Arrow keys keep working everywhere."
-- why: the user uses vim keys and asked for them in list and tree navigation. FR-TUI-03 covers only arrows and page keys. In pickers that filter as you type (project, history, switcher, bookmark), a plain j or k must still type into the filter (FR-TUI-02), so those pickers use ctrl-j and ctrl-k.
+- change: add "FR-TUI-11: ledge shall move the selection with ctrl-j and ctrl-k in every picker and tree window, and with j and k in the bookmark edit window, which has no filter. Arrow keys keep working everywhere."
+- why: the user uses vim keys for list and tree navigation. FR-TUI-03 covers only arrows and page keys. Pickers and tree windows accept typed filter text (FR-TUI-02), so a plain j or k there must type into the filter; those windows use ctrl-j and ctrl-k. The edit window has no filter (D-15), so plain j and k move there.
+- decided by coordinator: plain j and k do not move in pickers or trees; the rule above replaces the earlier draft.
