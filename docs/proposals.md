@@ -666,3 +666,10 @@ Format:
   - `'custom list' takes no arguments.` and `'custom pick' takes no arguments.` (the existing takes_no_arguments text)
   - `Directory '<dir>' not found.` (add of a missing directory, the existing text)
   - help and group usage: `ledge custom add [DIR]`, `ledge custom remove DIR`, `ledge custom list`, `ledge custom pick [OPTIONS]`
+
+### P-68 Show or hide hidden folders in the bookmark edit window (FR-EDIT-01)
+- from: user request / coordinator, slice S-52
+- status: Open
+- doc: requirements.md (FR-EDIT-01 says hidden directories are skipped)
+- change: the bookmark edit window hides folders whose names start with a dot by default. The '.' key shows them and hides them again. The state is not saved between runs.
+- why: the user needs to reach hidden folders such as .config inside a project to bookmark them.

@@ -599,3 +599,12 @@ have no FR-IDs state why.
 - acceptance: `ledge custom add [DIR]` records an existing directory (default cwd) that is not inside a project, with the same rules as the command-line open; `ledge custom remove DIR` removes the entry, deletes its bookmarks and kills its managed sessions (same as ctrl-d); `ledge custom list` prints the custom projects one per line with ~ for home, or "No custom projects." when empty; `ledge custom pick` opens a window listing only custom projects, with the project picker keys (enter opens, ctrl-d removes, ctrl-r, ctrl-p, ctrl-x) and the ◆ mark; every error and info message goes through messages.rs.
 - size: M
 - branch: slice/S-51-custom-commands
+
+### S-52 Show or hide hidden folders in the bookmark edit window with '.'
+- status: in-progress
+- deps: S-21, S-44
+- FR-IDs: FR-EDIT-01 (proposal P-68; the user owns requirements.md)
+- scope: src/domain/bm_edit.rs (visible_rows takes a show_hidden flag), src/app/bookmark_cmd.rs (edit handler: '.' toggles, the state lives in the window only), src/tui/keys.rs or the edit window handler (the '.' key outside the search bar), src/messages.rs (no new text unless the footer needs a hint; footer text is pinned, so no change), tests/tui_edit_window.rs, tests/component_edit.rs
+- acceptance: the bookmark edit window starts with hidden folders hidden; '.' shows them and pressing it again hides them; the state is for this window only (not saved); the expand state, bookmarks, search and the other keys are unchanged; while the search bar is open '.' types into the bar; the list keeps the selection on the same folder when the toggle changes the rows.
+- size: S
+- branch: slice/S-52-edit-hidden-toggle
