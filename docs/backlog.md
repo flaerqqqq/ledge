@@ -581,3 +581,12 @@ have no FR-IDs state why.
 - acceptance: `ledge DIR` (and `ledge project open DIR`) on an existing directory that is not a project, not inside a project and not already listed adds it to the custom-projects cache file; picker-initiated opens never add; custom projects appear in the project picker with a ◆ (ASCII # without UTF-8) in the project cell, search matches the plain name; bookmarks may be added inside a custom project and the custom root is refused as a project; ctrl-d on a custom row removes it from the list, deletes its bookmarks and kills its managed sessions; ctrl-d on a regular row shows a one-line notice; a missing custom directory stays listed, dimmed, (missing), and removable; an unreadable or unwritable cache file is a warning and nothing fails.
 - size: L
 - branch: slice/S-49-custom-projects
+
+### S-50 Unique project labels when names collide
+- status: in-progress
+- deps: S-49
+- FR-IDs: FR-PICK-06, FR-SESS-03, FR-EDIT-01 (proposal P-66; the user owns requirements.md)
+- scope: src/domain/projects.rs (Project.label, Project::new, with_unique_labels, called from merge_projects), src/domain/tree.rs (root labels use the project label), src/app/pickers.rs (project_text, project_dir_rows use the label), src/app/bookmark_cmd.rs (edit window title uses the label), tests
+- acceptance: a project's displayed label is its folder name; when two projects share a name, each gets the last k+1 path components joined with / (work/api, projects/api) with k raised until unique; unique names are unchanged; the label is used in the switcher and session tree Project cells, the project picker name cell, the bookmark tree roots and the edit window title; search still matches the plain name; session names, tree grouping and messages are unchanged.
+- size: M
+- branch: slice/S-50-unique-project-labels

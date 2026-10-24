@@ -636,3 +636,10 @@ Format:
 - why: the user wants to bookmark directories opened outside the project folders without filling the list with bookmark-like directories; subdirectories of a project are never added.
 - texts (added by S-49, used as written): notice on ctrl-d on a project that is not a custom project: "Only a custom project can be removed." (`messages::ONLY_CUSTOM_PROJECT_CAN_BE_REMOVED`); project picker footer: "enter open · ^r rebuild · ^p profile · ^x kill · ^d remove" (`messages::PROJECT_PICKER_FOOTER`); cache warnings with the `Warning: ` prefix: "could not read custom projects: <detail>" and "could not write custom projects: <detail>" (`messages::could_not_read_custom_projects`, `messages::could_not_write_custom_projects`). The read warning at open or in the picker leaves the list unchanged; the write warning at open does not stop the open, and in the picker it is the status line.
 - S-49 implementation note: the mark is `◆` in a UTF-8 locale and `#` otherwise, drawn after the name in the project cell (not a separate column); it is drawn as plain text, not in a muted colour.
+
+### P-66 Same-named projects get a parent-folder label (FR-PICK-06, FR-SESS-03, FR-EDIT-01)
+- from: user request / coordinator, slice S-50
+- status: Open
+- doc: requirements.md (FR-PICK-06, FR-SESS-03, and the edit window label "Bookmarks in <project basename>")
+- change: a project's displayed name is its folder name. When two or more projects share a name, each shows its name with the parent folders added (work/api, projects/api) until the labels are unique.
+- why: two projects with the same folder name cannot be told apart in the session list and the project column.
