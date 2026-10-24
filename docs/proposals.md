@@ -555,3 +555,10 @@ Format:
 - doc: requirements.md (FR-SESS-03 column list; Screens "does not sort" for the tree)
 - change: the session tree shows an Activity column (same age text as the switcher). Sessions that share a parent, and the top-level projects, are ordered by most recent activity first, ties by session name. The nesting rule of P-54 is unchanged.
 - why: the user wants the most recently used sessions first, in the tree as well as the switcher. This supersedes "does not sort" for the session tree only.
+
+### P-57 Uniform home-relative paths in all displayed directories
+- from: user request / coordinator, slice S-36
+- status: Open
+- doc: requirements.md (Shared rules for display; FR-HIST-03 already uses ~)
+- change: every directory path that ledge displays (rows, listings, messages, doctor lines) shows a path under the home folder as "~" or "~/rest"; paths outside home are shown in full. Stored data and command inputs stay absolute.
+- why: the user wants one display form for paths everywhere.

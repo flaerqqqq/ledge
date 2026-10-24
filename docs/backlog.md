@@ -464,3 +464,12 @@ have no FR-IDs state why.
 - acceptance: the session tree has an Activity column with the same age text as the switcher ("just now", "<n>m ago", "<n>h ago", "<n>d ago"); sessions that share a parent (and the top-level projects) are ordered most recently active first, ties by session name; the nesting is unchanged; a project placeholder row has no activity. Bookmark tree unchanged.
 - size: S
 - branch: slice/S-35-session-tree-activity
+
+### S-36 Uniform home-relative directory paths
+- status: in-progress
+- deps: S-18, S-26, S-34
+- FR-IDs: none new; display rule (proposal P-57)
+- scope: every place a directory path is shown: bookmark list and bookmark messages (src/app/bookmark_cmd.rs), doctor lines (src/app/doctor.rs), missing-directory and picker messages (src/app/pickers.rs), the bookmark picker and bookmark tree cells, and the history list, which already uses ~ (src/app/history_cmd.rs). Use AbsPath::display_with_home (src/domain/path.rs) with the HOME value from ctx.env.
+- acceptance: a path under HOME is shown as ~ or ~/rest everywhere it is displayed; a path outside HOME is shown in full; the stored data and the commands' inputs keep absolute paths; messages keep their wording and only the path text changes.
+- size: M
+- branch: slice/S-36-home-tilde-paths
