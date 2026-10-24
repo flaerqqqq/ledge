@@ -608,3 +608,12 @@ have no FR-IDs state why.
 - acceptance: the bookmark edit window starts with hidden folders hidden; '.' shows them and pressing it again hides them; the state is for this window only (not saved); the expand state, bookmarks, search and the other keys are unchanged; while the search bar is open '.' types into the bar; the list keeps the selection on the same folder when the toggle changes the rows.
 - size: S
 - branch: slice/S-52-edit-hidden-toggle
+
+### S-53 Hidden folders are gray in the bookmark edit window
+- status: in-progress
+- deps: S-52
+- FR-IDs: FR-TUI-08 (dimmed rows), FR-EDIT-01; no requirement change
+- scope: src/app/bookmark_cmd.rs (edit rows: dimmed for names starting with '.'), tests/tui_edit_window.rs
+- acceptance: a folder whose name starts with '.' shows dimmed (the same gray as missing folders) in the bookmark edit window when hidden folders are shown; the name and the rest of the row are unchanged; without colour the row still shows its name.
+- size: S
+- branch: slice/S-53-hidden-gray
