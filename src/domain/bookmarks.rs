@@ -115,11 +115,7 @@ mod tests {
 
     /// A project `/p/app` under the search path `/p`.
     fn projects() -> Vec<Project> {
-        vec![Project {
-            path: abs("/p/app"),
-            name: "app".to_string(),
-            custom: false,
-        }]
+        vec![Project::new(abs("/p/app"), "app".to_string(), false)]
     }
 
     // FR-BM-01: entries are read in the order they are stored, not sorted

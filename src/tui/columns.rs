@@ -168,6 +168,8 @@ pub fn widths(
 /// Cells of a session name kept after the ellipsis when it is cut in the middle: the hyphen and the four characters
 /// of the hash (`-91bc`).
 const MIDDLE_TAIL: usize = 5;
+/// P-66: the cells of the start a relative label keeps before its last folder when the cut is needed.
+const LABEL_HEAD: usize = 3;
 /// Separator between the key and label pairs of a footer (design 4.2).
 pub const PAIR_SEP: &str = " · ";
 
@@ -194,11 +196,13 @@ pub fn kept(text: &str, max: usize, cut: Cut) -> Option<Kept> {
             let tail = budget.min(MIDDLE_TAIL);
             split(budget - tail, tail)
         }
-        Cut::Path => path_kept(&chars, budget).unwrap_or_else(|| split(0, budget)),
+        Cut::Path => path_kept(&chars, budget)
+            .or_else(|| label_kept(&chars, budget))
+            .unwrap_or_else(|| split(0, budget)),
         Cut::PathOrEnd if is_path(text) => {
             path_kept(&chars, budget).unwrap_or_else(|| split(0, budget))
         }
-        Cut::PathOrEnd => split(budget, 0),
+        Cut::PathOrEnd => label_kept(&chars, budget).unwrap_or_else(|| split(budget, 0)),
     };
     Some(kept)
 }
@@ -286,6 +290,24 @@ fn cut_with(text: &str, max: usize, cut: Cut) -> String {
     out.push(ELLIPSIS);
     out.extend(chars[chars.len() - kept.tail..].iter());
     out
+}
+
+/// P-66: the cut of a relative label such as `projects/api` (a project label with parent folders): its start, `…`,
+/// then its last folder with the `/` before it, so two labels that share a start still differ and the folder name
+/// stays. At least `LABEL_HEAD` cells of the start are kept when the budget allows. `None` for a path, or a text with
+/// no `/` after its first character.
+fn label_kept(chars: &[char], budget: usize) -> Option<Kept> {
+    let text: String = chars.iter().collect();
+    if is_path(&text) {
+        return None;
+    }
+    let slash = chars.iter().rposition(|c| *c == '/')?;
+    if slash == 0 {
+        return None;
+    }
+    let last: usize = chars[slash..].iter().map(|c| char_width(*c)).sum();
+    let tail = last.min(budget.saturating_sub(LABEL_HEAD));
+    Some(split_budget(chars, budget - tail, tail))
 }
 
 /// Cuts `text` at the end to at most `max` cells, marking the cut with `…`.
@@ -500,6 +522,17 @@ mod tests {
         assert_eq!(cut_path_middle(path, 0), "");
         for max in 1..=3 {
             assert!(width(&cut_path_middle(path, max)) <= max, "max {max}");
+        }
+    }
+
+    // P-66: a label of two folders (projects/api) is cut in the middle, so its start and its folder name both stay
+    #[test]
+    fn cut_project_keeps_the_folder_of_a_relative_label() {
+        assert_eq!(cut_project("projects/api", 8), "pro…/api");
+        assert_eq!(cut_project("work/api", 8), "work/api");
+        assert_eq!(cut_project("projects/api", 3), "pr…");
+        for max in 1..=8 {
+            assert!(width(&cut_project("projects/api", max)) <= max, "max {max}");
         }
     }
 

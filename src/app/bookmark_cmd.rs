@@ -127,7 +127,7 @@ pub fn edit(ctx: &Ctx<'_>, dir: Option<&str>, session_scope: bool) -> Result<Out
     if rows.is_empty() {
         return Ok(Outcome::Done);
     }
-    let model = PickerModel::new(rows, edit_chrome(&project.name));
+    let model = PickerModel::new(rows, edit_chrome(&project.label));
     match run_in_terminal(ctx, model, &mut handler)? {
         PickerResult::Closed(outcome) => Ok(outcome),
         PickerResult::Cancelled

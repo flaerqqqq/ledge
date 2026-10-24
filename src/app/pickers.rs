@@ -643,7 +643,7 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
         .map(|row| {
             let live = live_session(&sessions, &row.path);
             let shown = if row.project {
-                basename(&row.path)
+                project_label(projects, &row.path)
             } else {
                 row.path.display_with_home(home.as_ref())
             };
@@ -761,6 +761,15 @@ fn activity_text(now: i64, activity: i64) -> String {
     messages::activity_age(age(now, activity))
 }
 
+/// P-66, FR-PICK-06: the label of the project at `path` (its folder name, or the parent folders too when another
+/// project has the same name). The basename of `path` when no project has that path.
+fn project_label(projects: &[Project], path: &AbsPath) -> String {
+    projects
+        .iter()
+        .find(|project| project.path == *path)
+        .map_or_else(|| basename(path), |project| project.label.clone())
+}
+
 /// The last path component of a cleaned absolute path (FR-PICK-06).
 fn basename(path: &AbsPath) -> String {
     path.as_str()
@@ -774,7 +783,7 @@ fn basename(path: &AbsPath) -> String {
 /// the home folder written as `~` when it is outside every project.
 fn project_text(projects: &[Project], dir: &AbsPath, home: Option<&AbsPath>) -> String {
     match project_containing(dir, projects) {
-        Some(project) => project.name.clone(),
+        Some(project) => project.label.clone(),
         None => dir.display_with_home(home),
     }
 }

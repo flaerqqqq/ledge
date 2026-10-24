@@ -583,7 +583,7 @@ have no FR-IDs state why.
 - branch: slice/S-49-custom-projects
 
 ### S-50 Unique project labels when names collide
-- status: in-progress
+- status: done
 - deps: S-49
 - FR-IDs: FR-PICK-06, FR-SESS-03, FR-EDIT-01 (proposal P-66; the user owns requirements.md)
 - scope: src/domain/projects.rs (Project.label, Project::new, with_unique_labels, called from merge_projects), src/domain/tree.rs (root labels use the project label), src/app/pickers.rs (project_text, project_dir_rows use the label), src/app/bookmark_cmd.rs (edit window title uses the label), tests

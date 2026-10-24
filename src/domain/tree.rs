@@ -63,8 +63,29 @@ pub fn bookmark_tree(projects: &[Project], bookmarks: &Bookmarks) -> Vec<TreeRow
     }
     groups
         .into_values()
-        .flat_map(|(root, members)| bookmark_rows(&root, &members))
+        .flat_map(|(root, members)| {
+            let label = root_label(&root, projects);
+            bookmark_rows(&root, &label, &members)
+        })
         .collect()
+}
+
+/// P-66: the label of the project at `root`, which names its root row. The last component of `root` when no project
+/// has that path.
+fn root_label(root: &AbsPath, projects: &[Project]) -> String {
+    projects
+        .iter()
+        .find(|project| project.path == *root)
+        .map_or_else(
+            || {
+                root.as_str()
+                    .rsplit('/')
+                    .find(|part| !part.is_empty())
+                    .unwrap_or("/")
+                    .to_string()
+            },
+            |project| project.label.clone(),
+        )
 }
 
 /// FR-TREE-05..08: which part of the bookmark tree a window shows. `Directory` is the directory given to `bm tree`,
@@ -124,20 +145,11 @@ fn block_at(rows: &[TreeRow<NodeKind>], root: &AbsPath) -> Option<Vec<TreeRow<No
     rows.get(start..end).map(<[TreeRow<NodeKind>]>::to_vec)
 }
 
-/// FR-TREE-07, A-13: the single gray row of a directory that no bookmark tree holds. Labelled with its project's
-/// basename, or with its path outside every project.
+/// FR-TREE-07, A-13, P-66: the single gray row of a directory that no bookmark tree holds. Labelled with its project's
+/// label, or with its path outside every project.
 fn root_only(dir: &AbsPath, projects: &[Project]) -> TreeView {
     let (path, label) = match project_containing(dir, projects) {
-        Some(project) => (
-            project.path.clone(),
-            project
-                .path
-                .as_str()
-                .rsplit('/')
-                .find(|part| !part.is_empty())
-                .unwrap_or("/")
-                .to_string(),
-        ),
+        Some(project) => (project.path.clone(), project.label.clone()),
         None => (dir.clone(), dir.as_str().to_string()),
     };
     TreeView {
@@ -326,8 +338,9 @@ fn push_rows(node: &Node, depth: usize, in_project: bool, rows: &mut Vec<TreeRow
 }
 
 /// FR-TREE-01..03, FR-TREE-11, A-13: the rows under one project root of the bookmark tree. Every directory from the
-/// root down to a bookmark is a node; a node without a bookmark is a gray connector (or the gray root).
-fn bookmark_rows(root: &AbsPath, members: &[AbsPath]) -> Vec<TreeRow<NodeKind>> {
+/// root down to a bookmark is a node; a node without a bookmark is a gray connector (or the gray root). P-66: the root
+/// row is labelled `root_label`, the other rows with their folder name.
+fn bookmark_rows(root: &AbsPath, root_label: &str, members: &[AbsPath]) -> Vec<TreeRow<NodeKind>> {
     let root_key = key_of(root);
     // Node key -> number of bookmarks on it.
     let mut nodes: BTreeMap<Key, usize> = BTreeMap::new();
@@ -348,10 +361,15 @@ fn bookmark_rows(root: &AbsPath, members: &[AbsPath]) -> Vec<TreeRow<NodeKind>> 
         let depth = key.len().saturating_sub(root_key.len());
         let is_root = key == root_key;
         let base = key.last().cloned().unwrap_or_else(|| "/".to_string());
+        let label = if is_root {
+            root_label.to_string()
+        } else {
+            base
+        };
         if count == 0 {
             rows.push(TreeRow {
                 depth,
-                label: base,
+                label,
                 path,
                 kind: if is_root {
                     NodeKind::Root
@@ -366,7 +384,7 @@ fn bookmark_rows(root: &AbsPath, members: &[AbsPath]) -> Vec<TreeRow<NodeKind>> 
             for _ in 0..count {
                 rows.push(TreeRow {
                     depth,
-                    label: base.clone(),
+                    label: label.clone(),
                     path: path.clone(),
                     kind: NodeKind::Bookmark,
                     openable: true,
@@ -399,9 +417,10 @@ mod tests {
         bookmark_tree, bookmark_view, session_tree, NodeKind, SessionDir, TreeRow, TreeScope,
     };
     use crate::domain::bookmarks::Bookmarks;
+    use crate::domain::custom_projects::CustomProjects;
     use crate::domain::naming::session_name;
     use crate::domain::path::AbsPath;
-    use crate::domain::projects::Project;
+    use crate::domain::projects::{merge_projects, project_list, Project};
 
     fn abs(text: &str) -> AbsPath {
         AbsPath::clean(text, &AbsPath::root())
@@ -410,11 +429,75 @@ mod tests {
     fn project(text: &str) -> Project {
         let path = abs(text);
         let name = path.as_str().rsplit('/').next().unwrap_or("").to_string();
-        Project {
-            path,
-            name,
-            custom: false,
-        }
+        Project::new(path, name, false)
+    }
+
+    /// The projects of two search paths that hold a folder of the same name (`projects/api`, `work/api`), labelled
+    /// as `merge_projects` labels them.
+    fn colliding_projects() -> Vec<Project> {
+        let listed = project_list(&[
+            (abs("/home/u/projects"), vec!["api".to_string()]),
+            (abs("/home/u/work"), vec!["api".to_string()]),
+        ]);
+        merge_projects(&listed, &CustomProjects::default())
+    }
+
+    // P-66: a bookmark tree root is labelled with the project label, so two same-named roots are told apart
+    #[test]
+    fn bookmark_tree_roots_use_the_project_label() {
+        let projects = colliding_projects();
+        let rows = bookmark_tree(
+            &projects,
+            &bookmarks("/home/u/projects/api/src\n/home/u/work/api/src\n"),
+        );
+        let roots: Vec<(&str, NodeKind)> = rows
+            .iter()
+            .filter(|row| row.depth == 0)
+            .map(|row| (row.label.as_str(), row.kind))
+            .collect();
+        assert_eq!(
+            roots,
+            vec![
+                ("projects/api", NodeKind::Root),
+                ("work/api", NodeKind::Root)
+            ]
+        );
+        assert_eq!(
+            rows[1].label, "src",
+            "a folder below the root keeps its folder name"
+        );
+    }
+
+    // P-66: a project root with a bookmark of its own is labelled with the project label too
+    #[test]
+    fn a_bookmarked_root_is_labelled_with_the_project_label() {
+        let projects = colliding_projects();
+        let rows = bookmark_tree(&projects, &bookmarks("/home/u/work/api\n"));
+        assert_eq!(rows[0].label, "work/api");
+        assert_eq!(rows[0].kind, NodeKind::Bookmark);
+    }
+
+    // P-66: the gray root of a directory that no tree holds is labelled with the project label
+    #[test]
+    fn root_only_view_is_labelled_with_the_project_label() {
+        let projects = colliding_projects();
+        let view = bookmark_view(
+            &projects,
+            &bookmarks(""),
+            &scope_dir("/home/u/work/api/src"),
+        );
+        assert_eq!(view.rows.len(), 1);
+        assert_eq!(view.rows[0].label, "work/api");
+        assert_eq!(view.rows[0].path.as_str(), "/home/u/work/api");
+    }
+
+    // P-66: a session row of a project shows nothing but its folder name, and a placeholder keeps its session name
+    #[test]
+    fn session_rows_keep_their_labels_with_colliding_projects() {
+        let projects = colliding_projects();
+        let rows = session_tree(&projects, &[session("S", "/home/u/work/api/src")]);
+        assert_eq!(rows[0].label, session_name(&abs("/home/u/work/api")));
+        assert_eq!(rows[1].label, "src");
     }
 
     fn session(name: &str, dir: &str) -> SessionDir {

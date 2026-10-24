@@ -630,3 +630,29 @@ fn path_column_is_shown_at_120_cells() {
     let docs_row = line_with(&lines, "docs");
     assert!(docs_row.contains("app/docs"), "{docs_row:?}");
 }
+
+// P-66: the edit window title names the project by its label when another project has the same name
+#[test]
+fn label_names_a_same_named_project_by_its_label() {
+    let h = Harness::new("tui_edit-p66-label");
+    h.terminal.set_size(80, 24);
+    let work = h.root().join("work");
+    fs::create_dir_all(work.join("app").join("src")).expect("create work app");
+    let projects = h.root().join("projects");
+    fs::create_dir_all(projects.join("app").join("src")).expect("create app");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\", \"{}\"]}}",
+        projects.display(),
+        work.display()
+    ));
+    let theirs = work.join("app").display().to_string();
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&theirs), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("Bookmarks in work/app")),
+        "{lines:#?}"
+    );
+}

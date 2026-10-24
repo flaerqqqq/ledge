@@ -1,6 +1,8 @@
 //! Project listing and the current-directory row of the project picker (architecture 5, A-16).
 //! Pure: the child names come from the caller (`app::load_projects`); no file system access.
 
+use std::collections::BTreeMap;
+
 use super::custom_projects::CustomProjects;
 use super::path::AbsPath;
 
@@ -8,10 +10,26 @@ use super::path::AbsPath;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
     pub path: AbsPath,
+    /// The folder name (the last component of `path`).
     pub name: String,
     /// P-65: a custom project (opened from the command line, outside every search path) rather than a child of a
     /// search path.
     pub custom: bool,
+    /// P-66: the name the project shows as. The folder name, or the last few path components when another project
+    /// has the same folder name (`projects/api`, `work/api`). Set by `merge_projects`; `Project::new` gives the name.
+    pub label: String,
+}
+
+impl Project {
+    /// A project whose label is its name. `merge_projects` gives the labels of a list (P-66).
+    pub fn new(path: AbsPath, name: String, custom: bool) -> Self {
+        Self {
+            path,
+            label: name.clone(),
+            name,
+            custom,
+        }
+    }
 }
 
 /// FR-PICK-04, FR-PICK-05, A-16: one row of the project picker. `project` is false for a current
@@ -39,11 +57,7 @@ pub fn project_list(listings: &[(AbsPath, Vec<String>)]) -> Vec<Project> {
             if projects.iter().any(|known| known.path == path) {
                 continue;
             }
-            projects.push(Project {
-                path,
-                name: name.clone(),
-                custom: false,
-            });
+            projects.push(Project::new(path, name.clone(), false));
         }
     }
     projects.sort_by(|a, b| a.path.cmp(&b.path));
@@ -85,14 +99,61 @@ pub fn merge_projects(listed: &[Project], custom: &CustomProjects) -> Vec<Projec
         if projects.iter().any(|known| &known.path == path) {
             continue;
         }
-        projects.push(Project {
-            path: path.clone(),
-            name: basename_of(path),
-            custom: true,
-        });
+        projects.push(Project::new(path.clone(), basename_of(path), true));
     }
     projects.sort_by(|a, b| a.path.cmp(&b.path));
+    with_unique_labels(&mut projects);
     projects
+}
+
+/// P-66, FR-PICK-06: the labels of a list. A project whose name no other project has keeps the name. Projects that
+/// share a name get the last `k + 1` path components joined with `/` (`work/api`), with `k` raised until the labels
+/// of that group are unique. Paths are unique, so the full paths always are.
+fn with_unique_labels(projects: &mut [Project]) {
+    let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (index, project) in projects.iter().enumerate() {
+        groups.entry(project.name.as_str()).or_default().push(index);
+    }
+    let mut labelled: Vec<(usize, String)> = Vec::new();
+    for indexes in groups.values().filter(|indexes| indexes.len() > 1) {
+        let parts: Vec<Vec<&str>> = indexes
+            .iter()
+            .map(|&index| {
+                projects[index]
+                    .path
+                    .as_str()
+                    .split('/')
+                    .filter(|part| !part.is_empty())
+                    .collect()
+            })
+            .collect();
+        let longest = parts.iter().map(Vec::len).max().unwrap_or(0);
+        let mut components = 2;
+        let mut labels = labels_of_last(&parts, components);
+        while components < longest && !all_distinct(&labels) {
+            components += 1;
+            labels = labels_of_last(&parts, components);
+        }
+        labelled.extend(indexes.iter().copied().zip(labels));
+    }
+    for (index, label) in labelled {
+        projects[index].label = label;
+    }
+}
+
+/// P-66: the last `count` components of each path, joined with `/`.
+fn labels_of_last(parts: &[Vec<&str>], count: usize) -> Vec<String> {
+    parts
+        .iter()
+        .map(|part| part[part.len().saturating_sub(count)..].join("/"))
+        .collect()
+}
+
+/// P-66: whether no two of `labels` are equal.
+fn all_distinct(labels: &[String]) -> bool {
+    let mut sorted: Vec<&String> = labels.iter().collect();
+    sorted.sort_unstable();
+    sorted.windows(2).all(|pair| pair[0] != pair[1])
 }
 
 /// P-65: a directory is recorded as a custom project only when no project contains it. `projects` is the search-path
@@ -141,11 +202,11 @@ mod tests {
     fn project(path: &str) -> Project {
         let path = abs(path);
         let name = path.as_str().rsplit('/').next().unwrap_or("").to_string();
-        Project {
-            path,
-            name,
-            custom: false,
-        }
+        Project::new(path, name, false)
+    }
+
+    fn labels(projects: &[Project]) -> Vec<&str> {
+        projects.iter().map(|p| p.label.as_str()).collect()
     }
 
     fn paths(projects: &[Project]) -> Vec<&str> {
@@ -350,6 +411,81 @@ mod tests {
     fn merge_with_empty_custom_list_is_the_listed_projects() {
         let listed = project_list(&[(abs("/p"), names(&["a", "b"]))]);
         assert_eq!(merge_projects(&listed, &CustomProjects::default()), listed);
+    }
+
+    // P-66: a project's label is its folder name until merge_projects gives it one
+    #[test]
+    fn project_new_sets_the_label_to_the_name() {
+        let project = Project::new(abs("/p/app"), "app".to_string(), false);
+        assert_eq!(project.label, "app");
+        assert_eq!(project.name, "app");
+        assert!(!project.custom);
+    }
+
+    // P-66: unique names keep their plain name as the label
+    #[test]
+    fn unique_names_keep_the_plain_name_as_label() {
+        let listed = project_list(&[(abs("/p"), names(&["app", "lib"]))]);
+        let merged = merge_projects(&listed, &CustomProjects::default());
+        assert_eq!(labels(&merged), vec!["app", "lib"]);
+    }
+
+    // P-66: two projects with the same name each gain the parent folder: projects/api and work/api
+    #[test]
+    fn two_same_names_gain_one_parent_folder() {
+        let listed = project_list(&[
+            (abs("/home/u/projects"), names(&["api"])),
+            (abs("/home/u/work"), names(&["api"])),
+        ]);
+        let merged = merge_projects(&listed, &CustomProjects::default());
+        assert_eq!(
+            paths(&merged),
+            vec!["/home/u/projects/api", "/home/u/work/api"]
+        );
+        assert_eq!(labels(&merged), vec!["projects/api", "work/api"]);
+        assert_eq!(merged[0].name, "api", "the name stays the folder name");
+    }
+
+    // P-66: a label that still collides at one parent takes a second: team/api of two parents becomes a/team/api
+    // and b/team/api, while the unique c/api keeps the one parent it needs
+    #[test]
+    fn a_shared_parent_needs_a_second_level() {
+        let listed = project_list(&[
+            (abs("/a/team"), names(&["api"])),
+            (abs("/b/team"), names(&["api"])),
+            (abs("/c"), names(&["api"])),
+        ]);
+        let merged = merge_projects(&listed, &CustomProjects::default());
+        assert_eq!(labels(&merged), vec!["a/team/api", "b/team/api", "c/api"]);
+    }
+
+    // P-66: a search-path project and a custom project with the same name are a collision too
+    #[test]
+    fn search_path_project_colliding_with_a_custom_project_gains_a_parent() {
+        let listed = project_list(&[(abs("/p"), names(&["app", "lib"]))]);
+        let custom = CustomProjects::parse("/s/app\n");
+        let merged = merge_projects(&listed, &custom);
+        assert_eq!(paths(&merged), vec!["/p/app", "/p/lib", "/s/app"]);
+        assert_eq!(labels(&merged), vec!["p/app", "lib", "s/app"]);
+        assert!(merged[2].custom && !merged[0].custom);
+    }
+
+    // P-66: the labels of a list are unique, and merging the same inputs again gives the same labels
+    #[test]
+    fn labels_are_unique_and_stable() {
+        let listed = project_list(&[
+            (abs("/a/team"), names(&["api", "web"])),
+            (abs("/b/team"), names(&["api"])),
+            (abs("/c"), names(&["api"])),
+        ]);
+        let custom = CustomProjects::parse("/d/web\n");
+        let first = merge_projects(&listed, &custom);
+        let second = merge_projects(&listed, &custom);
+        assert_eq!(labels(&first), labels(&second));
+        let mut seen = labels(&first);
+        seen.sort_unstable();
+        seen.dedup();
+        assert_eq!(seen.len(), first.len());
     }
 
     // P-65: a directory is recorded when no project contains it

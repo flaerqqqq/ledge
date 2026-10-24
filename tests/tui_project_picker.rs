@@ -1363,3 +1363,93 @@ fn missing_custom_project_is_listed_with_missing_and_removable() {
     project_picker(&again.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
     assert_eq!(again.custom_projects_text(), Some(String::new()));
 }
+
+/// Config with two search paths, `<root>/projects` and `<root>/work` (P-66).
+fn search_config_two(h: &Harness) {
+    let work = h.root().join("work");
+    fs::create_dir_all(&work).expect("create work");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\", \"{}\"]}}",
+        h.root().join("projects").display(),
+        work.display()
+    ));
+}
+
+// P-66: both same-named project rows show their distinct labels
+#[test]
+fn same_named_projects_show_distinct_labels() {
+    let mut h = Harness::new("tui_project_picker-p66-labels");
+    search_config_two(&h);
+    h.project("api");
+    fs::create_dir_all(h.root().join("work").join("api")).expect("create work api");
+    h.project("lib");
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("projects/api")),
+        "{lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("work/api")),
+        "{lines:#?}"
+    );
+    assert!(lines.iter().any(|line| line.contains("lib")), "{lines:#?}");
+    assert!(
+        !lines.iter().any(|line| line.contains(" api ")),
+        "{lines:#?}"
+    );
+}
+
+// P-66: the search matches the plain name, so typing api keeps both same-named rows on the screen
+#[test]
+fn search_by_plain_name_keeps_both_same_named_rows() {
+    let mut h = Harness::new("tui_project_picker-p66-search");
+    search_config_two(&h);
+    h.project("api");
+    fs::create_dir_all(h.root().join("work").join("api")).expect("create work api");
+    h.project("lib");
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    let mut keys = typed("api");
+    keys.push(esc());
+    h.terminal.script(keys);
+    project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("projects/api")),
+        "{lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("work/api")),
+        "{lines:#?}"
+    );
+    assert!(!lines.iter().any(|line| line.contains("lib")), "{lines:#?}");
+}
+
+// P-66, P-65: a custom project with the same name keeps its mark after its label
+#[test]
+fn custom_project_with_a_colliding_name_keeps_its_mark_after_its_label() {
+    let mut h = Harness::new("tui_project_picker-p66-custom");
+    search_config_two(&h);
+    h.project("api");
+    let scratch = format!("{}/scratch/api", h.root().display());
+    fs::create_dir_all(&scratch).expect("create scratch api");
+    h.write_custom_projects(&format!("{scratch}\n"));
+    utf8(&mut h);
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("scratch/api ◆")),
+        "{lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("projects/api")),
+        "{lines:#?}"
+    );
+}

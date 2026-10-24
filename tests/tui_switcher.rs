@@ -574,3 +574,80 @@ fn switcher_at_120_cells_shows_the_path_column_and_details() {
         lines[title + 4]
     );
 }
+
+/// Config with two search paths, `<root>/projects` and `<root>/work` (P-66).
+fn search_config_two(h: &Harness) {
+    let work = h.root().join("work");
+    fs::create_dir_all(&work).expect("create work");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\", \"{}\"]}}",
+        h.root().join("projects").display(),
+        work.display()
+    ));
+}
+
+/// A project folder `<root>/work/<name>`, the second search path's project (P-66); the path text.
+fn work_project(h: &Harness, name: &str) -> String {
+    let path = format!("{}/work/{name}", h.root().display());
+    fs::create_dir_all(&path).expect("create work project");
+    path
+}
+
+// P-66: two sessions in same-named projects show their labels, projects/api and work/api; a unique project keeps its name
+#[test]
+fn sessions_in_same_named_projects_show_distinct_labels() {
+    let h = Harness::new("tui_switcher-p66-labels");
+    h.terminal.set_size(240, 40);
+    search_config_two(&h);
+    let ours = h.project("api");
+    let theirs = work_project(&h, "api");
+    let lib = h.project("lib");
+    let ours_name = managed(&h, &ours, FIXED_NOW - 10);
+    let theirs_name = managed(&h, &theirs, FIXED_NOW - 20);
+    let lib_name = managed(&h, &lib, FIXED_NOW - 30);
+    h.terminal.script(vec![esc()]);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    let ours_row = line_with(&lines, &ours_name);
+    assert_eq!(
+        cell_after(ours_row, &ours_name),
+        "projects/api",
+        "{ours_row:?}"
+    );
+    let theirs_row = line_with(&lines, &theirs_name);
+    assert_eq!(
+        cell_after(theirs_row, &theirs_name),
+        "work/api",
+        "{theirs_row:?}"
+    );
+    let lib_row = line_with(&lines, &lib_name);
+    assert_eq!(cell_after(lib_row, &lib_name), "lib", "{lib_row:?}");
+}
+
+// P-66: at a narrow width the label of a same-named project is cut in the middle, so its folder name still shows
+#[test]
+fn narrow_switcher_cuts_a_label_in_the_middle_and_keeps_its_folder() {
+    let h = Harness::new("tui_switcher-p66-narrow");
+    h.terminal.set_size(40, 30);
+    let client = h.root().join("client-platform-team");
+    fs::create_dir_all(&client).expect("create client folder");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\", \"{}\"]}}",
+        h.root().join("projects").display(),
+        client.display()
+    ));
+    let ours = h.project("api");
+    let theirs = format!("{}/api", client.display());
+    fs::create_dir_all(&theirs).expect("create api");
+    managed(&h, &ours, FIXED_NOW - 10);
+    let theirs_name = managed(&h, &theirs, FIXED_NOW - 20);
+    h.terminal.script(vec![esc()]);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    let row = line_with(&lines, &theirs_name);
+    let cell = cell_after(row, &theirs_name);
+    assert!(
+        cell.starts_with("client-") && cell.ends_with("/api") && cell.contains('…'),
+        "cut label {cell:?} in {row:?}"
+    );
+}

@@ -1376,3 +1376,92 @@ fn bookmark_inside_a_custom_project_groups_under_it() {
     assert_eq!(outcome, Ok(Outcome::Done));
     assert_eq!(h.backend.attached_to(), Some(name_of(&abs(&src))));
 }
+
+/// Config with two search paths, `<root>/projects` and `<root>/work` (P-66).
+fn search_in_two(h: &Harness) {
+    let work = h.root().join("work");
+    fs::create_dir_all(&work).expect("create work");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\", \"{}\"]}}",
+        h.root().join("projects").display(),
+        work.display()
+    ));
+}
+
+/// A project folder `<root>/work/<name>` (P-66); the absolute path.
+fn work_project(h: &Harness, name: &str) -> AbsPath {
+    let path = format!("{}/work/{name}", h.root().display());
+    fs::create_dir_all(&path).expect("create work project");
+    abs(&path)
+}
+
+// P-66: two sessions in same-named projects show projects/api and work/api in the session tree's Project column
+#[test]
+fn session_tree_shows_labels_for_same_named_projects() {
+    let h = Harness::new("tui_trees-p66-session");
+    search_in_two(&h);
+    h.terminal.set_size(240, 40);
+    let ours = abs(&h.project("api"));
+    let theirs = work_project(&h, "api");
+    let lib = abs(&h.project("lib"));
+    let ours_deep = abs(&format!("{}/src", ours.as_str()));
+    let theirs_deep = abs(&format!("{}/src", theirs.as_str()));
+    live(&h, &ours_deep, "dev", DEV);
+    live(&h, &theirs_deep, "dev", DEV);
+    live(&h, &lib, "dev", DEV);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let ours_row = line_with(&lines, &name_of(&ours_deep));
+    assert_eq!(
+        cell_after(ours_row, &name_of(&ours_deep)),
+        "projects/api",
+        "{ours_row}"
+    );
+    let theirs_row = line_with(&lines, &name_of(&theirs_deep));
+    assert_eq!(
+        cell_after(theirs_row, &name_of(&theirs_deep)),
+        "work/api",
+        "{theirs_row}"
+    );
+    let lib_row = line_with(&lines, &name_of(&lib));
+    assert_eq!(cell_after(lib_row, &name_of(&lib)), "lib", "{lib_row}");
+}
+
+// P-66: the placeholder row of a same-named project has the label in its Project cell
+#[test]
+fn placeholder_project_cell_uses_the_label() {
+    let h = Harness::new("tui_trees-p66-placeholder");
+    search_in_two(&h);
+    h.terminal.set_size(240, 40);
+    h.project("api");
+    let theirs = work_project(&h, "api");
+    let theirs_deep = abs(&format!("{}/src/x", theirs.as_str()));
+    live(&h, &theirs_deep, "dev", DEV);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let row = line_with(&lines, "(no session)");
+    assert!(row.contains(&name_of(&theirs)), "{row}");
+    assert_eq!(cell_after(row, "(no session)"), "work/api", "{row}");
+}
+
+// P-66: the bookmark tree labels each same-named root with its project label
+#[test]
+fn bookmark_tree_roots_show_labels_for_same_named_projects() {
+    let h = Harness::new("tui_trees-p66-bookmarks");
+    search_in_two(&h);
+    h.terminal.set_size(120, 30);
+    let ours = h.project("api/src");
+    let theirs = work_project(&h, "api");
+    let theirs_src = format!("{}/src", theirs.as_str());
+    fs::create_dir_all(&theirs_src).expect("create src");
+    write_bookmarks(&h, &[ours.as_str(), theirs_src.as_str()]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    let ours_root = line_with(&lines, "projects/api");
+    assert!(ours_root.contains("projects/api"), "{ours_root}");
+    let theirs_root = line_with(&lines, "work/api");
+    assert!(theirs_root.contains("work/api"), "{theirs_root}");
+}
