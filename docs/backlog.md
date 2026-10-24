@@ -337,7 +337,7 @@ have no FR-IDs state why.
 - branch: slice/20-edit-state
 
 ### S-21 Bookmark edit window: keys, project choice, and command
-- status: in-progress
+- status: done
 - deps: S-20, S-08, S-17
 - FR-IDs: FR-EDIT-02, FR-EDIT-07, FR-EDIT-08, FR-EDIT-09, FR-EDIT-10
 - scope: `app/bookmark_cmd.rs` (`bm edit`), `domain/projects.rs` (project containing a directory), `tui` edit window screen (6.2, 6.3 table).
@@ -350,7 +350,7 @@ have no FR-IDs state why.
 - branch: slice/21-edit-command
 
 ### S-22 Tree node actions (alt keys) and tree window behaviour
-- status: blocked
+- status: in-progress
 - deps: S-05, S-14, S-15
 - FR-IDs: FR-ACT-06, FR-ACT-08, FR-ACT-09, FR-TREE-12
 - scope: `app/actions.rs` (node actions over `domain/sessions.rs` node membership), tree picker wiring in `app/pickers.rs`, `tui/keys.rs` (alt keys).

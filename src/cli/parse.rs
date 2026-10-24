@@ -68,7 +68,11 @@ pub enum Command {
     },
     BmList,
     BmPick,
-    BmEdit,
+    /// FR-EDIT-08, FR-EDIT-09: `bm edit [DIR] [--session-scope]`; no directory means the working directory.
+    BmEdit {
+        dir: Option<String>,
+        session_scope: bool,
+    },
     BmTree,
     SsList,
     SsTree,
@@ -91,7 +95,7 @@ impl Command {
             Command::BmAdd { .. } => "bm add",
             Command::BmRemove { .. } => "bm remove",
             Command::BmList => "bm list",
-            Command::BmEdit => "bm edit",
+            Command::BmEdit { .. } => "bm edit",
             Command::BmTree => "bm tree",
             Command::SsList => "ss list",
             Command::SsTree => "ss tree",
@@ -390,7 +394,15 @@ fn bm(words: &[String], opts: &[Opt]) -> Result<Command, String> {
             if tail.len() > 1 {
                 return Err(messages::command_not_available("bm edit"));
             }
-            Ok(Command::BmEdit)
+            let parsed = options(opts)?;
+            // P-39 (a): the scope option takes the current session's directory, so a directory with it is refused.
+            if parsed.session_scope && !tail.is_empty() {
+                return Err(messages::session_scope_with_directory().to_string());
+            }
+            Ok(Command::BmEdit {
+                dir: tail.first().cloned(),
+                session_scope: parsed.session_scope,
+            })
         }
         "tree" => {
             check(opts, OPEN_SCOPE)?;
@@ -763,6 +775,33 @@ mod tests {
         );
     }
 
+    // FR-EDIT-08, FR-EDIT-09: `bm edit` takes an optional directory and the scope option
+    #[test]
+    fn bm_edit_forms() {
+        assert_eq!(
+            parse(&argv(&["bm", "edit"])),
+            Ok(Command::BmEdit {
+                dir: None,
+                session_scope: false
+            })
+        );
+        assert_eq!(
+            parse(&argv(&["bm", "edit", "/a/app"])),
+            Ok(Command::BmEdit {
+                dir: Some("/a/app".to_string()),
+                session_scope: false
+            })
+        );
+        assert_eq!(
+            parse(&argv(&["bm", "edit", "/a", "--session-scope"])),
+            Err("--session-scope cannot be combined with a directory.".to_string())
+        );
+        assert_eq!(
+            parse(&argv(&["bm", "edit", "/a", "/b"])),
+            Err("'bm edit' is not available yet.".to_string())
+        );
+    }
+
     // Architecture 2.3: the commands whose slice is not built yet still parse
     #[test]
     fn unbuilt_commands_parse() {
@@ -772,8 +811,11 @@ mod tests {
         );
         assert_eq!(parse(&argv(&["ss", "kill", "x"])), Ok(Command::SsKill));
         assert_eq!(
-            parse(&argv(&["bm", "edit", "/a", "--session-scope"])),
-            Ok(Command::BmEdit)
+            parse(&argv(&["bm", "edit", "--session-scope"])),
+            Ok(Command::BmEdit {
+                dir: None,
+                session_scope: true
+            })
         );
         assert_eq!(parse(&argv(&["doctor"])), Ok(Command::Doctor));
     }

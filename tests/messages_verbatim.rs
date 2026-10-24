@@ -16,6 +16,35 @@ fn home_not_set_text_is_verbatim() {
     assert_eq!(messages::home_not_set(), "HOME is not set.");
 }
 
+// FR-EDIT-09, D-16: --session-scope outside a session
+#[test]
+fn session_scope_requires_session_text_is_verbatim() {
+    assert_eq!(
+        messages::session_scope_requires_session(),
+        "--session-scope requires running inside a session."
+    );
+}
+
+// FR-EDIT-10, Messages: the edit window outside every project
+#[test]
+fn edit_outside_project_text_is_verbatim() {
+    assert_eq!(
+        messages::edit_outside_project("/p/x"),
+        "/p/x is not inside a project from search_paths."
+    );
+}
+
+// FR-EDIT-01, architecture 6.2: the edit window label and footer
+#[test]
+fn edit_window_label_and_footer_are_verbatim() {
+    assert_eq!(messages::edit_window_label("app"), "Bookmarks in app");
+    assert_eq!(
+        messages::EDIT_WINDOW_FOOTER,
+        "enter toggle bookmark · →/^l open · ←/^h close · esc done"
+    );
+    assert_eq!(messages::HEADER_DIRECTORY, "Directory");
+}
+
 // FR-CONF-05, message "config is not valid JSON: <file>"
 #[test]
 fn config_not_valid_json_text_is_verbatim() {

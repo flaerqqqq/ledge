@@ -384,3 +384,26 @@ Format:
 - why: FR-EDIT-01 says the window lists the subdirectories of a project, so a collapsed root on first open would show nothing. No
   document says whether the root has an expansion state. D-09 keeps only expanded folders, and this choice adds no entry for the root.
 - status: Open
+
+### P-39 S-21 bookmark edit window: choices the spec leaves open
+- from: implementer / slice S-21
+- doc: requirements.md (FR-EDIT-02, FR-EDIT-07, FR-EDIT-08, FR-EDIT-09, Screens and interactions, Bookmark edit window), docs/architecture.md (6.2, 6.3, 6.5, 8.3) and docs/backlog.md (S-21)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) `bm edit DIR --session-scope` is refused with `--session-scope cannot be combined with a directory.` (the FR-TREE-10 text, reused). This closes P-34 (e). The grammar takes `bm edit [DIR] [--session-scope]`, so the refusal is a choice, not a given.
+  (b) escape closes the edit window with no output (`Outcome::Done`), not with `Cancelled.`. The footer says "esc done" and FR-EDIT-07 says "close". D-12 prints `Cancelled.` for the other pickers only.
+  (c) `--session-scope` uses the directory of the current session (FR-EDIT-09). A current session with no directory gives the same refusal as outside tmux, `--session-scope requires running inside a session.`.
+  (d) `bm edit` with `--session-scope` requires tmux (A-29). Without the option it does not.
+  (e) The expanded folders and the bookmarks are written at each change (enter, right, left), not when the window closes. A write failure shows in the status line and the window stays open (its `could not save the bookmark edit state: <detail>` text is [new]).
+  (f) `could not read the bookmark edit state: <detail>` is [new] (edit state file unreadable, error, exit 1). Like P-35 (a), no text in the spec names it.
+  (g) Right arrow on a folder that is not collapsed, and left arrow on the project root, do nothing. Left on a folder that is not expanded (or a leaf) moves to the parent row (D-15, architecture 6.3).
+  (h) The window has no prompt row (architecture 6.2, D-15), so its list gets one row more than the picker chrome allows (`tui::engine::draw`).
+  (i) A directory argument that does not exist is not refused by the window. It is looked up in the search paths like any path (FR-EDIT-08, A-14), so the window opens for the project that contains it, or refuses with FR-EDIT-10.
+- why: each choice is the smallest one that passes the S-21 tests in tests/tui_edit_window.rs, tests/component_edit.rs, the unit tests in src/cli/parse.rs and src/tui/picker.rs, and tests/messages_verbatim.rs. None changes an accepted decision (D-09, D-12, D-15, D-16, A-14, A-29).
+- status: Open
+
+### P-40 S-21 edit window footer: requirements.md and architecture 6.2 differ
+- from: implementer / slice S-21
+- doc: requirements.md (Screens and interactions, Bookmark edit window: footer "enter toggle bookmark · ^l open · ^h close · esc done") and docs/architecture.md (6.2 and 6.3, footer "enter toggle bookmark · →/^l open · ←/^h close · esc done"; D-15 names the arrows)
+- change: the implementation shows the architecture text, which names the arrow keys as well as ctrl-l and ctrl-h, and matches D-15. The requirements text is kept unchanged. Only the user can pick one, so the text in `messages::EDIT_WINDOW_FOOTER` follows the architecture until the user decides.
+- why: the two documents disagree on the footer. D-15 and the architecture 6.2 table are the more specific ones, and the screen table is the one with the shorter key names.
+- status: Open

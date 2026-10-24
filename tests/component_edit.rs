@@ -3,14 +3,23 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use ledge::adapters::fs::RealFs;
+use ledge::app::bookmark_cmd::edit;
+use ledge::app::build::ensure_session;
 use ledge::app::store::{load_expanded, save_expanded};
+use ledge::cli::run;
 use ledge::domain::bm_edit::{visible_rows, ExpandedFolders};
 use ledge::domain::bookmarks::Bookmarks;
 use ledge::domain::location::Dirs;
+use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
+use ledge::domain::profile::Profile;
+use ledge::error::{LedgeError, Outcome, Result};
 use ledge::ports::fs::FileSystem;
+use ledge::tui::terminal::Input;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
 use std::path::{Path, PathBuf};
+use support::ctx::Harness;
 use support::temp::TempTree;
 
 mod support;
@@ -209,4 +218,137 @@ fn project_without_visible_subfolders_gives_no_rows() {
     let app = abs(&format!("{}/app", tree.path().display()));
     let expanded = load_expanded(&RealFs, &dirs).expect("load");
     assert!(visible_rows(&app, &expanded, &Bookmarks::default(), &real_children).is_empty());
+}
+
+/// The text of a command that must fail.
+fn fatal(result: Result<Outcome>) -> String {
+    match result {
+        Err(LedgeError::Fatal(text)) => text,
+        other => panic!("expected a fatal error, got {other:?}"),
+    }
+}
+
+fn esc() -> Input {
+    Input::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))
+}
+
+/// The label of the window the terminal drew last, if a window opened.
+fn window_label(h: &Harness) -> Option<String> {
+    let record = h.terminal.last_record()?;
+    let lines = record.borrow().lines.clone();
+    lines
+        .into_iter()
+        .find(|line| line.contains("Bookmarks in "))
+}
+
+/// A search path with one project `app` (`src/main`, `docs`, hidden `.git`), and `h`'s working directory in it.
+fn project_app(h: &Harness) -> String {
+    let app = h.project("app");
+    fs::create_dir_all(format!("{app}/src/main")).expect("create src/main");
+    fs::create_dir_all(format!("{app}/docs")).expect("create docs");
+    fs::create_dir_all(format!("{app}/.git")).expect("create .git");
+    let projects = h.root().join("projects").display().to_string();
+    h.write_config(&format!("{{\"search_paths\": [\"{projects}\"]}}"));
+    h.terminal.set_size(80, 24);
+    app
+}
+
+// FR-EDIT-08: with no directory the project is the one containing the working directory
+#[test]
+fn no_directory_chooses_the_project_of_the_working_directory() {
+    let mut h = Harness::new("component_edit-cwd-project");
+    let app = project_app(&h);
+    h.cwd = ledge::domain::path::AbsPath::clean(
+        &format!("{app}/src/main"),
+        &ledge::domain::path::AbsPath::root(),
+    );
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), None, false), Ok(Outcome::Done));
+    assert!(window_label(&h).is_some_and(|line| line.contains("Bookmarks in app")));
+}
+
+// FR-EDIT-08: a given directory chooses the project that contains it, and a project contains itself
+#[test]
+fn given_directory_chooses_its_project_and_a_project_contains_itself() {
+    let h = Harness::new("component_edit-given-project");
+    let app = project_app(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        edit(&h.ctx(), Some(&format!("{app}/docs")), false),
+        Ok(Outcome::Done)
+    );
+    assert!(window_label(&h).is_some_and(|line| line.contains("Bookmarks in app")));
+
+    let h = Harness::new("component_edit-self-project");
+    let app = project_app(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert!(window_label(&h).is_some_and(|line| line.contains("Bookmarks in app")));
+}
+
+// FR-EDIT-10: a directory outside every project fails with the message, and no window opens
+#[test]
+fn directory_outside_every_project_is_refused() {
+    let h = Harness::new("component_edit-outside");
+    let _app = project_app(&h);
+    let outside = format!("{}/elsewhere", h.root().display());
+    fs::create_dir_all(&outside).expect("create outside folder");
+    assert_eq!(
+        fatal(edit(&h.ctx(), Some(&outside), false)),
+        format!("{outside} is not inside a project from search_paths.")
+    );
+    assert!(h.terminal.last_record().is_none());
+}
+
+// FR-EDIT-11: a project with no visible subfolders exits with no output and opens no window
+#[test]
+fn project_without_subfolders_opens_no_window() {
+    let h = Harness::new("component_edit-no-subfolders");
+    let projects = h.root().join("projects").display().to_string();
+    h.write_config(&format!("{{\"search_paths\": [\"{projects}\"]}}"));
+    let empty = h.project("empty");
+    fs::write(format!("{empty}/notes.txt"), "x").expect("write a file");
+    fs::create_dir_all(format!("{empty}/.hidden")).expect("create hidden folder");
+    assert_eq!(edit(&h.ctx(), Some(&empty), false), Ok(Outcome::Done));
+    assert!(h.terminal.last_record().is_none());
+}
+
+// FR-EDIT-09, D-16: --session-scope outside a tmux session is refused with the message
+#[test]
+fn session_scope_outside_a_session_is_refused() {
+    let h = Harness::new("component_edit-scope-outside");
+    let _app = project_app(&h);
+    assert_eq!(
+        fatal(edit(&h.ctx(), None, true)),
+        "--session-scope requires running inside a session."
+    );
+    assert!(h.terminal.last_record().is_none());
+}
+
+// FR-EDIT-09: --session-scope uses the directory of the session the client is in
+#[test]
+fn session_scope_uses_the_directory_of_the_current_session() {
+    let mut h = Harness::new("component_edit-scope-inside");
+    let app = project_app(&h);
+    let dir = ledge::domain::path::AbsPath::clean(
+        &format!("{app}/docs"),
+        &ledge::domain::path::AbsPath::root(),
+    );
+    ensure_session(&h.backend, &dir, &Profile::basic()).expect("create session");
+    h.backend.set_current(&session_name(&dir));
+    h.env = h.env.clone().with_var("TMUX", "/tmp/tmux-1000/default,1,0");
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), None, true), Ok(Outcome::Done));
+    assert!(window_label(&h).is_some_and(|line| line.contains("Bookmarks in app")));
+}
+
+// FR-EDIT-08, FR-EDIT-09: the command reaches the window through the CLI (dispatch of `bm edit`)
+#[test]
+fn bm_edit_command_opens_the_window_for_the_given_directory() {
+    let h = Harness::new("component_edit-cli");
+    let app = project_app(&h);
+    h.terminal.script(vec![esc()]);
+    let args = vec!["bm".to_string(), "edit".to_string(), app.clone()];
+    assert_eq!(run(&args, &h.ctx()), Ok(Outcome::Done));
+    assert!(window_label(&h).is_some_and(|line| line.contains("Bookmarks in app")));
 }

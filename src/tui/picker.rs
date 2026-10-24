@@ -59,6 +59,8 @@ pub struct Chrome {
     pub search_column: Option<usize>,
     /// Column that carries the ` (missing)` cue of a dimmed row.
     pub missing_column: Option<usize>,
+    /// Column that carries the tree indent and the connector parentheses (FR-EDIT-03).
+    pub tree_column: Option<usize>,
     pub footer: String,
     /// Info text shown in the list when there are no rows.
     pub empty_message: Option<String>,
@@ -75,6 +77,7 @@ impl Chrome {
             columns,
             search_column: Some(0),
             missing_column: None,
+            tree_column: Some(0),
             footer: footer.to_string(),
             empty_message: None,
             stay_open_when_empty: false,
@@ -193,7 +196,8 @@ impl<T> PickerModel<T> {
             Action::PageDown => (self.selected + step).min(last),
             Action::Home => 0,
             Action::End => last,
-            Action::Left | Action::Right => return Effect::Handled,
+            // Tree keys belong to the caller: the edit window expands and collapses (FR-EDIT-03).
+            Action::Left | Action::Right => return Effect::Act(action),
             Action::Choose => {
                 return if self.selected_row().is_some() {
                     Effect::Choose
@@ -202,6 +206,9 @@ impl<T> PickerModel<T> {
                 };
             }
             Action::Cancel => return Effect::Cancel,
+            // The edit window has no filter (D-15, FR-TUI-02 exception): typing does nothing and backspace is collapse.
+            Action::Type(_) if !self.has_filter() => return Effect::Handled,
+            Action::Backspace if !self.has_filter() => return Effect::Act(Action::Left),
             Action::Type(c) => {
                 self.filter.push(c);
                 self.refilter();
@@ -217,6 +224,33 @@ impl<T> PickerModel<T> {
         self.selected = target;
         self.ensure_visible();
         Effect::Handled
+    }
+
+    /// Whether the picker filters its rows as the user types (architecture 6.2: the search column is set).
+    fn has_filter(&self) -> bool {
+        self.chrome.search_column.is_some()
+    }
+
+    /// FR-EDIT-03: moves the selection to the nearest visible row above with a smaller tree depth (the parent).
+    /// A row with no parent (depth 0) keeps the selection.
+    pub fn select_parent(&mut self) {
+        let Some(depth) = self
+            .selected_row()
+            .map(|row| row.depth)
+            .filter(|&depth| depth > 0)
+        else {
+            return;
+        };
+        let parent = (0..self.selected).rev().find(|&position| {
+            self.visible
+                .get(position)
+                .and_then(|&row| self.rows.get(row))
+                .is_some_and(|row| row.depth < depth)
+        });
+        if let Some(position) = parent {
+            self.selected = position;
+            self.ensure_visible();
+        }
     }
 
     /// Replaces the rows after an action (D-12 reopen). The filter is kept and the selection keeps
@@ -508,5 +542,39 @@ mod tests {
         let mut model = PickerModel::new(flat(&["a"]), chrome());
         assert_eq!(model.apply(Action::Rebuild), Effect::Act(Action::Rebuild));
         assert_eq!(model.apply(Action::Cancel), Effect::Cancel);
+    }
+
+    // FR-EDIT-03: left and right are the caller's (expand and collapse), not the model's
+    #[test]
+    fn left_and_right_are_returned_to_the_caller() {
+        let mut model = PickerModel::new(flat(&["a"]), chrome());
+        assert_eq!(model.apply(Action::Left), Effect::Act(Action::Left));
+        assert_eq!(model.apply(Action::Right), Effect::Act(Action::Right));
+    }
+
+    // FR-TUI-02, D-15: without a search column there is no filter: typing is ignored and backspace is left
+    #[test]
+    fn edit_window_without_search_ignores_typing_and_backspace_is_left() {
+        let mut edit_chrome = chrome();
+        edit_chrome.search_column = None;
+        let mut model = PickerModel::new(flat(&["alpha", "beta"]), edit_chrome);
+        assert_eq!(model.apply(Action::Type('b')), Effect::Handled);
+        assert_eq!(model.filter(), "");
+        assert_eq!(names(&model), vec!["alpha".to_string(), "beta".to_string()]);
+        assert_eq!(model.apply(Action::Backspace), Effect::Act(Action::Left));
+    }
+
+    // FR-EDIT-03: left on a child moves to the nearest row above with a smaller depth; the root keeps the selection
+    #[test]
+    fn select_parent_moves_to_the_nearest_shallower_row() {
+        let rows = tree(&[("app", 0), ("docs", 1), ("src", 1), ("main", 2)]);
+        let mut model = PickerModel::new(rows, chrome());
+        model.apply(Action::End);
+        model.select_parent();
+        assert_eq!(model.selected_row().map(|r| r.payload), Some(2));
+        model.select_parent();
+        assert_eq!(model.selected_row().map(|r| r.payload), Some(0));
+        model.select_parent();
+        assert_eq!(model.selected_row().map(|r| r.payload), Some(0));
     }
 }

@@ -402,10 +402,9 @@ fn commands_not_built_yet_fail_with_a_plain_error() {
         fatal(run(&args(&["doctor"]), &h.ctx())),
         "'doctor' is not available yet."
     );
-    assert_eq!(
-        fatal(run(&args(&["bm", "edit"]), &h.ctx())),
-        "'bm edit' is not available yet."
-    );
+    // FR-EDIT-10: `bm edit` is built now; the working directory of this harness is outside every project
+    assert!(fatal(run(&args(&["bm", "edit"]), &h.ctx()))
+        .ends_with(" is not inside a project from search_paths."));
 }
 
 fn binary() -> Command {

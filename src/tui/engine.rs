@@ -28,6 +28,8 @@ pub enum Step {
     Accept,
     /// Return this outcome to the caller.
     Close(Outcome),
+    /// FR-EDIT-03: left arrow on a folder that is not expanded moves the selection to its parent row.
+    ToParent,
     /// ctrl-p on a row (S-15, FR-ACT-04): the picker returns the row as `PickerResult::Profile`, so the caller can
     /// run the profile picker for it and open this picker again. Only meaningful from `act`.
     Profile,
@@ -147,6 +149,10 @@ fn apply_step<T: Clone>(
         Step::Close(outcome) => Ok(Some(PickerResult::Closed(outcome))),
         // Only `act` returns Profile, and `handle` answers it with the row; here there is no row to hand back.
         Step::Profile => Ok(None),
+        Step::ToParent => {
+            model.select_parent();
+            Ok(None)
+        }
         Step::Continue { status, reload } => {
             model.set_status(status);
             if reload {
@@ -165,7 +171,9 @@ fn draw<T>(
 ) -> io::Result<()> {
     term.draw(&mut |frame: &mut Frame| {
         let area = frame.area();
-        model.set_list_height(picker::list_height(area.height));
+        // The edit window has no prompt row (architecture 6.2), so its list gets one more row.
+        let no_prompt = usize::from(model.chrome().search_column.is_none());
+        model.set_list_height(picker::list_height(area.height) + no_prompt);
         render::draw(model, area, frame, color);
     })
 }

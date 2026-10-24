@@ -438,6 +438,37 @@ pub fn bookmark_list_row(status: &str, path: &str) -> String {
     format!("{status:<16}{path}")
 }
 
+/// FR-EDIT-09, D-16: `--session-scope` used outside a tmux session; error.
+pub fn session_scope_requires_session() -> &'static str {
+    "--session-scope requires running inside a session."
+}
+
+/// FR-EDIT-10, Messages: the chosen directory is outside every project; error.
+pub fn edit_outside_project(path: &str) -> String {
+    format!("{path} is not inside a project from search_paths.")
+}
+
+/// FR-EDIT-01, architecture 6.2: the border label of the bookmark edit window.
+pub fn edit_window_label(project: &str) -> String {
+    format!("Bookmarks in {project}")
+}
+
+/// FR-EDIT-02, FR-EDIT-03, FR-EDIT-07, architecture 6.2 (given): the key footer of the bookmark edit window.
+pub const EDIT_WINDOW_FOOTER: &str = "enter toggle bookmark · →/^l open · ←/^h close · esc done";
+
+/// FR-EDIT-01, architecture 6.2: the column title of the directory tree in the bookmark edit window.
+pub const HEADER_DIRECTORY: &str = "Directory";
+
+/// Proposal P-39 [new, not yet accepted]: the edit window state file exists but cannot be read; error.
+pub fn could_not_read_edit_state(detail: &str) -> String {
+    format!("could not read the bookmark edit state: {detail}")
+}
+
+/// Proposal P-39 [new, not yet accepted]: the edit window state file cannot be written; error.
+pub fn could_not_save_edit_state(detail: &str) -> String {
+    format!("could not save the bookmark edit state: {detail}")
+}
+
 /// Proposal P-35 [new, not yet accepted]: `history clean` cannot delete the history file; error.
 pub fn could_not_clear_history(detail: &str) -> String {
     format!("could not clear history: {detail}")

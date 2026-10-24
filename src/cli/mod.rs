@@ -60,6 +60,13 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
             require_tmux(ctx)?;
             bookmark_picker(ctx, &ProfileOpt::Unset)
         }
+        Command::BmEdit { dir, session_scope } => {
+            // A-29: only the session scope needs tmux (the window itself does not).
+            if session_scope {
+                require_tmux(ctx)?;
+            }
+            bookmark_cmd::edit(ctx, dir.as_deref(), session_scope)
+        }
         other => Err(LedgeError::Fatal(messages::command_not_available(
             other.words(),
         ))),

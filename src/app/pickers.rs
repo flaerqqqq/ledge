@@ -368,7 +368,7 @@ fn run_dir_picker(
                 let status = match profile_then_rebuild(ctx, &dir)? {
                     Step::Close(outcome) => return Ok(outcome),
                     Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile => None,
+                    Step::Accept | Step::Profile | Step::ToParent => None,
                 };
                 let rows = preselect_row(handler.reload()?, &dir);
                 model = PickerModel::new(rows, chrome);
@@ -379,7 +379,7 @@ fn run_dir_picker(
 }
 
 /// Opens one picker on a fresh terminal and runs it. The terminal is restored when the picker returns (FR-TUI-06).
-fn run_in_terminal<T: Clone>(
+pub(crate) fn run_in_terminal<T: Clone>(
     ctx: &Ctx<'_>,
     model: PickerModel<T>,
     handler: &mut dyn PickerHandler<T>,
@@ -750,7 +750,7 @@ fn run_switcher(
                 let status = match step {
                     Step::Close(outcome) => return Ok(outcome),
                     Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile => None,
+                    Step::Accept | Step::Profile | Step::ToParent => None,
                 };
                 let rows = preselect_session(handler.reload()?, &name);
                 model = PickerModel::new(rows, chrome);
