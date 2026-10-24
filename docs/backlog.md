@@ -619,7 +619,7 @@ have no FR-IDs state why.
 - branch: slice/S-53-hidden-gray
 
 ### S-54 Session windows search by session name
-- status: in-progress
+- status: done
 - deps: S-34, S-35
 - FR-IDs: FR-TUI-02 (search over the first visible column; the session switcher and the session tree show the session name first)
 - scope: src/app/pickers.rs (switcher_rows and tree_item search key for session rows and the placeholder), tests/tui_switcher.rs, tests/tui_trees.rs

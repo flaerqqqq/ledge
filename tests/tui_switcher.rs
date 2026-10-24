@@ -651,3 +651,60 @@ fn narrow_switcher_cuts_a_label_in_the_middle_and_keeps_its_folder() {
         "cut label {cell:?} in {row:?}"
     );
 }
+
+/// Types `text` into the switcher filter, one character per key.
+fn type_text(text: &str) -> Vec<Input> {
+    text.chars().map(|c| key(KeyCode::Char(c))).collect()
+}
+
+// FR-TUI-02, S-54: typing a session name keeps only the session with that name; the other session is filtered out
+#[test]
+fn typing_a_session_name_keeps_only_that_session() {
+    let h = Harness::new("tui_switcher-s54-session-name");
+    h.terminal.set_size(240, 40);
+    search_config(&h);
+    let app = h.project("app");
+    let lib = h.project("lib");
+    let app_name = managed(&h, &app, FIXED_NOW - 10);
+    let lib_name = managed(&h, &lib, FIXED_NOW - 20);
+    let mut script = type_text(&app_name);
+    script.push(esc());
+    h.terminal.script(script);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains(&app_name)),
+        "the typed session is kept: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains(&lib_name)),
+        "the other session is filtered out: {lines:#?}"
+    );
+}
+
+// FR-TUI-02, S-54: typing a project name does not match a session whose project is another one, even when its
+// Project column shows that name only through the project it belongs to (session `app` in project `lib`)
+#[test]
+fn typing_a_project_name_does_not_match_a_session_of_another_project() {
+    let h = Harness::new("tui_switcher-s54-project-name");
+    h.terminal.set_size(240, 40);
+    search_config(&h);
+    let lib = h.project("lib");
+    let nested = format!("{lib}/app");
+    std::fs::create_dir_all(&nested).expect("create nested folder");
+    let lib_name = managed(&h, &lib, FIXED_NOW - 10);
+    let nested_name = managed(&h, &nested, FIXED_NOW - 20);
+    let mut script = type_text("lib");
+    script.push(esc());
+    h.terminal.script(script);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains(&lib_name)),
+        "the session named lib is kept: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains(&nested_name)),
+        "the session in project lib is not matched by its project name: {lines:#?}"
+    );
+}

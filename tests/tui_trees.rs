@@ -1465,3 +1465,55 @@ fn bookmark_tree_roots_show_labels_for_same_named_projects() {
     let theirs_root = line_with(&lines, "work/api");
     assert!(theirs_root.contains("work/api"), "{theirs_root}");
 }
+
+/// Types `text` into the tree filter, one character per key.
+fn type_text(text: &str) -> Vec<Input> {
+    text.chars().map(|c| key(KeyCode::Char(c))).collect()
+}
+
+// FR-TUI-02, S-54: in the session tree, typing a session name keeps its row and the ancestor rows above it
+#[test]
+fn session_tree_filter_by_session_name_keeps_row_and_ancestors() {
+    let h = Harness::new("tui_trees-s54-session-name");
+    h.terminal.set_size(240, 40);
+    let f = session_fixture(&h);
+    let mut script = type_text(&name_of(&f.api));
+    script.push(esc());
+    h.terminal.script(script);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains(&name_of(&f.api))),
+        "the typed session row is kept: {lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains(&name_of(&f.app))),
+        "the ancestor row of the typed session is kept: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains(&name_of(&f.lib))),
+        "an unrelated session row is filtered out: {lines:#?}"
+    );
+}
+
+// FR-TUI-02, S-54: a placeholder row matches its would-be session name
+#[test]
+fn placeholder_row_matches_its_would_be_name() {
+    let h = Harness::new("tui_trees-s54-placeholder");
+    h.terminal.set_size(240, 40);
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    let mut script = type_text(&name_of(&app));
+    script.push(esc());
+    h.terminal.script(script);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains(&format!("{} (no session)", name_of(&app)))),
+        "the placeholder row of app is kept: {lines:#?}"
+    );
+}

@@ -1262,8 +1262,9 @@ fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
 /// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08). In the bookmark tree the
 /// session of a row is the managed session of its directory, found by name as the project picker does (FR-TREE-13,
 /// FR-PICK-06); the session tree shows the session on its row (P-54), the Project column of `project_text` (P-55),
-/// which the filter searches, and the activity age of the session (P-56). A placeholder row (a project without its
-/// own session) carries its would-be name and `(no session)`, in gray, and no activity.
+/// and the activity age of the session (P-56). The session tree filter searches the session name (S-54), and a
+/// placeholder row (a project without its own session) searches its would-be name. A placeholder row carries its
+/// would-be name and `(no session)`, in gray, and no activity.
 fn tree_item(
     ctx: &Ctx<'_>,
     sessions: &[ManagedSession],
@@ -1285,7 +1286,8 @@ fn tree_item(
     });
     // The ctrl actions act on `row.session` (FR-TUI-07), so a bookmark row with a live session must carry its name.
     row.session = live.map(|info| info.name.clone());
-    // The bookmark filter matches the label; the session filter matches the Project value shown.
+    // The bookmark filter matches the label; the session filter matches the session name shown (S-54), and a
+    // placeholder matches its would-be name, its label.
     let (cells, search) = match kind {
         TreeKind::Bookmarks => {
             // A directory outside every project is labelled with its path (A-13), shown with the home folder as `~`.
@@ -1314,8 +1316,12 @@ fn tree_item(
                 ),
             };
             let project = project_text(projects, &row.path, home);
-            let cells = vec![session, project.clone(), profile_text(live), activity];
-            (cells, project)
+            let search = match row.kind {
+                NodeKind::Placeholder => row.label.clone(),
+                _ => session_text(live),
+            };
+            let cells = vec![session, project, profile_text(live), activity];
+            (cells, search)
         }
     };
     let depth = row.depth;
