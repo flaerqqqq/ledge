@@ -537,3 +537,39 @@ fn empty_switcher_footer_is_esc_close() {
     assert!(lines.iter().any(|line| line.contains("esc close")));
     assert!(!lines.iter().any(|line| line.contains("enter switch")));
 }
+
+// design 2.1, 2.2, 2.4 (S-42): at 120 cells the switcher has a Path column, and a Details section for the selected
+// session: its path, its name, its windows and its profile
+#[test]
+fn switcher_at_120_cells_shows_the_path_column_and_details() {
+    let h = Harness::new("tui_switcher-wide");
+    h.terminal.set_size(120, 30);
+    search_config(&h);
+    let alpha = h.project("alpha");
+    let name = managed(&h, &alpha, FIXED_NOW - 10);
+    h.terminal.script(vec![esc()]);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    assert!(line_with(&lines, "Activity").contains("Path"), "{lines:#?}");
+    let title = row_index(&lines, &format!("Details · {name}"));
+    assert!(
+        lines[title + 1].contains(&format!("Path      {alpha}")),
+        "{:?}",
+        lines[title + 1]
+    );
+    assert!(
+        lines[title + 2].contains(&format!("Session   {name}")),
+        "{:?}",
+        lines[title + 2]
+    );
+    assert!(
+        lines[title + 3].contains("Windows   "),
+        "{:?}",
+        lines[title + 3]
+    );
+    assert!(
+        lines[title + 4].contains("Profile   "),
+        "{:?}",
+        lines[title + 4]
+    );
+}

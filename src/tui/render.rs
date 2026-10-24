@@ -6,7 +6,7 @@
 use crate::messages;
 use crate::tui::columns::{self, ColumnSpec, Cut, GAP};
 use crate::tui::fuzzy;
-use crate::tui::picker::{Chrome, PickerModel, PickerRow, SessionCell};
+use crate::tui::picker::{Chrome, PickerModel, PickerRow, SessionCell, DETAILS_ROWS, WIDE_WIDTH};
 use crate::tui::theme::{Theme, Token};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -51,7 +51,8 @@ fn paint(theme: &Theme, token: Token, color: bool) -> Style {
 }
 
 /// Draws the whole picker into `area`. `color` comes from `color_enabled`; `theme` gives the colours (design 6).
-/// FR-TUI-04, FR-TUI-05, FR-TUI-08, FR-TUI-09
+/// FR-TUI-04, FR-TUI-05, FR-TUI-08, FR-TUI-09; option B (design-options 2): the surface band, the status strip and, at
+/// 120 cells and up, the Path column and the Details section.
 pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Theme, color: bool) {
     if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
         let line = Rect {
@@ -67,11 +68,11 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
         frame.render_widget(Block::new().style(Style::new().bg(background)), area);
     }
     let chrome = model.chrome();
-    // The label in the top edge, one blank before it and after it (P-61: no icon). It takes the footer key colour, the
-    // text token, so the label and the keys read as one line of chrome.
+    // The label in the top edge, one blank before it and after it (P-61: no icon). It is bold and takes the footer key
+    // colour, the text token, so the label and the keys read as one line of chrome.
     let title = Span::styled(
         format!(" {} ", chrome.label),
-        paint(theme, Token::Text, color),
+        paint(theme, Token::Text, color).add_modifier(Modifier::BOLD),
     );
     // The footer keys sit in the bottom edge, fitted to the cells between the corners and the one-cell padding of
     // the edge (design 3.1). Pairs are dropped from the end when they do not fit (design 4.2).
@@ -90,19 +91,24 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     // The prompt row has no height unless the picker filters (architecture 6.2, D-15) or the edit window's search bar
     // is open or keeps a match (FR-EDIT-13).
     let prompted = model.has_prompt();
+    let details = model.shows_details(area.width);
+    // Option B: the Details section (rule, title, four facts, rule) sits between the list and the status strip.
+    let details_height = if details { DETAILS_ROWS } else { 0 };
     // The rule between the prompt row and the column titles is drawn only with the prompt row (P-61).
-    let [prompt, prompt_rule, header, rule, list, status] = Layout::vertical([
+    let [prompt, prompt_rule, header, rule, list, details_area, status] = Layout::vertical([
         Constraint::Length(u16::from(prompted)),
         Constraint::Length(u16::from(prompted)),
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Min(0),
+        Constraint::Length(details_height),
         Constraint::Length(1),
     ])
     .areas(inner);
+    let band = surface_band(theme, color);
 
     // Prompt: "> " and the filter, cursor at its end (architecture 6.2 item 1). The edit window's search bar has the
-    // prompt "/" (FR-EDIT-13).
+    // prompt "/" (FR-EDIT-13). The row is on the surface band (option B 2.1).
     if prompted {
         let filter = model.filter();
         let lead = if chrome.search_column.is_some() {
@@ -115,7 +121,7 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
             Span::styled(lead.to_string(), paint(theme, Token::TextMuted, color)),
             Span::styled(filter.to_string(), paint(theme, Token::Text, color)),
         ]);
-        frame.render_widget(Paragraph::new(line), prompt);
+        frame.render_widget(Paragraph::new(line).style(band), prompt);
         let cursor = prompt
             .x
             .saturating_add(u16::try_from(MARGIN + columns::width(lead)).unwrap_or(u16::MAX))
@@ -125,16 +131,16 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     }
 
     let full = usize::from(inner.width);
-    let widths = column_widths(model, content_width(full));
+    let shown = shown_columns(chrome, area.width);
+    let widths = column_widths(model, content_width(full), shown);
 
     if prompted {
         draw_rule(frame, prompt_rule, full, theme, color);
     }
 
-    // Column titles: text_muted and bold (design 3.1).
+    // Column titles: text_muted and bold, on the surface band (design 3.1, option B 2.1).
     let title_style = paint(theme, Token::TextMuted, color).add_modifier(Modifier::BOLD);
-    let header_parts: Vec<Vec<Span<'static>>> = chrome
-        .columns
+    let header_parts: Vec<Vec<Span<'static>>> = chrome.columns[..shown]
         .iter()
         .zip(&widths)
         .map(|(spec, &w)| {
@@ -146,29 +152,122 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
         .collect();
     let mut header_line = vec![Span::raw(" ".repeat(MARGIN))];
     header_line.extend(join(header_parts));
-    frame.render_widget(Paragraph::new(Line::from(header_line)), header);
+    frame.render_widget(Paragraph::new(Line::from(header_line)).style(band), header);
 
     // The rule under the titles: a dim line across the inner width (design 3.1).
     draw_rule(frame, rule, full, theme, color);
 
-    let lines = list_lines(model, &widths, theme, color, full);
+    let lines = list_lines(model, &widths, theme, color, full, shown);
     frame.render_widget(Paragraph::new(lines), list);
 
-    // Status row, above the bottom border: an error is in the error token and bold; information is dim (design 4.5).
+    if details {
+        draw_details(frame, details_area, model, theme, color, full);
+    }
+
+    // Status strip, above the bottom border, on the surface band (option B 2.1): the count of rows on the left, the last
+    // message on the right. An error is in the error token and bold; information is dim (design 4.5).
     let status_text = model.status().unwrap_or("");
     let status_token = if model.status_is_error() {
         Token::Error
     } else {
         Token::TextMuted
     };
-    let status_line = Span::styled(
-        columns::cut_end(status_text, full.saturating_sub(2 * MARGIN)),
-        paint(theme, status_token, color),
-    );
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![Span::raw(" ".repeat(MARGIN)), status_line])),
-        status,
-    );
+    let count = format!("{} of {}", model.visible().len(), model.rows().len());
+    let count_width = columns::width(&count);
+    let room = full.saturating_sub(2 * MARGIN + count_width + 1);
+    let message = columns::cut_end(status_text, room);
+    let gap = full.saturating_sub(2 * MARGIN + count_width + columns::width(&message));
+    let status_line = Line::from(vec![
+        Span::raw(" ".repeat(MARGIN)),
+        Span::styled(count, paint(theme, Token::TextMuted, color)),
+        Span::raw(" ".repeat(gap)),
+        Span::styled(message, paint(theme, status_token, color)),
+        Span::raw(" ".repeat(MARGIN)),
+    ]);
+    frame.render_widget(Paragraph::new(status_line).style(band), status);
+}
+
+/// The surface band (design 2.3): the surface token as a background, when colour is on and the theme sets one. Without
+/// colour, and for a theme whose surface is its background or the terminal's, no band is drawn.
+fn surface_band(theme: &Theme, color: bool) -> Style {
+    let surface = theme.color(Token::Surface);
+    if color && surface != Color::Reset {
+        Style::new().bg(surface)
+    } else {
+        Style::new()
+    }
+}
+
+/// The Details section (option B 2.1): a rule, the title `Details · <name>`, four facts with their labels, and the rule
+/// above the status strip. The labels are bold; a fact is cut to the width of the section.
+fn draw_details<T>(
+    frame: &mut Frame,
+    area: Rect,
+    model: &PickerModel<T>,
+    theme: &Theme,
+    color: bool,
+    full: usize,
+) {
+    let rows = Layout::vertical([Constraint::Length(1); DETAILS_ROWS as usize]).split(area);
+    draw_rule(frame, rows[0], full, theme, color);
+    let details = model
+        .selected_row()
+        .and_then(|row| row.details.clone())
+        .unwrap_or_default();
+    let label_style = paint(theme, Token::Text, color).add_modifier(Modifier::BOLD);
+    let value_style = paint(theme, Token::Text, color);
+    let title = Line::from(vec![
+        Span::raw(" ".repeat(MARGIN)),
+        Span::styled(messages::DETAILS_LABEL.to_string(), label_style),
+        Span::styled(format!(" · {}", details.title), value_style),
+    ]);
+    frame.render_widget(Paragraph::new(title), rows[1]);
+    // The label column is 10 cells; the value gets the rest of the content width.
+    let value_room = content_width(full).saturating_sub(DETAIL_LABEL_WIDTH);
+    let facts = [
+        (
+            messages::HEADER_PATH,
+            columns::cut_start(&details.path, value_room),
+        ),
+        (
+            messages::HEADER_SESSION,
+            columns::cut_end(&details.session, value_room),
+        ),
+        (
+            messages::HEADER_WINDOWS,
+            columns::cut_end(&details.windows, value_room),
+        ),
+        (
+            messages::HEADER_PROFILE,
+            columns::cut_end(&details.profile, value_room),
+        ),
+    ];
+    for (row, (label, value)) in rows[2..6].iter().zip(facts) {
+        let line = Line::from(vec![
+            Span::raw(" ".repeat(MARGIN)),
+            Span::styled(columns::fit(label, DETAIL_LABEL_WIDTH, false), label_style),
+            Span::styled(value, value_style),
+        ]);
+        frame.render_widget(Paragraph::new(line), *row);
+    }
+    draw_rule(frame, rows[6], full, theme, color);
+}
+
+/// Cells of the label column of the Details section (option B 2.1).
+const DETAIL_LABEL_WIDTH: usize = 10;
+
+/// The number of columns drawn at this window width: the wide-only columns (the Path column) are the last ones and
+/// are left out below `WIDE_WIDTH` (option B 2.1).
+fn shown_columns(chrome: &Chrome, width: u16) -> usize {
+    if width >= WIDE_WIDTH {
+        chrome.columns.len()
+    } else {
+        chrome
+            .columns
+            .iter()
+            .take_while(|spec| !spec.wide_only)
+            .count()
+    }
 }
 
 /// A dim rule of `width` cells in `area` (design 3.1): the border token, dimmed when colour is on.
@@ -186,7 +285,7 @@ fn draw_rule(frame: &mut Frame, area: Rect, width: usize, theme: &Theme, color: 
 /// A footer, in the bottom edge of the frame: each key and label pair is `key label`, pairs separated by the separator
 /// (design 4.2). One blank cell is left on each side of the text, so it does not touch the corners.
 fn footer_line(text: &str, theme: &Theme, color: bool) -> Line<'static> {
-    let key = paint(theme, Token::Text, color);
+    let key = paint(theme, Token::Text, color).add_modifier(Modifier::BOLD);
     let label = paint(theme, Token::TextMuted, color);
     let mut spans = vec![Span::raw(" ")];
     for (index, pair) in text.split(columns::PAIR_SEP).enumerate() {
@@ -206,11 +305,10 @@ fn footer_line(text: &str, theme: &Theme, color: bool) -> Line<'static> {
 }
 
 /// Column widths from the widest cell of each column, all rows and the title (stable while
-/// filtering).
-fn column_widths<T>(model: &PickerModel<T>, total: usize) -> Vec<usize> {
+/// filtering). `shown` is the number of columns drawn (`shown_columns`).
+fn column_widths<T>(model: &PickerModel<T>, total: usize, shown: usize) -> Vec<usize> {
     let chrome = model.chrome();
-    let natural: Vec<usize> = chrome
-        .columns
+    let natural: Vec<usize> = chrome.columns[..shown]
         .iter()
         .enumerate()
         .map(|(column, spec)| {
@@ -223,7 +321,10 @@ fn column_widths<T>(model: &PickerModel<T>, total: usize) -> Vec<usize> {
                 .unwrap_or(0)
         })
         .collect();
-    let fixed: Vec<Option<usize>> = chrome.columns.iter().map(|c| c.fixed_width).collect();
+    let fixed: Vec<Option<usize>> = chrome.columns[..shown]
+        .iter()
+        .map(|c| c.fixed_width)
+        .collect();
     columns::widths(&natural, &fixed, chrome.search_column, total)
 }
 
@@ -310,6 +411,7 @@ fn list_lines<T>(
     theme: &Theme,
     color: bool,
     full: usize,
+    shown: usize,
 ) -> Vec<Line<'static>> {
     let chrome = model.chrome();
     if model.rows().is_empty() {
@@ -343,18 +445,25 @@ fn list_lines<T>(
                 &positions,
                 chrome,
                 widths,
-                &Look { theme, color, full },
+                &Look {
+                    theme,
+                    color,
+                    full,
+                    shown,
+                },
             ))
         })
         .collect()
 }
 
-/// What a row is drawn with: the theme, whether colour is on, and the full inner width of the window.
+/// What a row is drawn with: the theme, whether colour is on, the full inner width of the window, and how many
+/// columns are drawn.
 #[derive(Clone, Copy)]
 struct Look<'a> {
     theme: &'a Theme,
     color: bool,
     full: usize,
+    shown: usize,
 }
 
 /// One list row (design 3.1, 9.2a). The selected row runs over the whole window width, gaps included: reverse video
@@ -368,13 +477,17 @@ fn row_line<T>(
     widths: &[usize],
     look: &Look<'_>,
 ) -> Line<'static> {
-    let Look { theme, color, full } = *look;
+    let Look {
+        theme,
+        color,
+        full,
+        shown,
+    } = *look;
     let matched = {
         let style = Style::new().add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
         style.patch(paint(theme, Token::Accent, color))
     };
-    let parts: Vec<Vec<Span<'static>>> = chrome
-        .columns
+    let parts: Vec<Vec<Span<'static>>> = chrome.columns[..shown]
         .iter()
         .enumerate()
         .map(|(column, spec)| {

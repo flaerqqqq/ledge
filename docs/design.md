@@ -907,6 +907,7 @@ are:
 | Token | Used for |
 | --- | --- |
 | `background` | the window background (dark themes set it; `default` leaves the terminal's) |
+| `surface` | the band behind the filter row, the column header and the status strip (option B, S-42); equal to `background` where the theme draws no band |
 | `text` | list text, prompt text, footer key names |
 | `text_muted` | column titles, footer labels, empty-state messages, `> ` prompt |
 | `accent` | border icon and label, `▌` bar, `*`, `★`, matched characters |

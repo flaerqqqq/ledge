@@ -8,13 +8,32 @@ use crate::tui::keys::Action;
 use std::ops::Range;
 
 /// Screen rows that are not list rows, with the prompt row: the two border rows (the footer is in the bottom one), the
-/// prompt, the rule between the prompt and the header, the header, the header rule and the status line (design 3.1,
-/// P-61). Without a prompt row the list gets the prompt and its rule back (engine).
+/// prompt, the rule between the prompt and the header, the header, the header rule and the status strip (design 3.1,
+/// P-61, option B 2.4). Without a prompt row the list gets the prompt and its rule back (engine).
 const CHROME_ROWS: u16 = 7;
 
-/// Rows of the list for a terminal `term_height` rows high (FR-TUI-05).
-pub fn list_height(term_height: u16) -> usize {
-    usize::from(term_height.saturating_sub(CHROME_ROWS))
+/// Option B (2.1, 2.4): at this width and up the list has the Path column and a Details section under it.
+pub const WIDE_WIDTH: u16 = 120;
+
+/// Rows of the Details section: a rule, the title, four facts and the rule above the status strip.
+pub const DETAILS_ROWS: u16 = 7;
+
+/// Rows of the list for a terminal `term_height` rows high (FR-TUI-05). `details` is true when the Details section
+/// is drawn, which takes `DETAILS_ROWS` more.
+pub fn list_height(term_height: u16, details: bool) -> usize {
+    let extra = if details { DETAILS_ROWS } else { 0 };
+    usize::from(term_height.saturating_sub(CHROME_ROWS + extra))
+}
+
+/// The Details section of a row (option B 2.1; drawn at 120 cells and up): the title, and the facts the row already
+/// holds. A fact that is not known is empty.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Details {
+    pub title: String,
+    pub path: String,
+    pub session: String,
+    pub windows: String,
+    pub profile: String,
 }
 
 /// What the session cell of a row names (design 6.1, 9 step 4b): a live session, the `(no session)` placeholder, or
@@ -54,6 +73,8 @@ pub struct PickerRow<T> {
     pub marked: bool,
     /// Row the selection starts on (FR-PICK-04).
     pub preselect: bool,
+    /// Facts for the Details section (option B 2.1). `None` for a row that has none.
+    pub details: Option<Details>,
 }
 
 impl<T> PickerRow<T> {
@@ -70,6 +91,7 @@ impl<T> PickerRow<T> {
             session_cell: SessionCell::Plain,
             marked: false,
             preselect: false,
+            details: None,
         }
     }
 }
@@ -212,6 +234,12 @@ impl<T> PickerModel<T> {
 
     pub fn status(&self) -> Option<&str> {
         self.status.as_deref()
+    }
+
+    /// Option B 2.1: whether the Details section is drawn in a window `width` cells wide. It is drawn when the window is
+    /// at 120 cells and up and some row has details; the list height depends on it (`list_height`).
+    pub fn shows_details(&self, width: u16) -> bool {
+        width >= WIDE_WIDTH && self.rows.iter().any(|row| row.details.is_some())
     }
 
     /// Sets the status line to an information text (or clears it).
@@ -577,9 +605,12 @@ mod tests {
     // FR-TUI-05: the list height follows the terminal height and never goes below zero
     #[test]
     fn list_height_is_the_terminal_height_minus_the_chrome() {
-        assert_eq!(list_height(8), 1);
-        assert_eq!(list_height(24), 17);
-        assert_eq!(list_height(3), 0);
+        assert_eq!(list_height(8, false), 1);
+        assert_eq!(list_height(24, false), 17);
+        assert_eq!(list_height(3, false), 0);
+        // option B: the Details section takes DETAILS_ROWS (7) of the rows that are not the list
+        assert_eq!(list_height(24, true), 10);
+        assert_eq!(list_height(14, true), 0);
     }
 
     // D-12: a reload keeps the filter and the position, clamped to the new list

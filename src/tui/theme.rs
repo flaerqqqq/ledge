@@ -10,6 +10,8 @@ use ratatui::style::Color;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Token {
     Background,
+    /// The band behind the filter row, the column header and the status strip (design 2.3, option B).
+    Surface,
     Text,
     TextMuted,
     Accent,
@@ -28,8 +30,9 @@ pub enum Token {
 
 impl Token {
     /// Every token, in the order of the palette arrays of the built-in themes.
-    pub const ALL: [Token; 15] = [
+    pub const ALL: [Token; 16] = [
         Token::Background,
+        Token::Surface,
         Token::Text,
         Token::TextMuted,
         Token::Accent,
@@ -50,6 +53,7 @@ impl Token {
     pub fn name(self) -> &'static str {
         match self {
             Token::Background => "background",
+            Token::Surface => "surface",
             Token::Text => "text",
             Token::TextMuted => "text_muted",
             Token::Accent => "accent",
@@ -105,7 +109,7 @@ impl ColourLevel {
 /// The colour of each token, and the emphasis the theme adds to some tokens (design 8, item 4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Theme {
-    colors: [Color; 15],
+    colors: [Color; 16],
     /// The pearl theme draws its low-contrast text states bold (design section 8, item 4).
     low_contrast_bold: bool,
 }
@@ -128,6 +132,7 @@ impl Default for Theme {
     fn default() -> Self {
         Theme {
             colors: [
+                RESET,
                 RESET,
                 RESET,
                 Color::DarkGray,
@@ -155,14 +160,17 @@ impl Theme {
         let colors = match name {
             "default" => return Some(Theme::default()),
             // docs/design/themes.md, dark: Kanso ink, mist and zen.
-            "ink" => dark(0x14171d, 0x393b44, 0x4b4e57),
-            "mist" => dark(0x22262d, 0x393b44, 0x5c6066),
-            "zen" => dark(0x090e13, 0x393b44, 0x393b44),
+            // surface is the background: these themes draw no band (S-42 keeps them unchanged).
+            "ink" => dark(0x14171d, 0x14171d, 0x393b44, 0x4b4e57, 0xc34043),
+            "mist" => dark(0x22262d, 0x22262d, 0x393b44, 0x5c6066, 0xc34043),
+            // Kanso zen, option B (docs/design-options.md 2.3, S-42): the surface band is #1C1E25.
+            "zen" => dark(0x090e13, 0x1c1e25, 0x393b44, 0x393b44, 0xe46876),
             // docs/design/themes.md, light: Kanso pearl.
             "pearl" => {
                 return Some(Theme {
                     colors: [
                         hex(0xf2f1ef), // background: pearlWhite0
+                        hex(0xf2f1ef), // surface: the background, so no band is drawn
                         hex(0x22262d), // text: pearlBlack0
                         hex(0x6d6d69), // text_muted: pearlGray3
                         hex(0x4d699b), // accent: pearlBlue4
@@ -231,11 +239,12 @@ impl Theme {
     }
 }
 
-/// A dark built-in: the background, the selection background and the border; the text colours are the same on
-/// every dark theme (docs/design/themes.md).
-fn dark(background: u32, selection: u32, border: u32) -> [Color; 15] {
+/// A dark built-in: the background, the surface band, the selection background, the border and the error colour; the
+/// other text colours are the same on every dark theme (docs/design/themes.md).
+fn dark(background: u32, surface: u32, selection: u32, border: u32, error: u32) -> [Color; 16] {
     [
         hex(background),
+        hex(surface),
         hex(0xc5c9c7), // text: fg
         hex(0x909398), // text_muted: gray3
         hex(0x7fb4ca), // accent: blue
@@ -244,7 +253,7 @@ fn dark(background: u32, selection: u32, border: u32) -> [Color; 15] {
         hex(0xc5c9c7), // selection_fg: fg
         hex(0x98bb6c), // success: green
         hex(0xdca561), // warning: yellow
-        hex(0xc34043), // error: red
+        hex(error),    // error
         hex(0x98bb6c), // session_active: green
         hex(0x909398), // session_none: gray3
         hex(0x8ea4a2), // path: aqua

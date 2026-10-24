@@ -76,23 +76,25 @@ On the dark themes `error` (red) is below 4.5:1 against the background (see the 
 
 | Token | Hex | 256-colour | Contrast vs background | 4.5:1 for text |
 | --- | --- | --- | --- | --- |
+| background | #090E13 | 233 | - | - |
+| surface | #1C1E25 | 234 | 1.16 | band only, not text |
 | text | #C5C9C7 | 251 | 11.58 | yes |
 | text_muted | #909398 | 246 | 6.29 | yes |
 | accent | #7FB4CA | 110 | 8.57 | yes |
-| border | #393B44 | 237 | 1.74 | no |
+| border | #393B44 | 237 | 1.74 | no, a line |
 | selection_bg (text on it: selection_fg) | #393B44 | 237 | 6.67 | yes |
 | success | #98BB6C | 107 | 8.91 | yes |
 | warning | #DCA561 | 179 | 8.86 | yes |
-| error | #C34043 | 131 | 3.82 | no, 3:1 minimum for large or bold only |
+| error | #E46876 | 168 | 6.03 | yes |
 | session_active | #98BB6C | 107 | 8.91 | yes |
 | session_none | #909398 | 246 | 6.29 | yes |
 | path | #8ea4a2 | 247 | 7.36 | yes |
 | missing | #909398 | 246 | 6.29 | yes |
 | connector | #909398 | 246 | 6.29 | yes |
 
-Token source: background=`zenBg0`, text=`fg`, text_muted=`gray3`, accent=`blue`, border=`zenBg3`, selection_bg=`inkBg3`, selection_fg=`fg`, success=`green`, warning=`yellow`, error=`red`, session_active=`green`, session_none=`gray3`, path=`aqua`, missing=`gray3`, connector=`gray3`.
+Token source: background=`zenBg0`, surface=`zenBg1`, text=`fg`, text_muted=`gray3`, accent=`blue`, border=`zenBg3`, selection_bg=`zenBg3`, selection_fg=`fg`, success=`green`, warning=`yellow`, error=`red2`, session_active=`green`, session_none=`gray3`, path=`aqua`, missing=`gray3`, connector=`gray3`.
 
-On the dark themes `error` (red) is below 4.5:1 against the background (see the table). `docs/design.md` section 8, question 4.
+S-42 (option B, the user's choice): zen `error` is `red2` #E46876 (it was `red` #C34043, 3.82:1), and the `surface` token is new. The values are the ones of `docs/design-options.md` section 2.3 and the decision record in `docs/design.md` section 0. Every text token of zen is 4.5:1 or better; `border` is a line, not text.
 
 ## pearl (light)
 

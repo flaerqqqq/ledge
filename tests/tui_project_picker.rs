@@ -79,6 +79,14 @@ fn line_with<'a>(lines: &'a [String], needle: &str) -> &'a str {
         .unwrap_or_else(|| panic!("no row with {needle:?} in {lines:#?}"))
 }
 
+/// Index of the first screen row that contains `needle`.
+fn row_index(lines: &[String], needle: &str) -> usize {
+    lines
+        .iter()
+        .position(|line| line.contains(needle))
+        .unwrap_or_else(|| panic!("no row with {needle:?} in {lines:#?}"))
+}
+
 fn restores(h: &Harness) -> usize {
     h.terminal
         .last_record()
@@ -838,4 +846,89 @@ fn kill_key_on_a_row_without_a_session_says_so() {
     assert!(screen(&h)
         .iter()
         .any(|line| line.contains("No session on this row.")));
+}
+
+// design 2.1, 2.4 (S-42): at 120 cells the project picker has a Path column, and a Details section under the list for
+// the selected row: its path, its session (none here) and its profile
+#[test]
+fn project_picker_at_120_cells_shows_the_path_column_and_details() {
+    let mut h = Harness::new("tui_project_picker-wide");
+    h.terminal.set_size(120, 30);
+    search_config(&h);
+    let app = h.project("app");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    assert!(line_with(&lines, "Profile").contains("Path"), "{lines:#?}");
+    let title = row_index(&lines, "Details · app");
+    assert!(
+        lines[title + 1].contains("Path      "),
+        "{:?}",
+        lines[title + 1]
+    );
+    assert!(
+        lines[title + 1].contains("projects/app"),
+        "{:?}",
+        lines[title + 1]
+    );
+    assert!(
+        lines[title + 2].contains("Session   (no session)"),
+        "{:?}",
+        lines[title + 2]
+    );
+    assert!(
+        lines[title + 3].contains("Windows   "),
+        "{:?}",
+        lines[title + 3]
+    );
+    assert!(
+        lines[title + 4].contains("Profile   "),
+        "{:?}",
+        lines[title + 4]
+    );
+}
+
+// design 2.1 (S-42): at 80 cells the project picker has no Path column and no Details section
+#[test]
+fn project_picker_at_80_cells_has_no_path_column_or_details() {
+    let h = Harness::new("tui_project_picker-narrow");
+    h.terminal.set_size(80, 24);
+    search_config(&h);
+    h.project("app");
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    assert!(lines[3].contains("Project"), "{lines:#?}");
+    assert!(!lines[3].contains("Path"), "{lines:#?}");
+    assert!(lines.iter().all(|line| !line.contains("Details ·")));
+}
+
+// P-60, design 6.2 (S-42): theme zen is a known name in the config: no warning on stderr, and the picker opens
+#[test]
+fn theme_zen_in_config_is_accepted_without_a_warning() {
+    let h = Harness::new("tui_project_picker-zen");
+    let projects = h.root().join("projects");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\"], \"theme\": \"zen\"}}",
+        projects.display()
+    ));
+    h.project("app");
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    assert!(
+        h.console.err_lines().is_empty(),
+        "{:?}",
+        h.console.err_lines()
+    );
+    assert!(line_with(&screen(&h), "Projects").contains("Projects"));
 }

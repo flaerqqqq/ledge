@@ -33,7 +33,7 @@ use crate::ports::backend::BackendError;
 use crate::tui::columns::ColumnSpec;
 use crate::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use crate::tui::keys::Action;
-use crate::tui::picker::{Chrome, PickerModel, PickerRow, SessionCell};
+use crate::tui::picker::{Chrome, Details, PickerModel, PickerRow, SessionCell};
 use crate::tui::render;
 use crate::tui::theme::{self, ColourLevel};
 use std::path::Path;
@@ -517,12 +517,25 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
             } else {
                 row.path.display_with_home(home.as_ref())
             };
-            let cells = vec![shown.clone(), session_text(live), profile_text(live)];
+            let path = row.path.display_with_home(home.as_ref());
+            let cells = vec![
+                shown.clone(),
+                session_text(live),
+                profile_text(live),
+                path.clone(),
+            ];
             let mut picker_row = PickerRow::new(cells, &shown, row.path.clone());
             picker_row.missing = is_missing(ctx, &row.path);
             picker_row.dimmed = picker_row.missing;
             picker_row.session_cell = live_cell(live);
             picker_row.preselect = row.current;
+            picker_row.details = Some(Details {
+                title: shown,
+                path,
+                session: session_fact(live),
+                windows: windows_fact(live),
+                profile: profile_text(live),
+            });
             picker_row
         })
         .collect();
@@ -592,6 +605,18 @@ fn profile_text(live: Option<&SessionInfo>) -> String {
         .unwrap_or_default()
 }
 
+/// Option B 2.1: the Session fact of the Details section, the live session's name or `(no session)`.
+fn session_fact(live: Option<&SessionInfo>) -> String {
+    live.map(|info| info.name.clone())
+        .unwrap_or_else(|| messages::no_session().to_string())
+}
+
+/// Option B 2.1: the Windows fact of the Details section, the window count of the live session (`SessionInfo::windows`).
+fn windows_fact(live: Option<&SessionInfo>) -> String {
+    live.map(|info| info.windows.to_string())
+        .unwrap_or_default()
+}
+
 /// FR-SESS-03, A-10, P-56: the activity text of a session at `now` (Unix seconds): the age text the switcher shows.
 fn activity_text(now: i64, activity: i64) -> String {
     messages::activity_age(age(now, activity))
@@ -624,6 +649,7 @@ fn project_chrome(label: &str) -> Chrome {
             ColumnSpec::path(messages::HEADER_PROJECT),
             ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROFILE),
+            ColumnSpec::wide_path(messages::HEADER_PATH),
         ],
         messages::PICKER_FOOTER,
     );
@@ -722,16 +748,28 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
                 .as_ref()
                 .map(|dir| project_text(&projects, dir, home.as_ref()))
                 .unwrap_or_default();
+            let path = dir
+                .as_ref()
+                .map(|dir| dir.display_with_home(home.as_ref()))
+                .unwrap_or_default();
             let cells = vec![
                 info.name.clone(),
                 project,
                 info.profile.clone().unwrap_or_default(),
                 activity_text(now, info.activity),
+                path.clone(),
             ];
             let mut row = PickerRow::new(cells, &info.name, info.name.clone());
             row.missing = dir.as_ref().is_some_and(|dir| is_missing(ctx, dir));
             row.dimmed = row.missing;
             row.session_cell = SessionCell::Live;
+            row.details = Some(Details {
+                title: info.name.clone(),
+                path,
+                session: info.name.clone(),
+                windows: info.windows.to_string(),
+                profile: info.profile.clone().unwrap_or_default(),
+            });
             row
         })
         .collect();
@@ -747,6 +785,7 @@ fn switcher_chrome() -> Chrome {
             ColumnSpec::text(messages::HEADER_PROJECT),
             ColumnSpec::text(messages::HEADER_PROFILE),
             ColumnSpec::text(messages::HEADER_ACTIVITY),
+            ColumnSpec::wide_path(messages::HEADER_PATH),
         ],
         messages::SESSION_SWITCHER_FOOTER,
     );

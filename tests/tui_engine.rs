@@ -9,10 +9,10 @@ use ledge::error::{LedgeError, Outcome};
 use ledge::tui::columns::ColumnSpec;
 use ledge::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use ledge::tui::keys::{self, Action};
-use ledge::tui::picker::{self, Chrome, Effect, PickerModel, PickerRow, SessionCell};
+use ledge::tui::picker::{self, Chrome, Details, Effect, PickerModel, PickerRow, SessionCell};
 use ledge::tui::render;
 use ledge::tui::terminal::{Input, TerminalSession};
-use ledge::tui::theme::Theme;
+use ledge::tui::theme::{parse_hex, resolve, ColourLevel, Theme, Token};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Color, Modifier};
 use ratatui::Frame;
@@ -51,15 +51,20 @@ fn drive_themed(
     color: bool,
 ) -> Vec<Effect> {
     let mut effects = Vec::new();
-    let height = term.buffer().area.height;
-    model.set_list_height(picker::list_height(height));
+    let area = term.buffer().area;
+    model.set_list_height(picker::list_height(
+        area.height,
+        model.shows_details(area.width),
+    ));
     draw_themed(model, term, theme, color);
     let mut polls = 0;
     while let Some(input) = term.poll(Duration::from_millis(100)).unwrap() {
         polls += 1;
         assert!(polls < 1000, "the scripted run did not end");
         match &input {
-            Input::Resize(_, height) => model.set_list_height(picker::list_height(*height)),
+            Input::Resize(width, height) => {
+                model.set_list_height(picker::list_height(*height, model.shows_details(*width)))
+            }
             Input::Key(_) => {
                 if let Some(action) = keys::map(&input) {
                     effects.push(model.apply(action));
@@ -593,7 +598,9 @@ fn error_status_is_bold_and_keeps_its_text() {
     let (y, line) = line_containing(&term, "could not kill session").unwrap();
     assert_eq!(y, 10, "status row");
     assert!(line.contains("could not kill session 'x'."));
-    assert!(term.cell(2, y).unwrap().modifier.contains(Modifier::BOLD));
+    // The message is on the right of the strip (design 2.1): bold from its first letter.
+    let at = cell_x(&line, "could not");
+    assert!(term.cell(at, y).unwrap().modifier.contains(Modifier::BOLD));
 }
 
 // design 3.1, 3.3: the frame is rounded; the window label is in the top edge and the footer keys in the bottom edge
@@ -693,6 +700,209 @@ fn status_line_sits_above_the_bottom_border_and_is_dim_unless_error() {
     assert_eq!(term.cell(2, y).unwrap().fg, Color::DarkGray);
     assert!(!term.cell(2, y).unwrap().modifier.contains(Modifier::BOLD));
     assert!(term.lines()[11].starts_with('╰'), "{:?}", term.lines()[11]);
+}
+
+// design 6.2, option B 2.3 (S-42): the zen theme has the Kanso zen values, and surface is its own token
+#[test]
+fn zen_theme_has_the_kanso_zen_values() {
+    let zen = Theme::builtin("zen").unwrap();
+    let expected = [
+        (Token::Background, "#090E13"),
+        (Token::Surface, "#1C1E25"),
+        (Token::Border, "#393B44"),
+        (Token::SelectionBg, "#393B44"),
+        (Token::SelectionFg, "#C5C9C7"),
+        (Token::Text, "#C5C9C7"),
+        (Token::TextMuted, "#909398"),
+        (Token::Accent, "#7FB4CA"),
+        (Token::Success, "#98BB6C"),
+        (Token::Warning, "#DCA561"),
+        (Token::Error, "#E46876"),
+    ];
+    for (token, hex) in expected {
+        assert_eq!(zen.color(token), parse_hex(hex).unwrap(), "{token:?}");
+    }
+    // 256-colour terminals: the nearest xterm index of each value (design 7, themes.md)
+    let indexed = zen.at_level(ColourLevel::Indexed);
+    assert_eq!(indexed.color(Token::Surface), Color::Indexed(234));
+    assert_eq!(indexed.color(Token::Error), Color::Indexed(168));
+    assert_eq!(indexed.color(Token::TextMuted), Color::Indexed(246));
+    assert_eq!(indexed.color(Token::SelectionBg), Color::Indexed(237));
+}
+
+// FR-CONF-02, P-60: the config accepts the theme name zen; no warning, and the picker draws with the zen values
+#[test]
+fn zen_is_a_known_theme_name() {
+    let resolved = resolve(Some("zen"), &[], ColourLevel::TrueColour);
+    assert!(resolved.warnings.is_empty(), "{:?}", resolved.warnings);
+    assert_eq!(resolved.theme, Theme::builtin("zen").unwrap());
+}
+
+// design 2.4, 2.3 (S-42): the column header is bold text_muted on the surface band, across the whole row
+#[test]
+fn column_header_sits_on_the_surface_band_with_zen() {
+    let zen = Theme::builtin("zen").unwrap();
+    let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive_themed(&mut model, &mut term, &zen, true);
+    let surface = Color::Rgb(0x1c, 0x1e, 0x25);
+    assert!(term.lines()[3].contains("Name") && term.lines()[3].contains("Session"));
+    for x in 1..=58 {
+        assert_eq!(term.cell(x, 3).unwrap().bg, surface, "x={x}");
+    }
+    let name = term.cell(2, 3).unwrap();
+    assert_eq!(name.fg, parse_hex("#909398").unwrap());
+    assert!(name.modifier.contains(Modifier::BOLD));
+}
+
+// design 2.1, 2.4 (S-42): the status strip is the row above the bottom edge, on the surface band; the state count is on
+// the left and the last message on the right
+#[test]
+fn status_strip_is_above_the_bottom_edge_with_count_left_and_message_right() {
+    let zen = Theme::builtin("zen").unwrap();
+    let mut model = PickerModel::new(named_rows(2), name_chrome("enter open"));
+    model.set_status(Some("Killed session 'x'.".into()));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive_themed(&mut model, &mut term, &zen, true);
+    let lines = term.lines();
+    assert!(lines[11].starts_with('╰'), "{:?}", lines[11]);
+    let status = &lines[10];
+    assert!(status.starts_with("│ 2 of 2 "), "{status:?}");
+    assert!(
+        status
+            .trim_end()
+            .trim_end_matches('│')
+            .trim_end()
+            .ends_with("Killed session 'x'."),
+        "{status:?}"
+    );
+    for x in 1..=58 {
+        assert_eq!(
+            term.cell(x, 10).unwrap().bg,
+            Color::Rgb(0x1c, 0x1e, 0x25),
+            "x={x}"
+        );
+    }
+}
+
+/// The option B rows at 120 cells: a project with its path, session and profile.
+fn wide_project_rows() -> Vec<PickerRow<usize>> {
+    let mut ledge = PickerRow::new(
+        vec![
+            "ledge".into(),
+            "ledge-3f2a".into(),
+            "dev".into(),
+            "~/dev/projects/ledge".into(),
+        ],
+        "ledge",
+        0,
+    );
+    ledge.details = Some(Details {
+        title: "ledge".into(),
+        path: "~/dev/projects/ledge".into(),
+        session: "ledge-3f2a, live".into(),
+        windows: "3".into(),
+        profile: "dev".into(),
+    });
+    let mut api = PickerRow::new(
+        vec![
+            "api-gateway".into(),
+            "none".into(),
+            "".into(),
+            "~/dev/projects/api-gateway".into(),
+        ],
+        "api-gateway",
+        1,
+    );
+    api.details = Some(Details {
+        title: "api-gateway".into(),
+        path: "~/dev/projects/api-gateway".into(),
+        session: "none".into(),
+        windows: String::new(),
+        profile: String::new(),
+    });
+    vec![ledge, api]
+}
+
+fn wide_chrome() -> Chrome {
+    Chrome::new(
+        "Projects & Submodules",
+        vec![
+            ColumnSpec::path("Project"),
+            ColumnSpec::name("Session"),
+            ColumnSpec::text("Profile"),
+            ColumnSpec::wide_path("Path"),
+        ],
+        PROJECT_FOOTER,
+    )
+}
+
+// design 2.1, 2.4 (S-42): at 120 cells the list has a Path column, and a Details section sits under the list with the
+// selected row's path, session facts and profile, between rules; the status strip is still above the bottom edge
+#[test]
+fn path_column_and_details_section_show_at_120_cells() {
+    let mut model = PickerModel::new(wide_project_rows(), wide_chrome());
+    let mut term = FakeTerminal::new(120, 24, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let lines = term.lines();
+    let header = &lines[3];
+    assert!(header.contains("Path"), "{header:?}");
+    assert!(
+        cell_x(header, "Path") > cell_x(header, "Profile"),
+        "{header:?}"
+    );
+    let (_, row) = line_containing(&term, "ledge-3f2a").unwrap();
+    assert!(row.contains("~/dev/projects/ledge"), "{row:?}");
+
+    // list 5..=14 (10 rows at 24 lines), then the details rule at 15, the title at 16, four facts, the rule at 21
+    let (title_y, title) = line_containing(&term, "Details · ledge").unwrap();
+    assert_eq!(title_y, 16, "{title:?}");
+    assert_eq!(
+        term.cell(0, 15).unwrap().symbol(),
+        "│",
+        "rule above details"
+    );
+    assert_eq!(term.cell(0, 21).unwrap().symbol(), "│", "rule above status");
+    for x in 1..=118 {
+        assert_eq!(term.cell(x, 15).unwrap().symbol(), "─", "x={x}");
+        assert_eq!(term.cell(x, 21).unwrap().symbol(), "─", "x={x}");
+    }
+    assert!(
+        lines[17].contains("Path      ~/dev/projects/ledge"),
+        "{:?}",
+        lines[17]
+    );
+    assert!(
+        lines[18].contains("Session   ledge-3f2a, live"),
+        "{:?}",
+        lines[18]
+    );
+    assert!(lines[19].contains("Windows   3"), "{:?}", lines[19]);
+    assert!(lines[20].contains("Profile   dev"), "{:?}", lines[20]);
+    assert!(lines[22].contains("2 of 2"), "{:?}", lines[22]);
+    assert!(lines[23].starts_with('╰'), "{:?}", lines[23]);
+
+    // Moving the selection changes the details
+    let mut model = PickerModel::new(wide_project_rows(), wide_chrome());
+    let mut term = FakeTerminal::new(120, 24, vec![key(KeyCode::Down)]).unwrap();
+    drive(&mut model, &mut term, false);
+    assert!(line_containing(&term, "Details · api-gateway").is_some());
+    assert!(line_containing(&term, "Session   none").is_some());
+}
+
+// design 2.1 (S-42): below 120 cells there is no Path column and no Details section; the list gets its rows back
+#[test]
+fn path_column_and_details_are_left_out_below_120_cells() {
+    let mut model = PickerModel::new(wide_project_rows(), wide_chrome());
+    let mut term = FakeTerminal::new(119, 24, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let lines = term.lines();
+    assert!(!lines[3].contains("Path"), "{:?}", lines[3]);
+    assert!(lines.iter().all(|line| !line.contains("Details ·")));
+    assert!(lines.iter().all(|line| !line.contains("~/dev/projects")));
+    assert!(lines[5].contains("ledge-3f2a"), "{:?}", lines[5]);
+    assert!(lines[22].contains("2 of 2"), "{:?}", lines[22]);
+    assert!(lines[23].starts_with('╰'), "{:?}", lines[23]);
 }
 
 // ---------------------------------------------------------------------------------------------

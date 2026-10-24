@@ -520,7 +520,7 @@ have no FR-IDs state why.
 - branch: slice/S-41-remove-marks
 
 ### S-42 Design option B with the Kanso zen palette
-- status: in-progress
+- status: done
 - deps: S-41
 - FR-IDs: FR-TUI-04, FR-TUI-05, FR-TUI-09 (layout and cues); design decision in docs/design.md section 0 and docs/design-options.md section 2
 - scope: src/tui/render.rs (section rules and labels, status strip, footer in the bottom edge, details panel at 120 cells and up), src/tui/columns.rs (path column at 120 cells and up), src/tui/picker.rs (details of the selected row, status message), src/tui/theme.rs (new token surface; built-in zen palette from the values above; the default theme stays as it is), tests/tui_engine.rs, tests/tui_project_picker.rs, tests/tui_switcher.rs

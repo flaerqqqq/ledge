@@ -27,6 +27,8 @@ pub struct ColumnSpec {
     pub title: String,
     pub fixed_width: Option<usize>,
     pub cut: Cut,
+    /// Shown only at 120 cells and up (design 2.1, option B: the Path column). Such columns are the last ones.
+    pub wide_only: bool,
 }
 
 impl ColumnSpec {
@@ -35,6 +37,7 @@ impl ColumnSpec {
             title: title.to_string(),
             fixed_width: None,
             cut: Cut::End,
+            wide_only: false,
         }
     }
 
@@ -43,6 +46,15 @@ impl ColumnSpec {
             title: title.to_string(),
             fixed_width: None,
             cut: Cut::Start,
+            wide_only: false,
+        }
+    }
+
+    /// A path column shown only at 120 cells and up (design 2.1, option B).
+    pub fn wide_path(title: &str) -> Self {
+        Self {
+            wide_only: true,
+            ..Self::path(title)
         }
     }
 
@@ -52,6 +64,7 @@ impl ColumnSpec {
             title: title.to_string(),
             fixed_width: None,
             cut: Cut::Middle,
+            wide_only: false,
         }
     }
 
@@ -60,6 +73,7 @@ impl ColumnSpec {
             title: title.to_string(),
             fixed_width: Some(width),
             cut: Cut::End,
+            wide_only: false,
         }
     }
 }

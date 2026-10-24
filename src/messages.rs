@@ -270,6 +270,8 @@ pub const HEADER_WINDOWS: &str = "Windows";
 
 /// FR-SESS-09, A-34: the column title of the attached or detached state in `ss list`.
 pub const HEADER_STATE: &str = "State";
+/// Option B 2.1 (S-42): the title of the Details section, `Details · <name>`.
+pub const DETAILS_LABEL: &str = "Details";
 
 /// FR-SESS-09, A-34: the column title of the session path in `ss list`.
 pub const HEADER_PATH: &str = "Path";
