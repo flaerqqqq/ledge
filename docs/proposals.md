@@ -643,3 +643,10 @@ Format:
 - doc: requirements.md (FR-PICK-06, FR-SESS-03, and the edit window label "Bookmarks in <project basename>")
 - change: a project's displayed name is its folder name. When two or more projects share a name, each shows its name with the parent folders added (work/api, projects/api) until the labels are unique.
 - why: two projects with the same folder name cannot be told apart in the session list and the project column.
+
+### P-67 Custom project commands (FR-CUST-01..04)
+- from: user request / coordinator, slice S-51
+- status: Open
+- doc: requirements.md (new FR-CUST-01..04)
+- change: FR-CUST-01 ledge custom add [DIR] records an existing directory outside every project. FR-CUST-02 ledge custom remove DIR removes it, deletes its bookmarks and kills its managed sessions. FR-CUST-03 ledge custom list prints the custom projects, or "No custom projects.". FR-CUST-04 ledge custom pick opens a window listing custom projects only, with the project picker keys.
+- why: the user wants to maintain the custom project list from the command line and see it in a window.

@@ -590,3 +590,12 @@ have no FR-IDs state why.
 - acceptance: a project's displayed label is its folder name; when two projects share a name, each gets the last k+1 path components joined with / (work/api, projects/api) with k raised until unique; unique names are unchanged; the label is used in the switcher and session tree Project cells, the project picker name cell, the bookmark tree roots and the edit window title; search still matches the plain name; session names, tree grouping and messages are unchanged.
 - size: M
 - branch: slice/S-50-unique-project-labels
+
+### S-51 Custom project commands and custom-only picker
+- status: in-progress
+- deps: S-49, S-50
+- FR-IDs: new FR-CUST-01..04 (proposal P-67; the user owns requirements.md)
+- scope: src/cli/parse.rs and src/cli/mod.rs (custom add, custom remove, custom list, custom pick), src/app/custom_cmd.rs (new: add, remove, list services), src/app/pickers.rs (custom picker: project picker rows restricted to custom projects), src/messages.rs, tests/component_cli.rs, tests/tui_project_picker.rs, tests/component_custom.rs (new)
+- acceptance: `ledge custom add [DIR]` records an existing directory (default cwd) that is not inside a project, with the same rules as the command-line open; `ledge custom remove DIR` removes the entry, deletes its bookmarks and kills its managed sessions (same as ctrl-d); `ledge custom list` prints the custom projects one per line with ~ for home, or "No custom projects." when empty; `ledge custom pick` opens a window listing only custom projects, with the project picker keys (enter opens, ctrl-d removes, ctrl-r, ctrl-p, ctrl-x) and the ◆ mark; every error and info message goes through messages.rs.
+- size: M
+- branch: slice/S-51-custom-commands
