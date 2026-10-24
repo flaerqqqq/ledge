@@ -572,7 +572,7 @@ fn load_history(ctx: &Ctx<'_>) -> Result<Vec<AbsPath>> {
 }
 
 /// FR-PICK-06, FR-PICK-07, FR-SESS-01 (managed sessions only, FR-NAME-04): the sessions the pickers mark.
-fn live_sessions(ctx: &Ctx<'_>) -> Result<Vec<ManagedSession>> {
+pub(crate) fn live_sessions(ctx: &Ctx<'_>) -> Result<Vec<ManagedSession>> {
     ctx.backend
         .list_sessions()
         .map(managed)
@@ -580,7 +580,10 @@ fn live_sessions(ctx: &Ctx<'_>) -> Result<Vec<ManagedSession>> {
 }
 
 /// FR-PICK-07: the managed session of a directory, found by its name (D-14).
-fn live_session<'s>(sessions: &'s [ManagedSession], dir: &AbsPath) -> Option<&'s SessionInfo> {
+pub(crate) fn live_session<'s>(
+    sessions: &'s [ManagedSession],
+    dir: &AbsPath,
+) -> Option<&'s SessionInfo> {
     let name = session_name(dir);
     sessions
         .iter()
@@ -588,12 +591,12 @@ fn live_session<'s>(sessions: &'s [ManagedSession], dir: &AbsPath) -> Option<&'s
         .find(|info| info.name == name)
 }
 
-fn session_text(live: Option<&SessionInfo>) -> String {
+pub(crate) fn session_text(live: Option<&SessionInfo>) -> String {
     live.map(|info| info.name.clone()).unwrap_or_default()
 }
 
 /// Design 6.1, 9 step 4b: a live session's name takes the `session_active` token; a row without one is plain.
-fn live_cell(live: Option<&SessionInfo>) -> SessionCell {
+pub(crate) fn live_cell(live: Option<&SessionInfo>) -> SessionCell {
     if live.is_some() {
         SessionCell::Live
     } else {
@@ -601,7 +604,7 @@ fn live_cell(live: Option<&SessionInfo>) -> SessionCell {
     }
 }
 
-fn profile_text(live: Option<&SessionInfo>) -> String {
+pub(crate) fn profile_text(live: Option<&SessionInfo>) -> String {
     live.and_then(|info| info.profile.clone())
         .unwrap_or_default()
 }

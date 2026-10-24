@@ -6,6 +6,10 @@
 mod support;
 
 use ledge::app::bookmark_cmd::edit;
+use ledge::app::build::ensure_session;
+use ledge::domain::naming::session_name;
+use ledge::domain::path::AbsPath;
+use ledge::domain::profile::Profile;
 use ledge::error::Outcome;
 use ledge::tui::terminal::Input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -286,11 +290,14 @@ fn folder_markers_follow_the_name_without_color() {
     let lines = screen(&h);
     let app_row = line_with(&lines, "app -");
     assert!(app_row.starts_with("│ "), "{app_row:?}");
-    // A folder without subfolders has no marker: the name ends the cell (the branch glyph before it is not a marker).
+    // A folder without subfolders has no marker: the name ends the Directory cell. The next cell is the Subfolders
+    // count (0), so the first text after the name is that count and not a `+` or `-`. (Moved by S-44: the row now
+    // carries more columns after the name.)
     let docs_row = line_with(&lines, "docs");
+    let after_name = docs_row.split("docs").nth(1).unwrap_or_default();
     assert!(
-        docs_row.trim_end_matches(['│', ' ']).ends_with("docs"),
-        "{docs_row:?}"
+        after_name.trim_start().starts_with('0'),
+        "no marker after docs: {docs_row:?}"
     );
 }
 
@@ -481,4 +488,145 @@ fn j_and_k_still_move_the_selection() {
         vec![ch('j'), ch('j'), ch('k'), enter(), esc()],
     );
     assert_eq!(up_again, "<app>/docs\n");
+}
+
+/// The character column of the first `needle` in `line`. The rows of the window are drawn with narrow glyphs, so a
+/// character is a cell here.
+fn column_of(line: &str, needle: &str) -> usize {
+    let byte = line
+        .find(needle)
+        .unwrap_or_else(|| panic!("no {needle:?} in {line:?}"));
+    line[..byte].chars().count()
+}
+
+/// The character at `column` of `line` (a space past its end).
+fn char_at(line: &str, column: usize) -> char {
+    line.chars().nth(column).unwrap_or(' ')
+}
+
+// FR-TUI-04, FR-EDIT-01: the column header row names the columns in order: Directory, Bookmark, Session, Profile and
+// Subfolders; at 80 cells there is no Path column
+#[test]
+fn header_row_names_the_columns_in_order() {
+    let h = Harness::new("tui_edit-header-labels");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let header = lines[1].as_str();
+    let labels = ["Directory", "Bookmark", "Session", "Profile", "Subfolders"];
+    let starts: Vec<usize> = labels
+        .iter()
+        .map(|label| column_of(header, label))
+        .collect();
+    assert!(
+        starts.windows(2).all(|pair| pair[0] < pair[1]),
+        "{header:?}"
+    );
+    assert!(!header.contains("Path"), "no Path at 80 cells: {header:?}");
+}
+
+// FR-EDIT-06: the bookmark mark is in its own column, after the folder name and under the Bookmark title; it is not
+// in column 0
+#[test]
+fn bookmark_mark_sits_in_its_own_column_after_the_name() {
+    let h = Harness::new("tui_edit-mark-column");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    let docs = format!("{app}/docs");
+    fs::create_dir_all(h.dirs.cache.as_str()).expect("cache folder");
+    fs::write(bookmarks_path(&h), format!("{docs}\n")).expect("write bookmarks");
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let header = lines[1].as_str();
+    let docs_row = line_with(&lines, "docs");
+    let mark = column_of(docs_row, "★");
+    assert_eq!(mark, column_of(header, "Bookmark"), "{docs_row:?}");
+    assert!(column_of(docs_row, "docs") < mark, "{docs_row:?}");
+    let root_row = line_with(&lines, "app -");
+    assert!(!root_row.contains('★'), "{root_row:?}");
+}
+
+// FR-EDIT-01, FR-PICK-07 (as the picker): a folder with a live managed session shows the session name and the profile
+// in the Session and Profile columns; a folder without one shows neither
+#[test]
+fn live_session_shows_its_name_and_profile_on_the_folder_row() {
+    let h = Harness::new("tui_edit-session-columns");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    let docs = format!("{app}/docs");
+    ensure_session(
+        &h.backend,
+        &AbsPath::clean(&docs, &AbsPath::root()),
+        &Profile::basic(),
+    )
+    .expect("create session");
+    let name = session_name(&AbsPath::clean(&docs, &AbsPath::root()));
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let docs_row = line_with(&lines, "docs");
+    assert!(docs_row.contains(&name), "{docs_row:?}");
+    assert!(docs_row.contains("basic"), "{docs_row:?}");
+    let src_row = line_with(&lines, "src +");
+    assert!(!src_row.contains("basic"), "{src_row:?}");
+    assert!(!src_row.contains("docs-"), "{src_row:?}");
+}
+
+// FR-EDIT-01: the Subfolders column counts the direct subfolders of each row, right-aligned under its title
+#[test]
+fn subfolders_column_counts_the_direct_subfolders() {
+    let h = Harness::new("tui_edit-child-count");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let header = lines[1].as_str();
+    let end = column_of(header, "Subfolders") + "Subfolders".chars().count() - 1;
+    // The project root has docs and src; docs has none; src has main.
+    for (needle, count) in [("app -", '2'), ("docs", '0'), ("src +", '1')] {
+        let row = line_with(&lines, needle);
+        assert_eq!(char_at(row, end), count, "{row:?}");
+    }
+}
+
+// FR-TUI-04, D-15: the window is framed as the other windows: the rounded top edge carries the label, the bottom edge
+// the footer keys, and the status row above it the count of rows
+#[test]
+fn window_is_framed_with_label_footer_and_status_count() {
+    let h = Harness::new("tui_edit-frame");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let top = lines.first().expect("top edge");
+    assert!(top.starts_with('╭') && top.contains(LABEL), "{top:?}");
+    assert!(top.trim_end().ends_with('╮'), "{top:?}");
+    let bottom = lines.last().expect("bottom edge");
+    assert!(
+        bottom.starts_with('╰') && bottom.contains(FOOTER),
+        "{bottom:?}"
+    );
+    let status = lines.get(lines.len() - 2).expect("status row");
+    assert!(status.contains("3 of 3"), "{status:?}");
+}
+
+// FR-EDIT-01, design 4.3 (option B): at 120 cells the Path column is shown, last, with the path of each folder
+#[test]
+fn path_column_is_shown_at_120_cells() {
+    let h = Harness::new("tui_edit-path-120");
+    h.terminal.set_size(120, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    let header = lines[1].as_str();
+    let path = column_of(header, "Path");
+    assert!(path > column_of(header, "Subfolders"), "{header:?}");
+    let docs_row = line_with(&lines, "docs");
+    assert!(docs_row.contains("app/docs"), "{docs_row:?}");
 }

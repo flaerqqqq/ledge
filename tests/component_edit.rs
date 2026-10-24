@@ -192,6 +192,30 @@ fn real_listing_shows_visible_subfolders_with_markers() {
     );
 }
 
+// FR-EDIT-01, S-44: each row counts its direct visible subfolders, whether it is expanded or not; hidden folders and
+// files are not counted, and the grandchildren are not counted in the parent's count
+#[test]
+fn child_count_is_the_visible_direct_subfolders() {
+    let tree = TempTree::new("component_edit-child-count");
+    let base = tree.path();
+    folder(base, "app/src/main");
+    folder(base, "app/docs");
+    folder(base, "app/.git");
+    fs::write(base.join("app/README.md"), "text").expect("write file");
+    let app = abs(&format!("{}/app", base.display()));
+    let rows = visible_rows(
+        &app,
+        &ExpandedFolders::default(),
+        &Bookmarks::default(),
+        &real_children,
+    );
+    let counts: Vec<(&str, usize)> = rows
+        .iter()
+        .map(|row| (row.name.as_str(), row.subfolders))
+        .collect();
+    assert_eq!(counts, vec![("app", 2), ("docs", 0), ("src", 1)]);
+}
+
 // FR-EDIT-04: a folder with subfolders that is not expanded shows "+"
 #[test]
 fn collapsed_folder_with_subfolders_shows_plus() {

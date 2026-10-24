@@ -29,6 +29,8 @@ pub struct ColumnSpec {
     pub cut: Cut,
     /// Shown only at 120 cells and up (design 2.1, option B: the Path column). Such columns are the last ones.
     pub wide_only: bool,
+    /// Text is right-aligned in the column (S-44: the Subfolders count). The title is aligned the same way.
+    pub right: bool,
 }
 
 impl ColumnSpec {
@@ -38,6 +40,15 @@ impl ColumnSpec {
             fixed_width: None,
             cut: Cut::End,
             wide_only: false,
+            right: false,
+        }
+    }
+
+    /// A count column of `width` cells whose text and title are right-aligned (S-44, option B 4.3).
+    pub fn count(title: &str, width: usize) -> Self {
+        Self {
+            right: true,
+            ..Self::fixed(title, width)
         }
     }
 
@@ -47,6 +58,7 @@ impl ColumnSpec {
             fixed_width: None,
             cut: Cut::Start,
             wide_only: false,
+            right: false,
         }
     }
 
@@ -65,6 +77,7 @@ impl ColumnSpec {
             fixed_width: None,
             cut: Cut::Middle,
             wide_only: false,
+            right: false,
         }
     }
 
@@ -74,6 +87,7 @@ impl ColumnSpec {
             fixed_width: Some(width),
             cut: Cut::End,
             wide_only: false,
+            right: false,
         }
     }
 }
@@ -238,6 +252,18 @@ pub fn fit_pairs(footer: &str, max: usize) -> String {
     cut_end(pairs.first().copied().unwrap_or(""), max)
 }
 
+/// Exactly `max` cells: the text cut at the end when it is too long, then padded with spaces on the left, so the text
+/// is right-aligned (S-44, the Subfolders count).
+pub fn fit_right(text: &str, max: usize) -> String {
+    let cut = if width(text) <= max {
+        text.to_string()
+    } else {
+        cut_end(text, max)
+    };
+    let pad = max.saturating_sub(width(&cut));
+    format!("{}{cut}", " ".repeat(pad))
+}
+
 /// Exactly `max` cells: the text cut as needed (from the left when `from_left`), then padded with
 /// spaces.
 pub fn fit(text: &str, max: usize, from_left: bool) -> String {
@@ -360,5 +386,21 @@ mod tests {
     fn fit_pads_to_the_exact_width() {
         assert_eq!(fit("ab", 5, false), "ab   ");
         assert_eq!(fit("", 3, false), "   ");
+    }
+
+    // S-44, option B 4.3: a count is right-aligned in its column, and a long text is cut at the end
+    #[test]
+    fn fit_right_pads_on_the_left() {
+        assert_eq!(fit_right("3", 10), "         3");
+        assert_eq!(fit_right("Subfolders", 10), "Subfolders");
+        assert_eq!(fit_right("abcdef", 4), "abc…");
+    }
+
+    // S-44: a count column is right-aligned and fixed
+    #[test]
+    fn count_column_is_fixed_and_right_aligned() {
+        let spec = ColumnSpec::count("Subfolders", 10);
+        assert!(spec.right);
+        assert_eq!(spec.fixed_width, Some(10));
     }
 }

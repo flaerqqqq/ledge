@@ -503,6 +503,9 @@ pub const EDIT_WINDOW_FOOTER: &str = "enter toggle bookmark · →/^l open · �
 /// FR-EDIT-01, architecture 6.2: the column title of the directory tree in the bookmark edit window.
 pub const HEADER_DIRECTORY: &str = "Directory";
 
+/// S-44, design-edit-window 4.3 (option B): the column title of the direct subfolder count in the bookmark edit window.
+pub const HEADER_SUBFOLDERS: &str = "Subfolders";
+
 /// FR-EDIT-13, P-53, architecture 8.3 [new]: the prompt of the search bar in the bookmark edit window.
 pub fn edit_search_prompt() -> &'static str {
     "/"

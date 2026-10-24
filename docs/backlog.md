@@ -538,7 +538,7 @@ have no FR-IDs state why.
 - branch: slice/S-43-kill-current-session
 
 ### S-44 Bookmark edit window: tree with columns (design option B)
-- status: in-progress
+- status: done
 - deps: S-42
 - FR-IDs: FR-EDIT-01, FR-EDIT-06 (mark position), FR-TUI-04 (frame and header); design docs/design-edit-window.md option B, chosen by the user
 - scope: src/app/bookmark_cmd.rs (edit rows: name, bookmark, session, child count), src/tui/render.rs and src/tui/columns.rs (header row, column widths; the window uses the same frame as the other pickers), src/tui/picker.rs if the row needs more cells

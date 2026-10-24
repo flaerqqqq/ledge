@@ -144,10 +144,12 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
         .iter()
         .zip(&widths)
         .map(|(spec, &w)| {
-            vec![Span::styled(
-                columns::fit(&spec.title, w, false),
-                title_style,
-            )]
+            let title = if spec.right {
+                columns::fit_right(&spec.title, w)
+            } else {
+                columns::fit(&spec.title, w, false)
+            };
+            vec![Span::styled(title, title_style)]
         })
         .collect();
     let mut header_line = vec![Span::raw(" ".repeat(MARGIN))];
@@ -601,7 +603,13 @@ fn cell_spans<T>(
                 .map(|(index, c)| Span::styled(c.to_string(), char_style(index))),
         );
         spans.push(Span::styled(suffix, base));
-        spans.push(Span::styled(" ".repeat(width - whole), base));
+        let pad = Span::styled(" ".repeat(width - whole), base);
+        // A right-aligned column (S-44, the Subfolders count) pads on the left.
+        if spec.right {
+            spans.insert(0, pad);
+        } else {
+            spans.push(pad);
+        }
         return spans;
     }
     let budget = width.saturating_sub(columns::width(&prefix) + columns::width(&suffix));
@@ -630,7 +638,12 @@ fn cell_spans<T>(
     );
     spans.push(Span::styled(suffix, base));
     let used: usize = spans.iter().map(Span::width).sum();
-    spans.push(Span::styled(" ".repeat(width.saturating_sub(used)), base));
+    let pad = Span::styled(" ".repeat(width.saturating_sub(used)), base);
+    if spec.right {
+        spans.insert(0, pad);
+    } else {
+        spans.push(pad);
+    }
     spans
 }
 

@@ -45,6 +45,9 @@ pub struct EditRow {
     pub bookmarked: bool,
     /// The project root row; enter does nothing on it (D-15).
     pub root: bool,
+    /// S-44 (Subfolders column): the number of direct visible subfolders of the folder. Subfolders of the subfolders are
+    /// not counted, and hidden folders are not counted (FR-EDIT-01).
+    pub subfolders: usize,
 }
 
 impl ExpandedFolders {
@@ -128,6 +131,7 @@ pub fn visible_rows(
         marker: Marker::Expanded,
         bookmarked: bookmarks.contains(root),
         root: true,
+        subfolders: top.len(),
     }];
     push_children(&mut rows, top, 1, expanded, bookmarks, children_of);
     rows
@@ -144,6 +148,7 @@ fn push_children(
 ) {
     for (path, name) in children {
         let below = subdirectories(&path, children_of);
+        let subfolders = below.len();
         let open = !below.is_empty() && expanded.is_expanded(&path);
         let marker = match (below.is_empty(), open) {
             (true, _) => Marker::Leaf,
@@ -158,6 +163,7 @@ fn push_children(
             marker,
             bookmarked,
             root: false,
+            subfolders,
         });
         if open {
             push_children(rows, below, depth + 1, expanded, bookmarks, children_of);

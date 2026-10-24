@@ -3,14 +3,17 @@
 //! list in `app::load_projects`, the file work in `app::store`.
 
 use crate::app::actions::current_session;
-use crate::app::pickers::{backend_fatal, bookmark_tree_picker, run_in_terminal, utf8_locale};
+use crate::app::pickers::{
+    backend_fatal, bookmark_tree_picker, live_cell, live_session, live_sessions, profile_text,
+    run_in_terminal, session_text, utf8_locale,
+};
 use crate::app::{home_of, load_projects, store, Ctx};
 use crate::domain::bm_edit::{visible_rows, EditRow, ExpandedFolders, Marker};
 use crate::domain::bookmarks::{check_candidate, status, BookmarkStatus, Bookmarks, Refusal};
 use crate::domain::path::AbsPath;
 use crate::domain::profile_rules::ProfileOpt;
 use crate::domain::projects::{project_containing, Project};
-use crate::domain::sessions::session_directory;
+use crate::domain::sessions::{session_directory, ManagedSession, SessionInfo};
 use crate::domain::tree::TreeScope;
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
@@ -21,8 +24,12 @@ use crate::tui::picker::{Chrome, PickerModel, PickerRow};
 use crate::tui::render;
 use std::path::Path;
 
-/// FR-EDIT-06: the bookmark marker shown in the marker column of a bookmarked row.
+/// FR-EDIT-06: the bookmark marker shown in the Bookmark column of a bookmarked row.
 const BOOKMARK_MARK: &str = "★";
+
+/// S-44 (option B 4.3): the Bookmark column is as wide as its title, and the Subfolders column too, so neither shrinks.
+const BOOKMARK_WIDTH: usize = messages::HEADER_BOOKMARK.len();
+const SUBFOLDERS_WIDTH: usize = messages::HEADER_SUBFOLDERS.len();
 
 /// FR-BM-02..07: bookmarks the directory `dir` (the working directory when `None`). The argument is cleaned against the
 /// working directory (D-06). A missing directory gives `Directory '<dir>' not found.` with the argument as typed (A-19).
@@ -112,6 +119,9 @@ pub fn edit(ctx: &Ctx<'_>, dir: Option<&str>, session_scope: bool) -> Result<Out
         project: project.path.clone(),
         expanded: read_expanded(ctx)?,
         bookmarks: read_bookmarks(ctx)?,
+        // S-44: the managed sessions are read once when the window opens, as the project picker reads them.
+        sessions: live_sessions(ctx)?,
+        home: home_of(ctx),
     };
     let rows = handler.rows();
     if rows.is_empty() {
@@ -181,10 +191,14 @@ struct EditHandler<'c, 'a> {
     project: AbsPath,
     expanded: ExpandedFolders,
     bookmarks: Bookmarks,
+    /// The managed sessions when the window opened (S-44: the Session and Profile columns).
+    sessions: Vec<ManagedSession>,
+    /// The home folder, shown as `~` in the Path column.
+    home: Option<AbsPath>,
 }
 
 impl EditHandler<'_, '_> {
-    /// FR-EDIT-01, FR-EDIT-06: the rows of the window for the current state.
+    /// FR-EDIT-01, FR-EDIT-06, S-44: the rows of the window for the current state.
     fn rows(&self) -> Vec<PickerRow<EditRow>> {
         let fs = self.ctx.fs;
         let children = |dir: &AbsPath| fs.list_dirs(Path::new(dir.as_str())).unwrap_or_default();
@@ -195,7 +209,8 @@ impl EditHandler<'_, '_> {
         rows.iter()
             .zip(guides)
             .map(|(row, guide)| {
-                let mut picker_row = edit_row(row);
+                let live = live_session(&self.sessions, &row.path);
+                let mut picker_row = edit_row(row, live, self.home.as_ref());
                 picker_row.lead = Some(guide);
                 picker_row
             })
@@ -277,10 +292,16 @@ impl PickerHandler<EditRow> for EditHandler<'_, '_> {
     }
 }
 
-/// FR-EDIT-01, FR-EDIT-04, FR-EDIT-06: one row of the window. Column 0 is the bookmark marker, column 1 the directory
-/// tree: the branch glyphs come from the depth (`rows` sets them as the lead), then the folder name, then `+` or `-`
-/// after it (FR-EDIT-04). A folder without subfolders has no marker after the name.
-fn edit_row(row: &EditRow) -> PickerRow<EditRow> {
+/// FR-EDIT-01, FR-EDIT-04, FR-EDIT-06, S-44 (option B): one row of the window, one cell per column. Column 0 is the
+/// directory tree: the branch glyphs come from the depth (`rows` sets them as the lead), then the folder name, then `+`
+/// or `-` after it (FR-EDIT-04). A folder without subfolders has no marker after the name. Column 1 is the bookmark
+/// mark, column 2 and 3 the managed session's name and profile (empty without a session, as the project picker), column
+/// 4 the direct subfolder count, and column 5 the path (shown at 120 cells and up).
+fn edit_row(
+    row: &EditRow,
+    live: Option<&SessionInfo>,
+    home: Option<&AbsPath>,
+) -> PickerRow<EditRow> {
     let mark = if row.bookmarked { BOOKMARK_MARK } else { "" };
     let marker = row.marker.text();
     let tree_cell = if marker.is_empty() {
@@ -288,25 +309,41 @@ fn edit_row(row: &EditRow) -> PickerRow<EditRow> {
     } else {
         format!("{} {marker}", row.name)
     };
+    let cells = vec![
+        tree_cell,
+        mark.to_string(),
+        session_text(live),
+        profile_text(live),
+        row.subfolders.to_string(),
+        row.path.display_with_home(home),
+    ];
     // FR-EDIT-13: the search matches the folder name.
-    let mut picker_row = PickerRow::new(vec![mark.to_string(), tree_cell], &row.name, row.clone());
+    let mut picker_row = PickerRow::new(cells, &row.name, row.clone());
     picker_row.depth = row.depth;
     picker_row.marked = row.bookmarked;
+    picker_row.session_cell = live_cell(live);
     picker_row
 }
 
-/// Architecture 6.2: the bookmark edit window. No filter (D-15), so no search column and no prompt row.
+/// Architecture 6.2, S-44 (option B): the bookmark edit window. No filter (D-15), so no search column and no prompt row.
+/// The columns are the directory tree, Bookmark, Session, Profile and Subfolders; the Path column is shown at 120 cells
+/// and up. The session cell takes the session colour (`session_active`).
 fn edit_chrome(project: &str) -> Chrome {
     let mut chrome = Chrome::new(
         &messages::edit_window_label(project),
         vec![
-            ColumnSpec::fixed("", 2),
             ColumnSpec::text(messages::HEADER_DIRECTORY),
+            ColumnSpec::fixed(messages::HEADER_BOOKMARK, BOOKMARK_WIDTH),
+            ColumnSpec::name(messages::HEADER_SESSION),
+            ColumnSpec::text(messages::HEADER_PROFILE),
+            ColumnSpec::count(messages::HEADER_SUBFOLDERS, SUBFOLDERS_WIDTH),
+            ColumnSpec::wide_path(messages::HEADER_PATH),
         ],
         messages::EDIT_WINDOW_FOOTER,
     );
     chrome.search_column = None;
-    chrome.tree_column = Some(1);
+    chrome.tree_column = Some(0);
+    chrome.session_column = Some(2);
     chrome
 }
 

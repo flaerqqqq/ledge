@@ -43,6 +43,7 @@ fn edit_window_label_and_footer_are_verbatim() {
         "enter toggle bookmark · →/^l open · ←/^h close · esc done"
     );
     assert_eq!(messages::HEADER_DIRECTORY, "Directory");
+    assert_eq!(messages::HEADER_SUBFOLDERS, "Subfolders");
 }
 
 // FR-EDIT-13, P-53, architecture 8.3 [new] (placeholder): the search bar prompt of the edit window is a slash
