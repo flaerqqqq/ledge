@@ -64,9 +64,9 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-BM-08 | S-18 | src/domain/bookmarks.rs (status); src/app/bookmark_cmd.rs; src/messages.rs (bookmark_list_row, status words) | src/domain/bookmarks.rs (unit); tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | Row layout and status precedence are proposal P-35 (b). |
 | FR-BM-09 | S-18 | src/app/bookmark_cmd.rs; src/messages.rs (removed_bookmark) | tests/component_bookmarks.rs; tests/messages_verbatim.rs | covered | A bookmark of a gone directory is removed by its path (D-06). |
 | FR-BM-10 | S-18 | src/app/bookmark_cmd.rs; src/cli/parse.rs; src/messages.rs (not_a_bookmark) | tests/component_bookmarks.rs; src/cli/parse.rs (unit); tests/messages_verbatim.rs | covered |  |
-| FR-BM-11 | S-19 |  |  | open |  |
-| FR-BM-12 | S-19 |  |  | open |  |
-| FR-BM-13 | S-19 |  |  | open |  |
+| FR-BM-11 | S-19 | src/app/pickers.rs (bookmark_picker, bookmark_chrome, dir_rows); src/cli/mod.rs (BmPick) | tests/tui_bookmark_picker.rs | covered | Stored order, ` (missing)` cue and the footer on FakeBackend. Manual: the faint (dimmed) style on a real terminal, because color needs a tty (testing.md manual list); the text cue is automated (A-04). |
+| FR-BM-12 | S-19 | src/app/pickers.rs (bookmark_picker); src/messages.rs (no_bookmarks_to_pick) | tests/tui_bookmark_picker.rs; tests/component_cli.rs; tests/messages_verbatim.rs | covered | No bookmarks at start (file missing or empty): the message, exit 0, no window (picker not drawn). Deleting the last bookmark closes the picker with no output (D-12). |
+| FR-BM-13 | S-19 | src/app/pickers.rs (delete_bookmark, delete_session_of) | tests/tui_bookmark_picker.rs | covered | ctrl-d removes the bookmark from the file, kills its managed session, and reopens the list without the row. On the session the user is in: bookmark deleted, session kept, `cannot kill the session you are in.` (D-17, A-39). Real tmux kill is not run by the gate (tests/component_actions.rs covers the kill on FakeBackend). |
 | FR-BM-14 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered | The bookmark picker itself is S-19; only the directory rejection is covered here. |
 | FR-EDIT-01 | S-20 |  |  | open |  |
 | FR-EDIT-02 | S-21 |  |  | open |  |
@@ -114,7 +114,7 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-ACT-08 | S-22 |  |  | open |  |
 | FR-ACT-09 | S-22 |  |  | open |  |
 | FR-ACT-10 | S-24 |  |  | open |  |
-| FR-ACT-11 | S-19 |  |  | open |  |
+| FR-ACT-11 | S-19 | src/app/pickers.rs (dir_action, BookmarkHandler::act) | tests/tui_bookmark_picker.rs | covered | ctrl-d is a no-op in the project picker (the file of bookmarks is not written, the session is kept) and deletes only on the bookmark picker's rows. |
 | FR-ACT-12 | S-15 | src/app/pickers.rs (rebuild_row, profile_then_rebuild) | tests/tui_project_picker.rs | covered | The picker's --profile option applies to ctrl-r: a missing session is created and a live one is rebuilt with that profile. ctrl-p rebuilds with the profile chosen in the nested picker. |
 | FR-ACT-13 | S-14 | src/app/actions.rs | tests/component_actions.rs | covered | Kill and rebuild refuse an unmanaged session with `'<name>' is not a ledge session.` and leave it unchanged. |
 | FR-PROF-01 | S-02 | app/store.rs; domain/profile.rs | tests/component_config.rs | covered |  |

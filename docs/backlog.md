@@ -312,7 +312,7 @@ have no FR-IDs state why.
 - branch: slice/18-history-bookmark-commands
 
 ### S-19 Bookmark picker
-- status: in-progress
+- status: done
 - deps: S-15, S-18
 - FR-IDs: FR-BM-11, FR-BM-12, FR-BM-13, FR-ACT-11
 - scope: `app/pickers.rs` (bookmark picker), `app/bookmark_cmd.rs` (pick), bookmark picker screen in `tui`.
@@ -324,7 +324,7 @@ have no FR-IDs state why.
 - branch: slice/19-bookmark-picker
 
 ### S-20 Bookmark edit window state and listing
-- status: blocked
+- status: in-progress
 - deps: S-03, S-04
 - FR-IDs: FR-EDIT-01, FR-EDIT-03, FR-EDIT-04, FR-EDIT-05, FR-EDIT-06, FR-EDIT-11
 - scope: `domain/bm_edit.rs` (expanded folders, lazy listing of subdirectories, `+` and `-` markers, pruning of missing directories on write),

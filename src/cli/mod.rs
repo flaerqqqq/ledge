@@ -9,9 +9,10 @@ use crate::app::bookmark_cmd;
 use crate::app::history_cmd;
 use crate::app::open::open_dir_with_editor;
 use crate::app::pickers::{
-    history_picker_with_editor, project_picker_with_editor, session_switcher,
+    bookmark_picker, history_picker_with_editor, project_picker_with_editor, session_switcher,
 };
 use crate::app::Ctx;
+use crate::domain::profile_rules::ProfileOpt;
 use crate::domain::sessions::tmux_version_supported;
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
@@ -55,6 +56,10 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
         Command::BmAdd { dir } => bookmark_cmd::add(ctx, dir.as_deref()),
         Command::BmRemove { dir } => bookmark_cmd::remove(ctx, &dir),
         Command::BmList => bookmark_cmd::list(ctx),
+        Command::BmPick => {
+            require_tmux(ctx)?;
+            bookmark_picker(ctx, &ProfileOpt::Unset)
+        }
         other => Err(LedgeError::Fatal(messages::command_not_available(
             other.words(),
         ))),

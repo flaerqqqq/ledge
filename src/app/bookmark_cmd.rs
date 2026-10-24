@@ -78,12 +78,12 @@ pub fn list(ctx: &Ctx<'_>) -> Result<Outcome> {
     Ok(Outcome::Info(rows.join("\n")))
 }
 
-fn read_bookmarks(ctx: &Ctx<'_>) -> Result<Bookmarks> {
+pub(crate) fn read_bookmarks(ctx: &Ctx<'_>) -> Result<Bookmarks> {
     store::load_bookmarks(ctx.fs, &ctx.dirs)
         .map_err(|error| LedgeError::Fatal(messages::could_not_read_bookmarks(&error.to_string())))
 }
 
-fn write_bookmarks(ctx: &Ctx<'_>, bookmarks: &Bookmarks) -> Result<()> {
+pub(crate) fn write_bookmarks(ctx: &Ctx<'_>, bookmarks: &Bookmarks) -> Result<()> {
     store::save_bookmarks(ctx.fs, &ctx.dirs, bookmarks)
         .map_err(|error| LedgeError::Fatal(messages::could_not_write_bookmarks(&error.to_string())))
 }

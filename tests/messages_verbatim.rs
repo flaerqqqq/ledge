@@ -556,6 +556,26 @@ fn no_bookmarks_text_is_verbatim() {
     assert_eq!(messages::no_bookmarks(), "No bookmarks.");
 }
 
+// FR-BM-12, Messages: the empty bookmark picker stops with this text
+#[test]
+fn no_bookmarks_to_pick_text_is_verbatim() {
+    assert_eq!(
+        messages::no_bookmarks_to_pick(),
+        "No bookmarks. Use 'ledge bm add' to add one."
+    );
+}
+
+// FR-BM-11, architecture 6.2: the bookmark picker label, header and footer
+#[test]
+fn bookmark_picker_chrome_text_is_verbatim() {
+    assert_eq!(messages::BOOKMARKS_LABEL, "Bookmarks");
+    assert_eq!(messages::HEADER_BOOKMARK, "Bookmark");
+    assert_eq!(
+        messages::BOOKMARK_PICKER_FOOTER,
+        "enter open · ^r rebuild · ^p profile · ^x kill · ^d delete bookmark"
+    );
+}
+
 // FR-BM-03, FR-BM-04, Messages: bookmark refusals
 #[test]
 fn bookmark_refusal_texts_are_verbatim() {

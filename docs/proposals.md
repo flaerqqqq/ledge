@@ -352,3 +352,24 @@ Format:
   (e) `history clean` and `bm add`, `bm remove`, `bm list` are now built, so the proposed text of P-32 (a) no longer covers them; P-32 itself is not changed and stays open for the other commands.
 - why: each choice is the smallest one that passes the S-18 tests in tests/component_history.rs, tests/component_bookmarks.rs, the unit tests in domain/bookmarks.rs and domain/path.rs, and the literal checks of tests/messages_verbatim.rs. None changes an accepted decision (D-06, D-12, D-16, A-14, A-19).
 - status: Open
+
+### P-36 S-19 bm pick accepts open options but ignores them
+- from: implementer / slice S-19
+- doc: docs/architecture.md (2.3 grammar: `ledge bm add [DIR] | remove DIR | list | pick [OPEN-OPTS]`), src/cli/parse.rs (S-17)
+- change: the grammar gives `bm pick` the open options (`--profile`, `--no-profile`, `--code`, `--idea`, `--editor`). The parser validates them and
+  then drops them (`Command::BmPick` has no options). S-19 wires `bm pick` with `ProfileOpt::Unset` and no editor, so `ledge bm pick --profile dev`
+  opens the picker with the default profile. Proposed: `Command::BmPick(Options)` and pass `options.profile` and `options.editor` to the bookmark
+  picker, as `project pick` and `history pick` do. Not changed in S-19 (parser is S-17 and FR-BM-11..13 do not name options).
+- why: the grammar says `pick [OPEN-OPTS]`, and FR-PICK-12 gives the profile option to the pickers. Each choice keeps the S-19 tests green.
+- status: Open
+
+### P-37 S-19 backlog acceptance omits the current-session exception for ctrl-d
+- from: implementer / slice S-19
+- doc: docs/backlog.md (S-19 acceptance), docs/architecture.md (A-39), docs/decisions.md (D-17)
+- change: the S-19 acceptance reads "ctrl-d deletes the bookmark and kills its managed session, then reopens the list (FR-BM-13, A-39)".
+  Proposed wording: "ctrl-d deletes the bookmark and kills its managed session, except when that session is the one the user is in: then the
+  bookmark is deleted, the session is kept, and the status line says `cannot kill the session you are in.` (D-17, A-39), then the list reopens."
+  Implemented that way in S-19 (src/app/pickers.rs, delete_session_of). The architecture and D-17 already say so; only the backlog text is short.
+- why: FR-BM-13 and the screen table say "kill its session" with no exception; D-17 and A-39 make the exception. The code follows D-17. Only the user
+  can change the backlog text.
+- status: Open

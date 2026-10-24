@@ -1,11 +1,13 @@
-//! The project, history and session switcher pickers (architecture 2, 6.2, 6.4; FR-PICK-04..13, FR-HIST-04, FR-HIST-05,
-//! FR-SESS-01..04, FR-CMD-08, FR-CMD-12). Each entry point loads its rows through the ports, runs the picker, and on enter opens the chosen
-//! directory through the open flow after the terminal is restored (architecture 6.4). Rows are built here; the
-//! screen and the keys are `tui`. Row actions: ctrl-x kills, ctrl-r rebuilds, ctrl-p picks a profile in a nested
-//! picker and rebuilds with it (S-15, FR-ACT-01, FR-ACT-02, FR-ACT-04, FR-ACT-12). Alt and ctrl-d actions are not
-//! bound in these pickers.
+//! The project, history, bookmark and session switcher pickers (architecture 2, 6.2, 6.4; FR-PICK-04..13, FR-HIST-04,
+//! FR-HIST-05, FR-BM-11..13, FR-SESS-01..04, FR-CMD-08, FR-CMD-12). Each entry point loads its rows through the ports,
+//! runs the picker, and on enter opens the chosen directory through the open flow after the terminal is restored
+//! (architecture 6.4). Rows are built here; the screen and the keys are `tui`. Row actions: ctrl-x kills, ctrl-r
+//! rebuilds, ctrl-p picks a profile in a nested picker and rebuilds with it (S-15, FR-ACT-01, FR-ACT-02, FR-ACT-04,
+//! FR-ACT-12). ctrl-d deletes a bookmark and kills its session in the bookmark picker only (S-19, FR-BM-13, FR-ACT-11);
+//! the alt-key actions are not bound in these pickers.
 
-use crate::app::actions::{current_session, kill, rebuild};
+use crate::app::actions::{current_session, kill, never_touch_current, rebuild};
+use crate::app::bookmark_cmd::{read_bookmarks, write_bookmarks};
 use crate::app::launch::Editor;
 use crate::app::load_projects;
 use crate::app::open::{attach_or_switch, open_dir_with_editor};
@@ -96,13 +98,97 @@ pub fn history_picker_with_editor(
     if history.is_empty() {
         return Ok(Outcome::Info(messages::no_history().to_string()));
     }
-    let rows = history_dir_rows(ctx, &history)?;
+    let rows = dir_rows(ctx, &history)?;
     let model = PickerModel::new(rows, history_chrome());
     let mut handler = HistoryHandler {
         ctx,
         option: option.clone(),
     };
     run_dir_picker(ctx, model, &mut handler, option, editor)
+}
+
+/// FR-BM-11, FR-BM-12, FR-BM-13, D-12: runs the bookmark picker over the bookmarks in stored order and opens the chosen
+/// one. With no bookmarks it prints `No bookmarks. Use 'ledge bm add' to add one.` and stops without a window.
+pub fn bookmark_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
+    let bookmarks = read_bookmarks(ctx)?;
+    if bookmarks.entries().is_empty() {
+        return Ok(Outcome::Info(messages::no_bookmarks_to_pick().to_string()));
+    }
+    let rows = dir_rows(ctx, bookmarks.entries())?;
+    let model = PickerModel::new(rows, bookmark_chrome());
+    let mut handler = BookmarkHandler {
+        ctx,
+        option: option.clone(),
+    };
+    run_dir_picker(ctx, model, &mut handler, option, None)
+}
+
+/// Enter and the actions of the bookmark picker (architecture 6.4). Ctrl-d deletes the bookmark; the other keys are
+/// the project picker's.
+struct BookmarkHandler<'c, 'a> {
+    ctx: &'c Ctx<'a>,
+    option: ProfileOpt,
+}
+
+impl PickerHandler<AbsPath> for BookmarkHandler<'_, '_> {
+    fn choose(&mut self, row: &AbsPath) -> Step {
+        choose_dir(self.ctx, row)
+    }
+
+    fn act(&mut self, action: Action, row: Option<&AbsPath>) -> Step {
+        match (action, row) {
+            (Action::DeleteBookmark, Some(dir)) => delete_bookmark(self.ctx, dir),
+            (Action::DeleteBookmark, None) => no_action(),
+            _ => dir_action(self.ctx, &self.option, action, row),
+        }
+    }
+
+    fn reload(&mut self) -> Result<Vec<DirRow>> {
+        let bookmarks = read_bookmarks(self.ctx)?;
+        dir_rows(self.ctx, bookmarks.entries())
+    }
+}
+
+/// FR-BM-13, FR-ACT-11, D-12, D-17, A-39: ctrl-d on a bookmark row deletes the bookmark, then kills the managed session of
+/// its directory. The session the user is in is not killed; the status line says so and the bookmark is still deleted.
+/// Deleting the last bookmark closes the picker (D-12).
+fn delete_bookmark(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
+    let mut bookmarks = match read_bookmarks(ctx) {
+        Ok(bookmarks) => bookmarks,
+        Err(error) => return failed(error),
+    };
+    if !bookmarks.remove(dir) {
+        return no_action();
+    }
+    if let Err(error) = write_bookmarks(ctx, &bookmarks) {
+        return failed(error);
+    }
+    let name = session_name(dir);
+    let status = match delete_session_of(ctx, &name) {
+        Ok(status) => status,
+        Err(error) => Some(error.to_string()),
+    };
+    if bookmarks.entries().is_empty() {
+        return Step::Close(Outcome::Done);
+    }
+    Step::Continue {
+        status,
+        reload: true,
+    }
+}
+
+/// D-17, A-39: kills the managed session `name` unless the user is in it, which is the status line's refusal. A session
+/// that is not running has nothing to kill.
+fn delete_session_of(ctx: &Ctx<'_>, name: &str) -> Result<Option<String>> {
+    let current = current_session(ctx)?;
+    if never_touch_current(name, current.as_deref()) {
+        return Ok(Some(messages::cannot_kill_current_session().to_string()));
+    }
+    let sessions = live_sessions(ctx)?;
+    if sessions.iter().any(|session| session.info().name == name) {
+        kill(ctx, name)?;
+    }
+    Ok(None)
 }
 
 /// Enter and the actions of the project picker (architecture 6.4).
@@ -145,7 +231,7 @@ impl PickerHandler<AbsPath> for HistoryHandler<'_, '_> {
 
     fn reload(&mut self) -> Result<Vec<DirRow>> {
         let history = load_history(self.ctx)?;
-        history_dir_rows(self.ctx, &history)
+        dir_rows(self.ctx, &history)
     }
 }
 
@@ -405,8 +491,9 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
     Ok(rows)
 }
 
-/// FR-HIST-04, FR-PICK-06, FR-PICK-07: one row per history entry, newest first (the order of the history).
-fn history_dir_rows(ctx: &Ctx<'_>, history: &[AbsPath]) -> Result<Vec<DirRow>> {
+/// FR-HIST-04, FR-BM-11, FR-PICK-06, FR-PICK-07: one row per directory, in the order given (the history, newest first;
+/// the bookmarks, in stored order). Missing directories are dimmed.
+fn dir_rows(ctx: &Ctx<'_>, history: &[AbsPath]) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
     Ok(history
         .iter()
@@ -497,6 +584,22 @@ fn history_chrome() -> Chrome {
             ColumnSpec::text(messages::HEADER_PROFILE),
         ],
         messages::PICKER_FOOTER,
+    );
+    chrome.missing_column = Some(0);
+    chrome
+}
+
+/// Architecture 6.2: the bookmark picker chrome. The search is on the full path (column 0), which carries the missing cue.
+fn bookmark_chrome() -> Chrome {
+    let mut chrome = Chrome::new(
+        messages::BOOKMARKS_LABEL,
+        render::icon::BOOKMARKS,
+        vec![
+            ColumnSpec::path(messages::HEADER_BOOKMARK),
+            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::text(messages::HEADER_PROFILE),
+        ],
+        messages::BOOKMARK_PICKER_FOOTER,
     );
     chrome.missing_column = Some(0);
     chrome

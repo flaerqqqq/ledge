@@ -297,6 +297,17 @@ fn project_pick_reaches_the_picker_service() {
     );
 }
 
+// FR-BM-12, D-12: `bm pick` reaches the bookmark picker; with no bookmarks it prints the message and opens no window
+#[test]
+fn bm_pick_reaches_the_bookmark_picker() {
+    let h = Harness::new("cli-bm-pick-wiring");
+    assert_eq!(
+        info(run(&args(&["bm", "pick"]), &h.ctx())),
+        "No bookmarks. Use 'ledge bm add' to add one."
+    );
+    assert_eq!(h.terminal.opened(), 0);
+}
+
 // FR-BM-14: the bookmark picker takes no directory and points to bm add
 #[test]
 fn bm_pick_takes_no_directory() {
@@ -392,8 +403,8 @@ fn commands_not_built_yet_fail_with_a_plain_error() {
         "'doctor' is not available yet."
     );
     assert_eq!(
-        fatal(run(&args(&["bm", "pick"]), &h.ctx())),
-        "'bm pick' is not available yet."
+        fatal(run(&args(&["bm", "edit"]), &h.ctx())),
+        "'bm edit' is not available yet."
     );
 }
 

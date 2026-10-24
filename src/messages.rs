@@ -400,6 +400,21 @@ pub fn no_bookmarks() -> &'static str {
     "No bookmarks."
 }
 
+/// FR-BM-12, D-12, Messages: the bookmark picker has no bookmarks; info, exit 0, no window.
+pub fn no_bookmarks_to_pick() -> &'static str {
+    "No bookmarks. Use 'ledge bm add' to add one."
+}
+
+/// FR-BM-11, architecture 6.2: the border label of the bookmark picker.
+pub const BOOKMARKS_LABEL: &str = "Bookmarks";
+
+/// FR-BM-11, architecture 6.2: the column title of the bookmark picker's path column.
+pub const HEADER_BOOKMARK: &str = "Bookmark";
+
+/// FR-BM-13, architecture 6.2 (given): the key footer of the bookmark picker.
+pub const BOOKMARK_PICKER_FOOTER: &str =
+    "enter open · ^r rebuild · ^p profile · ^x kill · ^d delete bookmark";
+
 /// FR-BM-04, Messages: a project cannot be bookmarked; error.
 pub fn bookmark_is_project(path: &str) -> String {
     format!("{path} is a project; open it with 'ledge project pick'.")
