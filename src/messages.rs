@@ -105,6 +105,11 @@ pub fn warning(text: &str) -> String {
     format!("Warning: {text}")
 }
 
+/// P-60 (proposed text added by S-37, recorded in docs/proposals.md): `theme_colors` is present but is not an object.
+pub fn theme_colors_not_object() -> &'static str {
+    "theme_colors is not an object; ignored."
+}
+
 /// FR-OPEN-03: the open target is missing or not a directory. `dir` is the argument as typed (A-15).
 pub fn directory_not_found(dir: &str) -> String {
     format!("Directory '{dir}' not found.")

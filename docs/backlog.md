@@ -475,10 +475,19 @@ have no FR-IDs state why.
 - branch: slice/S-36-home-tilde-paths
 
 ### S-37 Theme system and render changes (design 9, steps 1-3 and 7)
-- status: in-progress
+- status: done
 - deps: S-36
 - FR-IDs: FR-TUI-08, FR-TUI-09 (cues), FR-TUI-04 (footer) with proposals P-59, P-60; design sections 6, 4.2, 3.2
 - scope: src/tui/theme.rs (new), src/tui/render.rs, src/tui/columns.rs (cut_middle for names, fit_pairs for the footer), src/domain/config.rs and src/app/store.rs (theme keys), tests/tui_engine.rs
 - acceptance: built-in themes default, ink, mist, zen, pearl with the Kanso values in docs/design/themes.md; theme and theme_colors read from config, invalid values warn and use default; selection bar and reverse video over the whole row including gaps; footer drops whole key pairs from the end at narrow widths; names cut in the middle; NO_COLOR and non-tty keep the text cues.
 - size: M
 - branch: slice/S-37-theme-and-render
+
+### S-38 Picker behaviour from the design (current mark, missing cue, no-op messages, tree glyphs)
+- status: in-progress
+- deps: S-37
+- FR-IDs: FR-TUI-08, FR-TUI-09, FR-PICK-05 (current mark), FR-TREE-02 (glyphs) with proposal P-59; design sections 3, 4.5, 4.4, 9 step 4 a-e
+- scope: src/app/pickers.rs (switcher and tree missing column, current mark, empty footer, no-op messages), src/tui/render.rs (tree branch glyphs ├─ └─ │ in the tree column; session_active, session_none and "(no session)" colouring from row state), src/messages.rs (P-59 texts only)
+- acceptance: the (missing) cue shows in the switcher and both trees; the current session's name has a leading * as in the project picker; an empty switcher or tree footer reads "esc close"; ^x ^d ^r ^p on a row without a session and enter on a connector show the P-59 no-op text in the status line; the tree uses branch glyphs in place of the indent, with an ASCII fallback when UTF-8 is not available.
+- size: M
+- branch: slice/S-38-picker-design

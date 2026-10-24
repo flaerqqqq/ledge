@@ -113,6 +113,8 @@ pub struct PickerModel<T> {
     /// List height in rows; 0 until the size is set.
     page: usize,
     status: Option<String>,
+    /// The status line is an error (design 4.5): drawn in the `error` token, bold.
+    status_error: bool,
     /// FR-EDIT-13, P-53: the search bar is open, so typed characters go to the filter (edit window only).
     bar_open: bool,
     /// The row that was selected when the bar opened; escape selects it again.
@@ -133,6 +135,7 @@ impl<T> PickerModel<T> {
             scroll: 0,
             page: 0,
             status: None,
+            status_error: false,
             bar_open: false,
             bar_anchor: None,
         }
@@ -182,8 +185,21 @@ impl<T> PickerModel<T> {
         self.status.as_deref()
     }
 
+    /// Sets the status line to an information text (or clears it).
     pub fn set_status(&mut self, status: Option<String>) {
         self.status = status;
+        self.status_error = false;
+    }
+
+    /// Sets the status line to an error text (design 4.5).
+    pub fn set_error(&mut self, status: String) {
+        self.status = Some(status);
+        self.status_error = true;
+    }
+
+    /// True when the status line holds an error.
+    pub fn status_is_error(&self) -> bool {
+        self.status_error && self.status.is_some()
     }
 
     /// Sets the list height from the terminal size (FR-TUI-05) and keeps the selection visible.

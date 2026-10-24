@@ -9,6 +9,7 @@ use crate::tui::keys::{self, Action};
 use crate::tui::picker::{self, Effect, PickerModel, PickerRow};
 use crate::tui::render;
 use crate::tui::terminal::TerminalSession;
+use crate::tui::theme::Theme;
 use ratatui::Frame;
 use std::io;
 use std::time::Duration;
@@ -24,6 +25,9 @@ pub enum Step {
         status: Option<String>,
         reload: bool,
     },
+    /// Keep the picker open. `message` is an error and replaces the status line in the error style (design 4.5);
+    /// `reload` asks for `reload()`.
+    Failed { message: String, reload: bool },
     /// Return the selected row to the caller (enter). Used after the terminal is restored.
     Accept,
     /// Return this outcome to the caller.
@@ -62,15 +66,16 @@ pub trait PickerHandler<T: Clone> {
 
 /// FR-TUI-01, FR-TUI-06: runs one picker until it chooses, cancels, closes or is interrupted.
 /// `term` is dropped before this returns, so the terminal is restored on success, cancel, interrupt
-/// and error alike. `color` comes from `render::color_enabled` (FR-TUI-09).
+/// and error alike. `color` comes from `render::color_enabled` (FR-TUI-09); `theme` gives the colours (design 6).
 pub fn run_picker<T: Clone>(
     mut model: PickerModel<T>,
     handler: &mut dyn PickerHandler<T>,
     mut term: Box<dyn TerminalSession>,
     signals: &dyn Signals,
+    theme: &Theme,
     color: bool,
 ) -> Result<PickerResult<T>, LedgeError> {
-    let result = event_loop(&mut model, handler, term.as_mut(), signals, color);
+    let result = event_loop(&mut model, handler, term.as_mut(), signals, theme, color);
     drop(term);
     result
 }
@@ -80,13 +85,14 @@ fn event_loop<T: Clone>(
     handler: &mut dyn PickerHandler<T>,
     term: &mut dyn TerminalSession,
     signals: &dyn Signals,
+    theme: &Theme,
     color: bool,
 ) -> Result<PickerResult<T>, LedgeError> {
     loop {
         if let Some(code) = signals.take_interrupt() {
             return Ok(PickerResult::Closed(Outcome::Interrupted(code)));
         }
-        draw(model, term, color).map_err(terminal_error)?;
+        draw(model, term, theme, color).map_err(terminal_error)?;
         let Some(input) = term.poll(POLL_INTERVAL).map_err(terminal_error)? else {
             continue;
         };
@@ -173,12 +179,21 @@ fn apply_step<T: Clone>(
             }
             Ok(None)
         }
+        Step::Failed { message, reload } => {
+            model.set_error(message);
+            if reload {
+                let rows = handler.reload()?;
+                model.reload(rows);
+            }
+            Ok(None)
+        }
     }
 }
 
 fn draw<T>(
     model: &mut PickerModel<T>,
     term: &mut dyn TerminalSession,
+    theme: &Theme,
     color: bool,
 ) -> io::Result<()> {
     term.draw(&mut |frame: &mut Frame| {
@@ -187,7 +202,7 @@ fn draw<T>(
         // so its list gets one more row without it.
         let no_prompt = usize::from(!model.has_prompt());
         model.set_list_height(picker::list_height(area.height) + no_prompt);
-        render::draw(model, area, frame, color);
+        render::draw(model, area, frame, theme, color);
     })
 }
 

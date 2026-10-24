@@ -315,8 +315,8 @@ fn no_action() -> Step {
 
 /// A failed change is shown in the status line and the window stays open.
 fn failed(error: LedgeError) -> Step {
-    Step::Continue {
-        status: Some(error.to_string()),
+    Step::Failed {
+        message: error.to_string(),
         reload: false,
     }
 }

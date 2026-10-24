@@ -667,10 +667,15 @@ fn empty_bookmark_tree_says_so_and_stays_open() {
     assert!(screen(&h).iter().any(|line| line.contains("No bookmarks.")));
 }
 
-/// Spaces right before `name` on a screen row: the tree indent of its Session cell (two per depth).
+/// Spaces right before `name` on a screen row: the tree indent of its Session cell (two per depth). The selection bar
+/// (design 3.1) takes column 0 of the selected row, so it counts as a space here.
 fn indent_of(row: &str, name: &str) -> usize {
     let at = row.find(name).expect("the name is on the row");
-    row[..at].chars().rev().take_while(|c| *c == ' ').count()
+    row[..at]
+        .chars()
+        .rev()
+        .take_while(|c| *c == ' ' || *c == '▌')
+        .count()
 }
 
 /// The first screen row that contains `needle`.

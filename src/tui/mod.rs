@@ -8,3 +8,4 @@ pub mod keys;
 pub mod picker;
 pub mod render;
 pub mod terminal;
+pub mod theme;

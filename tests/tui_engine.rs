@@ -12,6 +12,7 @@ use ledge::tui::keys::{self, Action};
 use ledge::tui::picker::{self, Chrome, Effect, PickerModel, PickerRow};
 use ledge::tui::render::{self, icon};
 use ledge::tui::terminal::{Input, TerminalSession};
+use ledge::tui::theme::Theme;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::{Color, Modifier};
 use ratatui::Frame;
@@ -39,10 +40,20 @@ fn typed(text: &str) -> Vec<Input> {
 
 /// The model part of the picker loop. Returns the effects of the keys in order.
 fn drive(model: &mut PickerModel<usize>, term: &mut FakeTerminal, color: bool) -> Vec<Effect> {
+    drive_themed(model, term, &Theme::default(), color)
+}
+
+/// `drive` with a theme (FR-CONF-02, design 6).
+fn drive_themed(
+    model: &mut PickerModel<usize>,
+    term: &mut FakeTerminal,
+    theme: &Theme,
+    color: bool,
+) -> Vec<Effect> {
     let mut effects = Vec::new();
     let height = term.buffer().area.height;
     model.set_list_height(picker::list_height(height));
-    draw(model, term, color);
+    draw_themed(model, term, theme, color);
     let mut polls = 0;
     while let Some(input) = term.poll(Duration::from_millis(100)).unwrap() {
         polls += 1;
@@ -55,14 +66,14 @@ fn drive(model: &mut PickerModel<usize>, term: &mut FakeTerminal, color: bool) -
                 }
             }
         }
-        draw(model, term, color);
+        draw_themed(model, term, theme, color);
     }
     effects
 }
 
-fn draw(model: &PickerModel<usize>, term: &mut FakeTerminal, color: bool) {
+fn draw_themed(model: &PickerModel<usize>, term: &mut FakeTerminal, theme: &Theme, color: bool) {
     term.draw(&mut |frame: &mut Frame| {
-        render::draw(model, frame.area(), frame, color);
+        render::draw(model, frame.area(), frame, theme, color);
     })
     .unwrap();
 }
@@ -317,16 +328,16 @@ fn missing_directory_has_the_cue_and_is_dimmed_with_color() {
     drive(&mut model, &mut term, true);
     let (y, line) = line_containing(&term, "(missing)").unwrap();
     assert!(line.contains("/x/gone (missing)"), "{line:?}");
-    assert!(term.cell(1, y).unwrap().modifier.contains(Modifier::DIM));
+    assert!(term.cell(2, y).unwrap().modifier.contains(Modifier::DIM));
     let (y, _) = line_containing(&term, "/x/here").unwrap();
-    assert!(!term.cell(1, y).unwrap().modifier.contains(Modifier::DIM));
+    assert!(!term.cell(2, y).unwrap().modifier.contains(Modifier::DIM));
 
     let mut model = PickerModel::new(rows, chrome);
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
     let (y, line) = line_containing(&term, "(missing)").unwrap();
     assert!(line.contains("/x/gone (missing)"));
-    assert!(!term.cell(1, y).unwrap().modifier.contains(Modifier::DIM));
+    assert!(!term.cell(2, y).unwrap().modifier.contains(Modifier::DIM));
 }
 
 // FR-TUI-09, A-04: the selected row is reverse video, so it shows without color
@@ -356,14 +367,14 @@ fn connector_is_parenthesised_and_gray_with_color() {
     drive(&mut model, &mut term, true);
     let (y, line) = line_containing(&term, "(work)").unwrap();
     assert!(line.contains("  (work)"), "{line:?}");
-    assert_eq!(term.cell(1, y).unwrap().fg, Color::DarkGray);
+    assert_eq!(term.cell(2, y).unwrap().fg, Color::DarkGray);
 
     let mut model = PickerModel::new(vec![connector], chrome);
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
     let (y, line) = line_containing(&term, "(work)").unwrap();
     assert!(line.contains("  (work)"));
-    assert_ne!(term.cell(1, y).unwrap().fg, Color::DarkGray);
+    assert_ne!(term.cell(2, y).unwrap().fg, Color::DarkGray);
 }
 
 // FR-TUI-02, FR-TUI-09: matched characters are bold and underlined
@@ -377,7 +388,7 @@ fn matched_characters_are_bold_and_underlined() {
     let mut term = FakeTerminal::new(60, 12, typed("le")).unwrap();
     drive(&mut model, &mut term, false);
     let (y, _) = line_containing(&term, "ledge").unwrap();
-    for x in [1, 2] {
+    for x in [2, 3] {
         let modifier = term.cell(x, y).unwrap().modifier;
         assert!(
             modifier.contains(Modifier::BOLD | Modifier::UNDERLINED),
@@ -385,7 +396,7 @@ fn matched_characters_are_bold_and_underlined() {
         );
     }
     assert!(!term
-        .cell(3, y)
+        .cell(4, y)
         .unwrap()
         .modifier
         .contains(Modifier::UNDERLINED));
@@ -409,6 +420,96 @@ fn picker_stays_open_with_rows_and_closes_when_empty_unless_staying_open() {
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut staying, &mut term, false);
     assert!(term.lines()[0].contains("▸ Names"));
+}
+
+// FR-TUI-09, design 9.2a: the selected row has the bar in column 0, and reverse video runs over the whole row
+// and its gaps (no colour)
+#[test]
+fn selection_bar_and_reverse_video_cover_the_whole_row() {
+    let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
+    let mut term = FakeTerminal::new(60, 12, vec![key(KeyCode::Down)]).unwrap();
+    drive(&mut model, &mut term, false);
+    let (y, _) = line_containing(&term, "row01-1a2b").unwrap();
+    assert_eq!(term.cell(1, y).unwrap().symbol(), "▌");
+    // The gap between Name (x 2..=6) and Session is x 7; the row runs to the inner edge (x 58).
+    for x in 1..=58 {
+        assert!(
+            term.cell(x, y)
+                .unwrap()
+                .modifier
+                .contains(Modifier::REVERSED),
+            "x={x}"
+        );
+    }
+    let (other, _) = line_containing(&term, "row00-1a2b").unwrap();
+    assert_eq!(term.cell(1, other).unwrap().symbol(), " ");
+    assert!(!term
+        .cell(7, other)
+        .unwrap()
+        .modifier
+        .contains(Modifier::REVERSED));
+}
+
+// FR-TUI-09, design 6.1, 9.2a: with ink the selected row uses selection_bg over the whole row, gaps included
+#[test]
+fn selection_gap_takes_the_theme_selection_background() {
+    let ink = Theme::builtin("ink").unwrap();
+    let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
+    let mut term = FakeTerminal::new(60, 12, vec![key(KeyCode::Down)]).unwrap();
+    drive_themed(&mut model, &mut term, &ink, true);
+    let (y, _) = line_containing(&term, "row01-1a2b").unwrap();
+    let selection_bg = Color::Rgb(0x39, 0x3b, 0x44);
+    for x in [1, 2, 6, 7, 8, 18, 58] {
+        let cell = term.cell(x, y).unwrap();
+        assert_eq!(cell.bg, selection_bg, "x={x}");
+        assert!(!cell.modifier.contains(Modifier::REVERSED), "x={x}");
+    }
+    assert_eq!(term.cell(1, y).unwrap().fg, Color::Rgb(0x7f, 0xb4, 0xca));
+}
+
+// FR-TUI-04, design 4.2: at 60 cells the footer drops whole key pairs from the end, never half a pair
+#[test]
+fn footer_drops_whole_key_pairs_from_the_end_at_60_cells() {
+    let footer = "enter open · ^r rebuild · ^p profile · ^x kill · ^d delete bookmark";
+    let mut model = PickerModel::new(named_rows(2), name_chrome(footer));
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    let footer = term.lines()[10]
+        .trim_matches(|c: char| c == '│' || c == ' ')
+        .to_string();
+    assert_eq!(footer, "enter open · ^r rebuild · ^p profile · ^x kill");
+}
+
+// FR-NAME-01, design 3.2: a long session name is cut in the middle and keeps its four-character hash
+#[test]
+fn long_session_name_is_cut_in_the_middle_keeping_the_hash() {
+    let name = "api-gateway-service-long-session-name-91bc";
+    let chrome = Chrome::new(
+        "Sessions",
+        icon::SESSIONS,
+        vec![ColumnSpec::name("Session")],
+        "enter switch",
+    );
+    let mut model = PickerModel::new(vec![PickerRow::new(vec![name.into()], name, 0)], chrome);
+    let mut term = FakeTerminal::new(40, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    // 40 cells, 38 inside the border, 1 for the selection bar: 37 cells, the hash is 5 of them.
+    let expected = format!("▌{}…-91bc", &name[..31]);
+    let (_, line) = line_containing(&term, "…-91bc").unwrap();
+    assert!(line.contains(&expected), "{line:?}");
+}
+
+// FR-TUI-09, design 8.4: an error in the status row is bold and keeps its text
+#[test]
+fn error_status_is_bold_and_keeps_its_text() {
+    let mut model = PickerModel::new(named_rows(2), name_chrome("enter open"));
+    model.set_error("could not kill session 'x'.".into());
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, true);
+    let (y, line) = line_containing(&term, "could not kill session").unwrap();
+    assert_eq!(y, 9, "status row");
+    assert!(line.contains("could not kill session 'x'."));
+    assert!(term.cell(1, y).unwrap().modifier.contains(Modifier::BOLD));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -481,7 +582,14 @@ fn run_engine(
 ) {
     let term = FakeTerminal::new(80, 24, inputs).unwrap();
     let record = term.record();
-    let result = run_picker(engine_model(rows), handler, Box::new(term), signals, false);
+    let result = run_picker(
+        engine_model(rows),
+        handler,
+        Box::new(term),
+        signals,
+        &Theme::default(),
+        false,
+    );
     (result, record)
 }
 
@@ -637,6 +745,7 @@ fn resize_keeps_the_selected_row_visible_in_the_engine() {
         &mut handler,
         Box::new(term),
         &FakeSignals::none(),
+        &Theme::default(),
         false,
     );
     assert_eq!(result.unwrap(), PickerResult::Cancelled);

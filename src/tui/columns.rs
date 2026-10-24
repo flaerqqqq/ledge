@@ -11,13 +11,22 @@ const FLOOR_LAST: usize = 6;
 const FLOOR_SEARCH: usize = 12;
 const FLOOR_OTHER: usize = 4;
 
-/// One column of a picker: its title, an optional fixed width (the marker column is 2 cells), and
-/// whether long text is cut from the left (paths) or at the end.
+/// How long text is cut to fit (design 3.2): paths keep their tail, session names keep their start and their hash,
+/// other text keeps its start.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cut {
+    End,
+    Start,
+    Middle,
+}
+
+/// One column of a picker: its title, an optional fixed width (the marker column is 2 cells), and how its long text
+/// is cut.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnSpec {
     pub title: String,
     pub fixed_width: Option<usize>,
-    pub path: bool,
+    pub cut: Cut,
 }
 
 impl ColumnSpec {
@@ -25,7 +34,7 @@ impl ColumnSpec {
         Self {
             title: title.to_string(),
             fixed_width: None,
-            path: false,
+            cut: Cut::End,
         }
     }
 
@@ -33,7 +42,16 @@ impl ColumnSpec {
         Self {
             title: title.to_string(),
             fixed_width: None,
-            path: true,
+            cut: Cut::Start,
+        }
+    }
+
+    /// A session name: cut in the middle, so its hash stays visible (design 3.2, FR-NAME-01).
+    pub fn name(title: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            fixed_width: None,
+            cut: Cut::Middle,
         }
     }
 
@@ -41,7 +59,7 @@ impl ColumnSpec {
         Self {
             title: title.to_string(),
             fixed_width: Some(width),
-            path: false,
+            cut: Cut::End,
         }
     }
 }
@@ -107,51 +125,103 @@ pub fn widths(
     w
 }
 
-/// Cuts `text` at the end to at most `max` cells, marking the cut with `…`.
-pub fn cut_end(text: &str, max: usize) -> String {
+/// Cells of a session name kept after the ellipsis when it is cut in the middle: the hyphen and the four characters
+/// of the hash (`-91bc`).
+const MIDDLE_TAIL: usize = 5;
+/// Separator between the key and label pairs of a footer (design 4.2).
+pub const PAIR_SEP: &str = " · ";
+
+/// Which characters of a cut text stay: `head` characters from the start and `tail` from the end, with one ellipsis
+/// between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Kept {
+    pub head: usize,
+    pub tail: usize,
+}
+
+/// How `text` is cut to `max` cells, or `None` when it fits. The ellipsis is one cell and is always part of the cut.
+pub fn kept(text: &str, max: usize, cut: Cut) -> Option<Kept> {
+    if width(text) <= max {
+        return None;
+    }
+    let budget = max.saturating_sub(char_width(ELLIPSIS));
+    let (head_budget, tail_budget) = match cut {
+        Cut::End => (budget, 0),
+        Cut::Start => (0, budget),
+        Cut::Middle => {
+            let tail = budget.min(MIDDLE_TAIL);
+            (budget - tail, tail)
+        }
+    };
+    let chars: Vec<char> = text.chars().collect();
+    let mut head = 0;
+    let mut used = 0;
+    for c in &chars {
+        let w = char_width(*c);
+        if used + w > head_budget {
+            break;
+        }
+        used += w;
+        head += 1;
+    }
+    let mut tail = 0;
+    used = 0;
+    for c in chars[head..].iter().rev() {
+        let w = char_width(*c);
+        if used + w > tail_budget {
+            break;
+        }
+        used += w;
+        tail += 1;
+    }
+    Some(Kept { head, tail })
+}
+
+/// Cuts `text` to at most `max` cells in the way `cut` names, marking the cut with `…`.
+fn cut_with(text: &str, max: usize, cut: Cut) -> String {
     if max == 0 {
         return String::new();
     }
-    if width(text) <= max {
+    let Some(kept) = kept(text, max, cut) else {
         return text.to_string();
-    }
-    let budget = max - char_width(ELLIPSIS);
-    let mut out = String::new();
-    let mut used = 0;
-    for c in text.chars() {
-        let w = char_width(c);
-        if used + w > budget {
-            break;
-        }
-        out.push(c);
-        used += w;
-    }
+    };
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: String = chars[..kept.head].iter().collect();
     out.push(ELLIPSIS);
+    out.extend(chars[chars.len() - kept.tail..].iter());
     out
+}
+
+/// Cuts `text` at the end to at most `max` cells, marking the cut with `…`.
+pub fn cut_end(text: &str, max: usize) -> String {
+    cut_with(text, max, Cut::End)
 }
 
 /// Cuts `text` at the start to at most `max` cells, keeping the tail and marking the cut with `…`.
 pub fn cut_start(text: &str, max: usize) -> String {
-    if max == 0 {
-        return String::new();
+    cut_with(text, max, Cut::Start)
+}
+
+/// Cuts `text` in the middle to at most `max` cells: the start stays, then `…`, then the last five cells (the hash
+/// of a session name, FR-NAME-01, design 3.2).
+pub fn cut_middle(text: &str, max: usize) -> String {
+    cut_with(text, max, Cut::Middle)
+}
+
+/// Fits a footer of key and label pairs (design 4.2, P-59 FR-TUI-13) in `max` cells. When it is too wide, whole
+/// pairs are dropped from the end and no key is cut. A first pair that is wider than `max` alone is cut at the end.
+pub fn fit_pairs(footer: &str, max: usize) -> String {
+    if width(footer) <= max {
+        return footer.to_string();
     }
-    if width(text) <= max {
-        return text.to_string();
-    }
-    let budget = max - char_width(ELLIPSIS);
-    let mut kept: Vec<char> = Vec::new();
-    let mut used = 0;
-    for c in text.chars().rev() {
-        let w = char_width(c);
-        if used + w > budget {
-            break;
+    let pairs: Vec<&str> = footer.split(PAIR_SEP).collect();
+    for keep in (1..pairs.len()).rev() {
+        let candidate = pairs[..keep].join(PAIR_SEP);
+        if width(&candidate) <= max {
+            return candidate;
         }
-        kept.push(c);
-        used += w;
     }
-    let mut out = String::from(ELLIPSIS);
-    out.extend(kept.iter().rev());
-    out
+    cut_end(pairs.first().copied().unwrap_or(""), max)
 }
 
 /// Exactly `max` cells: the text cut as needed (from the left when `from_left`), then padded with
@@ -216,6 +286,60 @@ mod tests {
         assert_eq!(width("日本"), 4);
         assert_eq!(cut_end("日本語", 4), "日…");
         assert_eq!(fit("日本語", 4, false), "日… ");
+    }
+
+    // design 3.2: a session name keeps its start and its four-character hash
+    #[test]
+    fn cut_middle_keeps_the_start_and_the_hash() {
+        assert_eq!(cut_middle("api-gateway-service-91bc", 14), "api-gate…-91bc");
+        assert_eq!(cut_middle("api-gate-91bc", 13), "api-gate-91bc");
+        assert_eq!(cut_middle("api-gateway-91bc", 9), "api…-91bc");
+    }
+
+    // design 3.2: CJK characters count as two cells in the middle cut too
+    #[test]
+    fn cut_middle_counts_cjk_as_two_cells() {
+        // 日本語テキスト-91bc: tail "-91bc" is 5 cells, the ellipsis 1, the head 4 cells (日本).
+        assert_eq!(cut_middle("日本語テキスト-91bc", 10), "日本…-91bc");
+        assert!(width(&cut_middle("日本語テキスト-91bc", 10)) <= 10);
+    }
+
+    // design 3.2: a name that fits is kept, and the widest cut keeps nothing but the ellipsis
+    #[test]
+    fn cut_middle_fits_or_marks_the_cut() {
+        assert_eq!(cut_middle("short", 5), "short");
+        assert_eq!(cut_middle("abcdef", 1), "…");
+        assert_eq!(cut_middle("abcdef", 0), "");
+    }
+
+    // design 4.2: whole pairs are dropped from the end, never a pair in half
+    #[test]
+    fn fit_pairs_drops_whole_pairs_from_the_end() {
+        let footer = "enter open · ^r rebuild · ^p profile · ^x kill · ^d delete bookmark";
+        assert_eq!(fit_pairs(footer, 67), footer);
+        assert_eq!(
+            fit_pairs(footer, 66),
+            "enter open · ^r rebuild · ^p profile · ^x kill"
+        );
+        assert_eq!(
+            fit_pairs(footer, 45),
+            "enter open · ^r rebuild · ^p profile"
+        );
+        assert_eq!(fit_pairs(footer, 10), "enter open");
+    }
+
+    // design 4.2: a first pair wider than the window is cut at the end, as cut_end does
+    #[test]
+    fn fit_pairs_cuts_a_first_pair_that_does_not_fit() {
+        assert_eq!(fit_pairs("enter toggle bookmark · esc done", 8), "enter t…");
+    }
+
+    // design 4.2: CJK labels count as two cells when a pair is kept or dropped
+    #[test]
+    fn fit_pairs_counts_cjk_cells() {
+        let footer = "enter 開く · ^r 再構築";
+        assert_eq!(fit_pairs(footer, 10), "enter 開く");
+        assert_eq!(fit_pairs(footer, 9), "enter 開…");
     }
 
     #[test]

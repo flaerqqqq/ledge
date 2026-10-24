@@ -597,3 +597,4 @@ Format:
   - FR-CONF-01 default content does not change: no theme key is written on first run.
 - why: the user chooses a palette and overrides one colour without editing code. Colour is never the only cue (FR-TUI-09), so a theme changes colours only.
 - open choice: an environment variable for one run (LEDGE_THEME), not proposed here.
+- S-37 implementation note (slice S-37, branch slice/S-37-theme-and-render): the three texts above are used as written, with the `Warning: ` prefix. One text is added, because `theme_colors` that is present but not an object had none: "Warning: theme_colors is not an object; ignored." (`messages::theme_colors_not_object`). Behaviour as built: an invalid `theme_colors` entry is ignored and the theme's own colour stays (P-60 wording), not the default theme; on a 16-colour terminal the theme falls back to the default ANSI names and its overrides are not shown (design 6.3).

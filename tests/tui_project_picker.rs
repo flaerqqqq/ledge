@@ -763,3 +763,27 @@ fn history_entry_under_home_shows_tilde() {
     );
     assert!(line_with(&lines, "/projects/a").contains(&outside));
 }
+
+// P-60, FR-CONF-09: an unknown theme and a colour token that is not a token warn on stderr before the picker opens;
+// the picker still runs, with the default theme's colours on the screen
+#[test]
+fn theme_warnings_go_to_stderr_and_the_picker_still_opens() {
+    let h = Harness::new("tui_project_picker-theme");
+    let projects = h.root().join("projects");
+    h.write_config(&format!(
+        "{{\"search_paths\": [\"{}\"], \"theme\": \"neon\", \"theme_colors\": {{\"acent\": \"#112233\"}}}}",
+        projects.display()
+    ));
+    h.project("app");
+    h.terminal.script(vec![esc()]);
+    let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(
+        h.console.err_lines(),
+        vec![
+            "Warning: theme 'neon' is unknown; using default.".to_string(),
+            "Warning: theme_colors 'acent' is not a colour token; ignored.".to_string(),
+        ]
+    );
+    assert!(line_with(&screen(&h), "Projects").contains("Projects"));
+}

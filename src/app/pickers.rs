@@ -35,6 +35,7 @@ use crate::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use crate::tui::keys::Action;
 use crate::tui::picker::{Chrome, PickerModel, PickerRow};
 use crate::tui::render;
+use crate::tui::theme::{self, ColourLevel};
 use std::path::Path;
 
 /// One picker row: the directory it opens.
@@ -251,10 +252,8 @@ fn choose_dir(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
 
 /// FR-PICK-09: the directory is gone; the message is in the status line and the picker stays open.
 fn missing_step(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
-    Step::Continue {
-        status: Some(messages::missing_directory(
-            &dir.display_with_home(home_of(ctx).as_ref()),
-        )),
+    Step::Failed {
+        message: messages::missing_directory(&dir.display_with_home(home_of(ctx).as_ref())),
         reload: false,
     }
 }
@@ -269,8 +268,8 @@ fn no_action() -> Step {
 
 /// A failed action: its message in the status line, the list kept as it was.
 fn failed(error: LedgeError) -> Step {
-    Step::Continue {
-        status: Some(error.to_string()),
+    Step::Failed {
+        message: error.to_string(),
         reload: false,
     }
 }
@@ -365,31 +364,52 @@ fn run_dir_picker(
             }
             PickerResult::Closed(outcome) => return Ok(outcome),
             PickerResult::Profile(dir) => {
-                let status = match profile_then_rebuild(ctx, &dir)? {
+                let (status, error) = match profile_then_rebuild(ctx, &dir)? {
                     Step::Close(outcome) => return Ok(outcome),
-                    Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => None,
+                    Step::Continue { status, .. } => (status, false),
+                    Step::Failed { message, .. } => (Some(message), true),
+                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => {
+                        (None, false)
+                    }
                 };
                 let rows = preselect_row(handler.reload()?, &dir);
                 model = PickerModel::new(rows, chrome);
-                model.set_status(status);
+                set_flow_status(&mut model, status, error);
             }
         }
     }
 }
 
 /// Opens one picker on a fresh terminal and runs it. The terminal is restored when the picker returns (FR-TUI-06).
+/// The theme comes from the config (P-60); its warnings go to stderr before the picker opens.
 pub(crate) fn run_in_terminal<T: Clone>(
     ctx: &Ctx<'_>,
     model: PickerModel<T>,
     handler: &mut dyn PickerHandler<T>,
 ) -> Result<PickerResult<T>> {
-    let term = ctx.terminal.open().map_err(LedgeError::Fatal)?;
+    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     let color = render::color_enabled(
         ctx.env.var("NO_COLOR").as_deref(),
         ctx.env.var("TERM").as_deref(),
     );
-    run_picker(model, handler, term, ctx.signals, color)
+    let level = ColourLevel::detect(
+        ctx.env.var("COLORTERM").as_deref(),
+        ctx.env.var("TERM").as_deref(),
+    );
+    let resolved = theme::resolve(config.theme.as_deref(), &config.theme_colors, level);
+    for warning in config.warnings.iter().chain(&resolved.warnings) {
+        ctx.console.err(warning);
+    }
+    let term = ctx.terminal.open().map_err(LedgeError::Fatal)?;
+    run_picker(model, handler, term, ctx.signals, &resolved.theme, color)
+}
+
+/// The status line after a nested flow: an error keeps its error style (design 4.5).
+fn set_flow_status<T>(model: &mut PickerModel<T>, status: Option<String>, error: bool) {
+    match status {
+        Some(text) if error => model.set_error(text),
+        status => model.set_status(status),
+    }
 }
 
 /// Selects the row of `dir` again after a nested picker (the selection returns to the row that was acted on).
@@ -587,7 +607,7 @@ fn project_chrome(label: &str) -> Chrome {
         vec![
             ColumnSpec::fixed("", 2),
             ColumnSpec::path(messages::HEADER_PROJECT),
-            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROFILE),
         ],
         messages::PICKER_FOOTER,
@@ -605,7 +625,7 @@ fn history_chrome() -> Chrome {
         render::icon::HISTORY,
         vec![
             ColumnSpec::path(messages::HEADER_PROJECT),
-            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROFILE),
         ],
         messages::PICKER_FOOTER,
@@ -621,7 +641,7 @@ fn bookmark_chrome() -> Chrome {
         render::icon::BOOKMARKS,
         vec![
             ColumnSpec::path(messages::HEADER_BOOKMARK),
-            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROFILE),
         ],
         messages::BOOKMARK_PICKER_FOOTER,
@@ -708,7 +728,7 @@ fn switcher_chrome() -> Chrome {
         messages::SESSIONS_LABEL,
         render::icon::SESSIONS,
         vec![
-            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROJECT),
             ColumnSpec::text(messages::HEADER_PROFILE),
             ColumnSpec::text(messages::HEADER_ACTIVITY),
@@ -774,14 +794,17 @@ fn run_switcher(
                     Some(dir) => profile_then_rebuild(ctx, &dir)?,
                     None => no_action(),
                 };
-                let status = match step {
+                let (status, error) = match step {
                     Step::Close(outcome) => return Ok(outcome),
-                    Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => None,
+                    Step::Continue { status, .. } => (status, false),
+                    Step::Failed { message, .. } => (Some(message), true),
+                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => {
+                        (None, false)
+                    }
                 };
                 let rows = preselect_session(handler.reload()?, &name);
                 model = PickerModel::new(rows, chrome);
-                model.set_status(status);
+                set_flow_status(&mut model, status, error);
             }
         }
     }
@@ -850,14 +873,17 @@ fn run_tree_window(
             PickerResult::Cancelled => return Ok(Outcome::Cancelled),
             PickerResult::Closed(outcome) => return Ok(outcome),
             PickerResult::Profile(row) => {
-                let status = match profile_then_rebuild(ctx, &row.path)? {
+                let (status, error) = match profile_then_rebuild(ctx, &row.path)? {
                     Step::Close(outcome) => return Ok(outcome),
-                    Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => None,
+                    Step::Continue { status, .. } => (status, false),
+                    Step::Failed { message, .. } => (Some(message), true),
+                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => {
+                        (None, false)
+                    }
                 };
                 let rows = preselect_tree_row(handler.reload()?, &row.path);
                 model = PickerModel::new(rows, chrome);
-                model.set_status(status);
+                set_flow_status(&mut model, status, error);
             }
             PickerResult::ProfileNode(row) => {
                 // FR-ACT-09: one profile for every session under the node; escape changes nothing.
@@ -873,7 +899,7 @@ fn run_tree_window(
                 };
                 let rows = preselect_tree_row(handler.reload()?, &row.path);
                 model = PickerModel::new(rows, chrome);
-                model.set_status(status);
+                set_flow_status(&mut model, status, true);
             }
         }
     }
@@ -901,7 +927,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
         TreeKind::Bookmarks => (
             vec![
                 ColumnSpec::text(messages::HEADER_DIRECTORY),
-                ColumnSpec::text(messages::HEADER_SESSION),
+                ColumnSpec::name(messages::HEADER_SESSION),
                 ColumnSpec::text(messages::HEADER_PROFILE),
             ],
             0,
@@ -909,7 +935,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
         ),
         TreeKind::Sessions => (
             vec![
-                ColumnSpec::text(messages::HEADER_SESSION),
+                ColumnSpec::name(messages::HEADER_SESSION),
                 ColumnSpec::text(messages::HEADER_PROJECT),
                 ColumnSpec::text(messages::HEADER_PROFILE),
                 ColumnSpec::text(messages::HEADER_ACTIVITY),
@@ -1091,9 +1117,15 @@ impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
 
 /// The step of a node action: the list is read again, and a failure is its message in the status line.
 fn node_step(result: Result<()>) -> Step {
-    Step::Continue {
-        status: result.err().map(|error| error.to_string()),
-        reload: true,
+    match result {
+        Ok(()) => Step::Continue {
+            status: None,
+            reload: true,
+        },
+        Err(error) => Step::Failed {
+            message: error.to_string(),
+            reload: true,
+        },
     }
 }
 

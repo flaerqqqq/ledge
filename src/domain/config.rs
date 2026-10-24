@@ -17,6 +17,14 @@ pub struct Config {
     pub search_paths: Vec<AbsPath>,
     /// FR-CONF-02: the profile used when none is named. `None` when the key is absent.
     pub default_profile: Option<String>,
+    /// P-60: the theme name as written (`None` when the key is absent). A value that is not a string is kept as its
+    /// JSON text, so the theme check reports it as an unknown theme.
+    pub theme: Option<String>,
+    /// P-60: the `theme_colors` entries in file order, as (token name, value). Values that are not strings are kept
+    /// as their JSON text, so the colour check reports them.
+    pub theme_colors: Vec<(String, String)>,
+    /// Warning lines for config values this module could not use, in the form the caller prints on stderr.
+    pub warnings: Vec<String>,
 }
 
 /// FR-CONF-02, FR-CONF-03, FR-CONF-04, architecture 9.2. `file` is the path shown in messages.
@@ -66,9 +74,38 @@ pub fn parse(
         Some(_) => return Err(fatal(messages::config_invalid_default_profile(file))),
     };
 
+    // P-60: the theme name is checked where the theme is built (tui::theme); here only its shape is read.
+    let theme = match object.get("theme") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(name)) => Some(name.clone()),
+        Some(other) => Some(other.to_string()),
+    };
+
+    let mut warnings = Vec::new();
+    let theme_colors = match object.get("theme_colors") {
+        None => Vec::new(),
+        Some(Value::Object(entries)) => entries
+            .iter()
+            .map(|(name, value)| {
+                let text = match value {
+                    Value::String(text) => text.clone(),
+                    other => other.to_string(),
+                };
+                (name.clone(), text)
+            })
+            .collect(),
+        Some(_) => {
+            warnings.push(messages::warning(messages::theme_colors_not_object()));
+            Vec::new()
+        }
+    };
+
     Ok(Config {
         search_paths,
         default_profile,
+        theme,
+        theme_colors,
+        warnings,
     })
 }
 
@@ -199,6 +236,46 @@ mod tests {
     fn reads_default_profile_string() {
         let config = run("{\"search_paths\": [], \"default_profile\": \"dev\"}").expect("parses");
         assert_eq!(config.default_profile.as_deref(), Some("dev"));
+    }
+
+    // P-60: theme and theme_colors are read; a missing key is the default (no name, no entries, no warning)
+    #[test]
+    fn reads_theme_and_theme_colors() {
+        let config = run("{\"theme\": \"ink\", \"theme_colors\": {\"accent\": \"#7fb4ca\"}}")
+            .expect("parses");
+        assert_eq!(config.theme.as_deref(), Some("ink"));
+        assert_eq!(
+            config.theme_colors,
+            vec![("accent".to_string(), "#7fb4ca".to_string())]
+        );
+        assert!(config.warnings.is_empty());
+
+        let config = run("{}").expect("parses");
+        assert_eq!(config.theme, None);
+        assert!(config.theme_colors.is_empty());
+        assert!(config.warnings.is_empty());
+    }
+
+    // P-60: a theme or colour value that is not a string is kept as its JSON text, for the theme check to report
+    #[test]
+    fn non_string_theme_values_keep_their_json_text() {
+        let config = run("{\"theme\": 3, \"theme_colors\": {\"accent\": 7}}").expect("parses");
+        assert_eq!(config.theme.as_deref(), Some("3"));
+        assert_eq!(
+            config.theme_colors,
+            vec![("accent".to_string(), "7".to_string())]
+        );
+    }
+
+    // P-60 (text added by S-37): theme_colors that is not an object is ignored with a warning
+    #[test]
+    fn theme_colors_that_is_not_an_object_warns() {
+        let config = run("{\"theme_colors\": [\"#000000\"]}").expect("parses");
+        assert!(config.theme_colors.is_empty());
+        assert_eq!(
+            config.warnings,
+            vec!["Warning: theme_colors is not an object; ignored.".to_string()]
+        );
     }
 
     // FR-CONF-02, architecture 9.2: a missing search_paths key means an empty list
