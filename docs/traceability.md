@@ -147,14 +147,14 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-NAME-05 | S-09 | src/adapters/tmux.rs | tests/it_tmux_adapter.rs (ignored, real tmux); src/adapters/tmux.rs (unit) | covered | A session given `@ledge_managed 1` by hand (tmux CLI) is listed as managed; no `@ledge_dir` gives no directory (A-05). |
 | FR-SCOPE-01 | S-04 | domain/projects.rs | domain/projects.rs | covered |  |
 | FR-SCOPE-02 | S-04 | domain/sessions.rs | domain/sessions.rs | open | Directory membership only. The managed filter and session directory come with the session slices. |
-| FR-DOC-01 | S-26 |  |  | open |  |
-| FR-DOC-02 | S-26 |  |  | open |  |
-| FR-DOC-03 | S-26 |  |  | open |  |
-| FR-DOC-04 | S-26 |  |  | open |  |
-| FR-DOC-05 | S-26 |  |  | open |  |
-| FR-DOC-06 | S-26 |  |  | open |  |
-| FR-DOC-07 | S-26 |  |  | open |  |
-| FR-DOC-08 | S-26 |  |  | open |  |
+| FR-DOC-01 | S-26 | src/app/doctor.rs (check_tmux, check_programs) | tests/component_doctor.rs (clean_installation_prints_every_check_in_order_and_exits_zero, tmux_version_three_two_is_ok, tmux_older_than_three_two_is_an_error, missing_tmux_is_an_error_line_and_checks_continue, missing_setsid_code_and_idea_are_warnings) | covered | Optional programs are WARN, not OK/ERR, as in architecture 8.4 and A-12 (proposal P-49). |
+| FR-DOC-02 | S-26 | src/app/doctor.rs (check_config) | tests/component_doctor.rs (missing_config_is_an_error_and_is_not_created, config_that_is_not_json_is_an_error, config_with_wrong_search_paths_type_is_an_error) | covered | Read only: the config is never created (A-12). |
+| FR-DOC-03 | S-26 | src/app/doctor.rs (check_search_paths) | tests/component_doctor.rs (no_search_path_is_a_warning, missing_search_path_is_a_warning) | covered |  |
+| FR-DOC-04 | S-26 | src/app/doctor.rs (check_bookmarks) | tests/component_doctor.rs (bookmarks_missing_or_outside_projects_are_warnings, good_bookmarks_give_one_ok_line_with_the_count) | covered | Reads the bookmarks file of the cache folder (proposal P-50). |
+| FR-DOC-05 | S-26 | src/app/doctor.rs (check_profiles) | tests/component_doctor.rs (profile_without_windows_is_a_warning, valid_profile_prints_nothing, basic_profile_file_is_reported_as_reserved) | covered |  |
+| FR-DOC-06 | S-26 | src/app/doctor.rs (check_default_profile) | tests/component_doctor.rs (valid_default_profile_is_ok, missing_default_profile_is_a_warning_with_reason) | covered | The reason text after the message is proposal P-48 (c). |
+| FR-DOC-07 | S-26 | src/app/doctor.rs (check_sessions, check_session) | tests/component_doctor.rs (managed_session_with_missing_directory_is_a_warning, managed_session_with_missing_profile_is_a_warning, healthy_managed_sessions_count_and_unmanaged_ones_are_ignored, failing_session_listing_is_an_error_line, missing_tmux_is_an_error_line_and_checks_continue) | covered | Skipped with a WARN line when tmux is not installed. The real-tmux run is in the S-26 report, not in the gate. |
+| FR-DOC-08 | S-26 | src/app/doctor.rs (Report, outcome); src/error.rs (Outcome::Report); src/main.rs (report) | tests/component_doctor.rs (every_line_has_a_padded_tag, binary_doctor_exits_one_with_error_line_when_tmux_is_missing); tests/messages_verbatim.rs (doctor_tags_are_padded_to_six_characters); src/main.rs (report_prints_text_on_stdout_and_exits_with_its_code) | covered | Outcome::Report is proposal P-47. |
 | FR-CMD-01 | S-17 | src/cli/help.rs (HELP); src/cli/parse.rs; src/main.rs (run, main) | tests/component_cli.rs (help words, binary --help); src/cli/parse.rs (unit) | covered |  |
 | FR-CMD-02 | S-17 | src/cli/help.rs (group_usage); src/cli/parse.rs | tests/component_cli.rs (group usage); src/cli/parse.rs (unit) | covered |  |
 | FR-CMD-03 | S-17 | src/cli/parse.rs | tests/component_cli.rs; tests/messages_verbatim.rs; src/cli/parse.rs (unit) | covered | Covers project, history and bm. |

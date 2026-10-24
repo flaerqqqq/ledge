@@ -722,3 +722,99 @@ fn session_list_header_and_state_words_are_verbatim() {
     assert_eq!(messages::STATE_ATTACHED, "attached");
     assert_eq!(messages::STATE_DETACHED, "detached");
 }
+
+// FR-DOC-08, architecture 8.4: the tag is padded to six characters, then the check text
+#[test]
+fn doctor_tags_are_padded_to_six_characters() {
+    assert_eq!(messages::doctor_ok("tmux 3.4"), "OK    tmux 3.4");
+    assert_eq!(messages::doctor_warn("setsid"), "WARN  setsid");
+    assert_eq!(
+        messages::doctor_err("tmux is not installed"),
+        "ERR   tmux is not installed"
+    );
+}
+
+// FR-DOC-01, architecture 8.4 check 1 to 4: the tmux and optional program lines
+#[test]
+fn doctor_program_lines_are_verbatim() {
+    assert_eq!(messages::doctor_tmux_version("3.4"), "tmux 3.4");
+    assert_eq!(messages::doctor_tmux_missing(), "tmux is not installed");
+    assert_eq!(
+        messages::doctor_tmux_too_old("3.1"),
+        "tmux 3.1 is older than 3.2"
+    );
+    assert_eq!(messages::doctor_program("code"), "code");
+    assert_eq!(
+        messages::doctor_program_missing("setsid", "editor launch will not detach"),
+        "setsid is not installed (editor launch will not detach)"
+    );
+    assert_eq!(
+        messages::doctor_program_missing("code", "needed for --code"),
+        "code is not installed (needed for --code)"
+    );
+    assert_eq!(
+        messages::doctor_program_missing("idea", "needed for --idea"),
+        "idea is not installed (needed for --idea)"
+    );
+}
+
+// FR-DOC-02, FR-DOC-03, architecture 8.4 check 5, 6: config and search path lines
+#[test]
+fn doctor_config_and_search_path_lines_are_verbatim() {
+    assert_eq!(
+        messages::doctor_config_file("/c/config.json"),
+        "config file /c/config.json"
+    );
+    assert_eq!(
+        messages::doctor_config_missing("/c/config.json"),
+        "config file /c/config.json is missing"
+    );
+    assert_eq!(messages::doctor_search_path("/p"), "search path /p");
+    assert_eq!(
+        messages::doctor_no_search_path(),
+        "no search path is configured"
+    );
+    assert_eq!(
+        messages::doctor_search_path_missing("/p"),
+        "search path /p does not exist"
+    );
+}
+
+// FR-DOC-04..07, architecture 8.4 check 7 to 10: profile, bookmark and session lines
+#[test]
+fn doctor_profile_bookmark_and_session_lines_are_verbatim() {
+    assert_eq!(
+        messages::doctor_default_profile("dev"),
+        "default profile dev"
+    );
+    assert_eq!(
+        messages::doctor_default_profile_invalid("ghost", "profile 'ghost' not found at /x"),
+        "default_profile 'ghost' is missing or invalid: profile 'ghost' not found at /x"
+    );
+    assert_eq!(
+        messages::doctor_basic_reserved(),
+        "profile 'basic' is reserved; profiles/basic.json is ignored"
+    );
+    assert_eq!(messages::doctor_bookmarks(2), "bookmarks (2)");
+    assert_eq!(
+        messages::doctor_bookmark_missing("/b"),
+        "bookmark /b is missing"
+    );
+    assert_eq!(
+        messages::doctor_bookmark_outside("/b"),
+        "bookmark /b is outside every project"
+    );
+    assert_eq!(messages::doctor_sessions(0), "sessions (0)");
+    assert_eq!(
+        messages::doctor_session_directory_missing("s-1", "/d"),
+        "session 's-1' directory is missing: /d"
+    );
+    assert_eq!(
+        messages::doctor_session_profile_missing("s-1", "dev"),
+        "session 's-1' profile 'dev' is missing or invalid"
+    );
+    assert_eq!(
+        messages::doctor_sessions_not_checked(),
+        "sessions not checked (tmux is not installed)"
+    );
+}

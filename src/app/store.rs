@@ -163,6 +163,13 @@ pub fn history_path(dirs: &Dirs) -> PathBuf {
     cache_file(dirs, HISTORY_FILE)
 }
 
+/// FR-PROF-01, architecture 9.1: the file of profile `name`, `<config>/profiles/<name>.json`.
+pub fn profile_path(dirs: &Dirs, name: &str) -> PathBuf {
+    PathBuf::from(dirs.config.as_str())
+        .join(PROFILES_FOLDER)
+        .join(format!("{name}.json"))
+}
+
 /// Architecture 9.1: the path of a file in the cache folder.
 fn cache_file(dirs: &Dirs, name: &str) -> PathBuf {
     PathBuf::from(dirs.cache.as_str()).join(name)

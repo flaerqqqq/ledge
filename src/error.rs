@@ -22,6 +22,8 @@ pub enum Outcome {
     Info(String),
     Cancelled,
     Interrupted(i32),
+    /// FR-DOC-08: a report printed on stdout (no prefix) that exits with the given code (doctor, proposal P-47).
+    Report(String, i32),
 }
 
 pub type Result<T> = std::result::Result<T, LedgeError>;

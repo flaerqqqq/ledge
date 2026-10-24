@@ -6,6 +6,7 @@ pub mod help;
 pub mod parse;
 
 use crate::app::bookmark_cmd;
+use crate::app::doctor;
 use crate::app::history_cmd;
 use crate::app::open::open_dir_with_editor;
 use crate::app::pickers::{
@@ -57,6 +58,8 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
             require_tmux(ctx)?;
             session_tree_picker(ctx, &options.profile)
         }
+        // A-29: doctor reports a missing tmux as ERR instead of failing, so it never checks tmux here.
+        Command::Doctor => doctor::run(ctx),
         Command::HistoryList => history_cmd::list(ctx),
         Command::HistoryClean => history_cmd::clean(ctx),
         Command::BmAdd { dir } => bookmark_cmd::add(ctx, dir.as_deref()),
@@ -85,9 +88,6 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
             require_tmux(ctx)?;
             session_cmd::kill_target(ctx, &target)
         }
-        other => Err(LedgeError::Fatal(messages::command_not_available(
-            other.words(),
-        ))),
     }
 }
 

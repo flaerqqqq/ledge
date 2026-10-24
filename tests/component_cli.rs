@@ -407,8 +407,8 @@ fn tmux_older_than_3_2_is_rejected() {
 fn commands_not_built_yet_fail_with_a_plain_error() {
     let h = Harness::new("cli-not-built");
     assert_eq!(
-        fatal(run(&args(&["doctor"]), &h.ctx())),
-        "'doctor' is not available yet."
+        fatal(run(&args(&["ss", "kill"]), &h.ctx())),
+        "kill requires a session name or directory."
     );
     // FR-EDIT-10: `bm edit` is built now; the working directory of this harness is outside every project
     assert!(fatal(run(&args(&["bm", "edit"]), &h.ctx()))

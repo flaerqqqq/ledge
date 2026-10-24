@@ -33,6 +33,10 @@ pub(crate) fn report(result: Result<Outcome>, out: &mut dyn Write, err: &mut dyn
             0
         }
         Ok(Outcome::Interrupted(code)) => code,
+        Ok(Outcome::Report(text, code)) => {
+            let _ = writeln!(out, "{text}");
+            code
+        }
         Err(error) => {
             let _ = writeln!(err, "Error: {error}");
             1
@@ -145,6 +149,15 @@ mod tests {
         assert_eq!(code, 1);
         assert_eq!(out, "");
         assert_eq!(err, "Error: boom\n");
+    }
+
+    // FR-DOC-08: a report goes to stdout without a prefix and exits with its code
+    #[test]
+    fn report_prints_text_on_stdout_and_exits_with_its_code() {
+        let (code, out, err) = run(Ok(Outcome::Report("ERR   x".to_string(), 1)));
+        assert_eq!(code, 1);
+        assert_eq!(out, "ERR   x\n");
+        assert_eq!(err, "");
     }
 
     // FR-CMD-07

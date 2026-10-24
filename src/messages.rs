@@ -527,3 +527,124 @@ pub fn could_not_read_bookmarks(detail: &str) -> String {
 pub fn could_not_write_bookmarks(detail: &str) -> String {
     format!("could not write bookmarks: {detail}")
 }
+
+/// FR-DOC-01..08, architecture 8.4: one doctor line, the tag padded to six characters then the check text.
+fn doctor_line(tag: &str, text: &str) -> String {
+    format!("{tag:<6}{text}")
+}
+
+/// FR-DOC-08: an `OK` line.
+pub fn doctor_ok(text: &str) -> String {
+    doctor_line("OK", text)
+}
+
+/// FR-DOC-08: a `WARN` line.
+pub fn doctor_warn(text: &str) -> String {
+    doctor_line("WARN", text)
+}
+
+/// FR-DOC-08: an `ERR` line.
+pub fn doctor_err(text: &str) -> String {
+    doctor_line("ERR", text)
+}
+
+/// FR-DOC-01, architecture 8.4 check 1: the tmux version, `<major>.<minor>`.
+pub fn doctor_tmux_version(found: &str) -> String {
+    format!("tmux {found}")
+}
+
+/// FR-DOC-01, architecture 8.4 check 1: tmux is not on PATH.
+pub fn doctor_tmux_missing() -> &'static str {
+    "tmux is not installed"
+}
+
+/// FR-DOC-01, architecture 8.4 check 1: the installed tmux is older than 3.2.
+pub fn doctor_tmux_too_old(found: &str) -> String {
+    format!("tmux {found} is older than 3.2")
+}
+
+/// FR-DOC-01, architecture 8.4 checks 2 to 4: an optional program is found.
+pub fn doctor_program(name: &str) -> String {
+    name.to_string()
+}
+
+/// FR-DOC-01, architecture 8.4 checks 2 to 4: an optional program is missing; `note` says what needs it.
+pub fn doctor_program_missing(name: &str, note: &str) -> String {
+    format!("{name} is not installed ({note})")
+}
+
+/// FR-DOC-02, architecture 8.4 check 5: the config file exists and parses.
+pub fn doctor_config_file(file: &str) -> String {
+    format!("config file {file}")
+}
+
+/// FR-DOC-02, architecture 8.4 check 5: the config file is missing.
+pub fn doctor_config_missing(file: &str) -> String {
+    format!("config file {file} is missing")
+}
+
+/// FR-DOC-03, architecture 8.4 check 6: a search path that exists.
+pub fn doctor_search_path(path: &str) -> String {
+    format!("search path {path}")
+}
+
+/// FR-DOC-03, architecture 8.4 check 6: no search path is configured.
+pub fn doctor_no_search_path() -> &'static str {
+    "no search path is configured"
+}
+
+/// FR-DOC-03, architecture 8.4 check 6: a search path that does not exist.
+pub fn doctor_search_path_missing(path: &str) -> String {
+    format!("search path {path} does not exist")
+}
+
+/// FR-DOC-06, architecture 8.4 check 7: the default profile is valid.
+pub fn doctor_default_profile(name: &str) -> String {
+    format!("default profile {name}")
+}
+
+/// FR-DOC-06, architecture 8.4 check 7 (proposal P-48): the default profile is missing or invalid; `reason` is the
+/// profile message of FR-PROF wording.
+pub fn doctor_default_profile_invalid(name: &str, reason: &str) -> String {
+    format!("default_profile '{name}' is missing or invalid: {reason}")
+}
+
+/// FR-DOC-05, architecture 8.4 check 8: `profiles/basic.json` is reserved.
+pub fn doctor_basic_reserved() -> &'static str {
+    "profile 'basic' is reserved; profiles/basic.json is ignored"
+}
+
+/// FR-DOC-04, architecture 8.4 check 9: the number of bookmarks, when all are fine.
+pub fn doctor_bookmarks(count: usize) -> String {
+    format!("bookmarks ({count})")
+}
+
+/// FR-DOC-04, architecture 8.4 check 9: a bookmarked directory no longer exists.
+pub fn doctor_bookmark_missing(path: &str) -> String {
+    format!("bookmark {path} is missing")
+}
+
+/// FR-DOC-04, architecture 8.4 check 9: a bookmarked directory lies outside every project.
+pub fn doctor_bookmark_outside(path: &str) -> String {
+    format!("bookmark {path} is outside every project")
+}
+
+/// FR-DOC-07, architecture 8.4 check 10: the number of managed sessions, when all are fine.
+pub fn doctor_sessions(count: usize) -> String {
+    format!("sessions ({count})")
+}
+
+/// FR-DOC-07, architecture 8.4 check 10: a managed session whose directory is missing.
+pub fn doctor_session_directory_missing(name: &str, dir: &str) -> String {
+    format!("session '{name}' directory is missing: {dir}")
+}
+
+/// FR-DOC-07, architecture 8.4 check 10: a managed session whose profile is missing or invalid.
+pub fn doctor_session_profile_missing(name: &str, profile: &str) -> String {
+    format!("session '{name}' profile '{profile}' is missing or invalid")
+}
+
+/// FR-DOC-07, architecture 8.4 check 10: tmux is missing, so the sessions are not checked.
+pub fn doctor_sessions_not_checked() -> &'static str {
+    "sessions not checked (tmux is not installed)"
+}

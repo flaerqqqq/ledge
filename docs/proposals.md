@@ -470,3 +470,35 @@ Format:
   (f) The kill of the session the user is in is refused by the existing kill service (D-17, P-27 b), so `ss kill` prints `cannot kill the session you are in.` as an error.
 - why: each choice is the smallest one that passes the S-25 tests in tests/component_actions.rs, tests/component_cli.rs, src/cli/parse.rs and tests/messages_verbatim.rs. None changes an accepted decision (D-08, D-14, D-16, A-20, A-34).
 - status: Open
+
+### P-47 S-26 doctor exit 1 with a printed report: a new outcome
+- from: implementer / slice S-26
+- doc: docs/architecture.md (8.1, 8.2), docs/backlog.md (S-26), requirements.md (FR-DOC-08)
+- change: add `Outcome::Report(String, i32)` to `error.rs` and a row to the 8.2 table: `Outcome::Report(text, code)` | stdout | none | code | FR-DOC-08 (doctor). `main::report` prints the text and returns the code. The doctor prints its ten checks through it when a line is ERR (exit 1); otherwise it returns `Outcome::Info` (exit 0).
+- why: FR-DOC-08 needs the lines printed and exit 1 when any check is ERR. `LedgeError::Fatal` would add `Error: ` before the report, and `Outcome::Interrupted` is for signals. Tests: tests/component_doctor.rs, src/main.rs (report test).
+- status: Open
+
+### P-48 S-26 doctor texts that 8.3 does not give
+- from: implementer / slice S-26
+- doc: docs/architecture.md (8.3, 8.4), requirements.md (Messages)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) The 8.4 doctor lines are not in the 8.3 table. They are added to `messages.rs` as `doctor_*` functions, with the 8.4 wording, and literal tests in tests/messages_verbatim.rs.
+  (b) Check 1 uses `tmux is not installed` (8.4), not `Required tool 'tmux' is not installed.` (FR-CMD-10). Two texts for one fact; the commands keep FR-CMD-10.
+  (c) Check 7 for a missing or invalid default profile prints `default_profile '<name>' is missing or invalid: <reason>`, where the reason is the profile message of FR-PROF wording (for example `profile 'ghost' not found at <path>`). 8.4 gives no reason text.
+  (d) An unreadable bookmarks file is `WARN  could not read bookmarks: <detail>` (existing message `could_not_read_bookmarks`). A tmux that cannot list sessions is `ERR   could not list sessions: <detail>` (existing message `could_not_list_sessions`). 8.4 names neither.
+- why: the spec gives no text for these cases, and the doctor must print one line per check (FR-DOC-08). Tests: tests/component_doctor.rs and tests/messages_verbatim.rs.
+- status: Open
+
+### P-49 S-26 optional programs: WARN or OK/ERR
+- from: implementer / slice S-26
+- doc: requirements.md (FR-DOC-01), docs/architecture.md (8.4 checks 2 to 4, A-12), docs/backlog.md (S-26)
+- change: FR-DOC-01 says doctor prints "OK" or "ERR" for each external program it needs. Architecture 8.4 and A-12 print `WARN` for setsid, code and idea (only tmux is an ERR). The implementation follows 8.4. The user may change FR-DOC-01 to name the optional programs as warnings, or the architecture may give them ERR.
+- why: the two documents disagree; the backlog acceptance follows the architecture. Tests: tests/component_doctor.rs (missing_setsid_code_and_idea_are_warnings).
+- status: Open
+
+### P-50 S-26 doctor and the cache folder; config unusable
+- from: implementer / slice S-26
+- doc: docs/architecture.md (A-35, 8.4 check 9, 9.4), docs/backlog.md (S-26)
+- change: A-35 says doctor does not read the cache folder, but check 9 must read the bookmarks file, which is in the cache folder (9.4). The implementation reads `bookmarks` read-only (never created). Also, when the config is missing or invalid, the search path and default profile checks print nothing, and the bookmark check judges only whether each directory exists (no project test). A managed session with no directory is reported as `directory is missing: no directory`.
+- why: check 9 and A-35 cannot both hold; the user should pick A-35 or check 9. Tests: tests/component_doctor.rs (bookmarks_missing_or_outside_projects_are_warnings, good_bookmarks_give_one_ok_line_with_the_count, missing_config_is_an_error_and_is_not_created).
+- status: Open
