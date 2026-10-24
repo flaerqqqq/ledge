@@ -419,3 +419,12 @@ have no FR-IDs state why.
   with a fake `cargo` on PATH and temp folders.
 - size: M
 - branch: slice/27-install
+
+### S-28 Vim navigation keys in pickers and trees
+- status: in-progress
+- deps: S-07, S-22, S-21
+- FR-IDs: FR-TUI-11 (proposed in docs/proposals.md P-52; not yet in requirements.md)
+- scope: src/tui/keys.rs (key map), src/tui/picker.rs and src/tui/render.rs only where the footer or cue changes; the edit window and tree windows use the same map. No new keys for actions.
+- acceptance: j/k move the selection down and up in every picker and tree window, like the down and up arrows; the same key map is used everywhere (FR-TUI-07); in pickers where a letter is typed into the filter, j and k still type into the filter, so vim keys apply only when the filter is empty or the window has no filter (tree and edit windows). Footer text is unchanged.
+- size: S
+- branch: slice/S-28-vim-navigation

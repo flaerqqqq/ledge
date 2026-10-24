@@ -514,3 +514,10 @@ Format:
   (e) The installer tests copy scripts/install.sh into a temp source folder, so the fake cargo writes its stub under that temp folder and the real target/ of the checkout is not overwritten. HOME is also a temp folder. The architecture says only that the fake cargo writes a stub binary.
 - why: the spec gives no text for (c), and (a) and (b) leave two documents disagreeing on which messages exist. Tests: scripts/test_install.sh.
 - status: Open
+
+### P-52 Vim navigation keys (FR-TUI-11)
+- from: user request / coordinator, slice S-28
+- status: Open
+- doc: requirements.md (new FR-TUI-11)
+- change: add "FR-TUI-11: ledge shall move the selection with j and k as well as the arrow keys, in every picker and tree window, when no text is typed into a filter." The filter rule matters: in the project and history pickers, typing filters the list, so j and k are filter text there. Vim keys act as navigation only where no filter is active (tree and edit windows, and any picker with an empty filter is still a filter).
+- why: the user uses vim keys and asked for them in list and tree navigation; FR-TUI-03 covers arrows and page keys only.
