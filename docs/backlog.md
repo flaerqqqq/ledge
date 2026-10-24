@@ -491,3 +491,12 @@ have no FR-IDs state why.
 - acceptance: the (missing) cue shows in the switcher and both trees; the current session's name has a leading * as in the project picker; an empty switcher or tree footer reads "esc close"; ^x ^d ^r ^p on a row without a session and enter on a connector show the P-59 no-op text in the status line; the tree uses branch glyphs in place of the indent, with an ASCII fallback when UTF-8 is not available.
 - size: M
 - branch: slice/S-38-picker-design
+
+### S-39 Visual redesign of the pickers (frame, spacing, header, selection, status)
+- status: in-progress
+- deps: S-38
+- FR-IDs: FR-TUI-04 (header, label, footer), FR-TUI-05 (fit), FR-TUI-09 (cues stay); user direction 2026-10-24: rounded frame, 2-cell column gap, terminal colours kept for the default theme
+- scope: src/tui/render.rs (frame, title, header row, selection, footer, status), src/tui/columns.rs (column gap of 2, margin of 1 inside the frame), theme tokens only where needed (no new colours in the default theme)
+- acceptance: rounded border around each picker with the window label in the top edge and the footer keys in the bottom edge; one-cell margin inside the frame; two-cell gap between columns; header row bold with a rule under it; selected row uses reverse video over the full width with the selection bar; status line above the footer; the no-colour rendering keeps every text cue; minimum-size behaviour unchanged.
+- size: M
+- branch: slice/S-39-visual-redesign
