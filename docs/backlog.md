@@ -518,3 +518,12 @@ have no FR-IDs state why.
 - acceptance: no * appears before any project or session name; the selected row is reverse video only, with no bar and no gap at the left; in the bookmark edit window, + and - follow the folder name, and the branch glyphs and indent stay on the left; all other behaviour unchanged.
 - size: S
 - branch: slice/S-41-remove-marks
+
+### S-42 Design option B with the Kanso zen palette
+- status: in-progress
+- deps: S-41
+- FR-IDs: FR-TUI-04, FR-TUI-05, FR-TUI-09 (layout and cues); design decision in docs/design.md section 0 and docs/design-options.md section 2
+- scope: src/tui/render.rs (section rules and labels, status strip, footer in the bottom edge, details panel at 120 cells and up), src/tui/columns.rs (path column at 120 cells and up), src/tui/picker.rs (details of the selected row, status message), src/tui/theme.rs (new token surface; built-in zen palette from the values above; the default theme stays as it is), tests/tui_engine.rs, tests/tui_project_picker.rs, tests/tui_switcher.rs
+- acceptance: each picker is a framed panel with a section rule under the filter and under the column header; the column header is bold muted text on the surface band; the status strip sits above the bottom edge on the surface band; the footer keys sit in the bottom edge; at 120 cells and up the list has a path column and the selected row's details show below the list; the zen palette is selectable as theme zen with the values above; minimum-size behaviour and every message text unchanged; text cues stay without colour.
+- size: L
+- branch: slice/S-42-design-b-zen

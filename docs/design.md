@@ -19,6 +19,12 @@ meaning are all text.
   P-60 (`theme` and `theme_colors` config keys). Item 4 (pearl contrast): Kanso values kept, bold for the
   low-contrast states. Proposals stay Open in docs/proposals.md until the user moves them into requirements.md.
 
+
+- 2026-10-24 (later): the user chose option B from docs/design-options.md with the Kanso zen palette
+  (background #090E13, surface #1C1E25, border and selection #393B44, accent #7FB4CA, text #C5C9C7,
+  muted #909398, success #98BB6C, warning #DCA561, error #E46876). Layout: framed sections, column
+  header on a surface band, status strip, details panel and path column at 120 cells and up.
+
 ## 1. Problems today
 
 What the user sees now, from `src/tui/render.rs`, `columns.rs`, `picker.rs`, `keys.rs` and the windows in
