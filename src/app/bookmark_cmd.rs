@@ -3,7 +3,7 @@
 //! list in `app::load_projects`, the file work in `app::store`.
 
 use crate::app::actions::current_session;
-use crate::app::pickers::{backend_fatal, bookmark_tree_picker, run_in_terminal};
+use crate::app::pickers::{backend_fatal, bookmark_tree_picker, run_in_terminal, utf8_locale};
 use crate::app::{home_of, load_projects, store, Ctx};
 use crate::domain::bm_edit::{visible_rows, EditRow, ExpandedFolders, Marker};
 use crate::domain::bookmarks::{check_candidate, status, BookmarkStatus, Bookmarks, Refusal};
@@ -188,9 +188,17 @@ impl EditHandler<'_, '_> {
     fn rows(&self) -> Vec<PickerRow<EditRow>> {
         let fs = self.ctx.fs;
         let children = |dir: &AbsPath| fs.list_dirs(Path::new(dir.as_str())).unwrap_or_default();
-        visible_rows(&self.project, &self.expanded, &self.bookmarks, &children)
-            .iter()
-            .map(edit_row)
+        let rows = visible_rows(&self.project, &self.expanded, &self.bookmarks, &children);
+        // Design section 7, 8 item 11: the nesting is drawn with the branch glyphs of the session tree (P-61).
+        let depths: Vec<usize> = rows.iter().map(|row| row.depth).collect();
+        let guides = render::tree_guides(&depths, utf8_locale(self.ctx.env));
+        rows.iter()
+            .zip(guides)
+            .map(|(row, guide)| {
+                let mut picker_row = edit_row(row);
+                picker_row.lead = Some(guide);
+                picker_row
+            })
             .collect()
     }
 
@@ -270,7 +278,7 @@ impl PickerHandler<EditRow> for EditHandler<'_, '_> {
 }
 
 /// FR-EDIT-01, FR-EDIT-06: one row of the window. Column 0 is the bookmark marker, column 1 the directory tree: the
-/// indent comes from the depth, then `+` or `-` (FR-EDIT-04) and the folder name.
+/// branch glyphs come from the depth (`rows` sets them as the lead), then `+` or `-` (FR-EDIT-04) and the folder name.
 fn edit_row(row: &EditRow) -> PickerRow<EditRow> {
     let mark = if row.bookmarked { BOOKMARK_MARK } else { "" };
     let marker = if row.marker.text().is_empty() {
@@ -293,7 +301,6 @@ fn edit_row(row: &EditRow) -> PickerRow<EditRow> {
 fn edit_chrome(project: &str) -> Chrome {
     let mut chrome = Chrome::new(
         &messages::edit_window_label(project),
-        render::icon::BOOKMARKS,
         vec![
             ColumnSpec::fixed("", 2),
             ColumnSpec::text(messages::HEADER_DIRECTORY),

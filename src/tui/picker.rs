@@ -7,9 +7,10 @@ use crate::tui::fuzzy;
 use crate::tui::keys::Action;
 use std::ops::Range;
 
-/// Screen rows that are not list rows: the two border rows (the footer is in the bottom one), prompt, header, the
-/// header rule and the status line (design 3.1).
-const CHROME_ROWS: u16 = 6;
+/// Screen rows that are not list rows, with the prompt row: the two border rows (the footer is in the bottom one), the
+/// prompt, the rule between the prompt and the header, the header, the header rule and the status line (design 3.1,
+/// P-61). Without a prompt row the list gets the prompt and its rule back (engine).
+const CHROME_ROWS: u16 = 7;
 
 /// Rows of the list for a terminal `term_height` rows high (FR-TUI-05).
 pub fn list_height(term_height: u16) -> usize {
@@ -73,11 +74,10 @@ impl<T> PickerRow<T> {
     }
 }
 
-/// Chrome of one picker (architecture 6.2): label, icon, columns, footer and the behaviour rules.
+/// Chrome of one picker (architecture 6.2): label, columns, footer and the behaviour rules.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chrome {
     pub label: String,
-    pub icon: &'static str,
     pub columns: Vec<ColumnSpec>,
     /// Column the filter matches and highlights (`None`: no filter).
     pub search_column: Option<usize>,
@@ -98,10 +98,9 @@ pub struct Chrome {
 
 impl Chrome {
     /// Chrome with the search on column 0 and no cues or empty-state rules.
-    pub fn new(label: &str, icon: &'static str, columns: Vec<ColumnSpec>, footer: &str) -> Self {
+    pub fn new(label: &str, columns: Vec<ColumnSpec>, footer: &str) -> Self {
         Self {
             label: label.to_string(),
-            icon,
             columns,
             search_column: Some(0),
             missing_column: None,
@@ -445,12 +444,7 @@ mod tests {
     use crate::tui::columns::ColumnSpec;
 
     fn chrome() -> Chrome {
-        Chrome::new(
-            "Projects",
-            "▸",
-            vec![ColumnSpec::text("Project")],
-            "enter open",
-        )
+        Chrome::new("Projects", vec![ColumnSpec::text("Project")], "enter open")
     }
 
     fn flat(names: &[&str]) -> Vec<PickerRow<usize>> {
@@ -583,8 +577,8 @@ mod tests {
     // FR-TUI-05: the list height follows the terminal height and never goes below zero
     #[test]
     fn list_height_is_the_terminal_height_minus_the_chrome() {
-        assert_eq!(list_height(8), 2);
-        assert_eq!(list_height(24), 18);
+        assert_eq!(list_height(8), 1);
+        assert_eq!(list_height(24), 17);
         assert_eq!(list_height(3), 0);
     }
 

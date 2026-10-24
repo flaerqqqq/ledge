@@ -267,6 +267,56 @@ fn view_shows_the_marker_column_and_the_tree_markers() {
     assert!(line_with(&lines, "- app").contains("app"), "{lines:#?}");
 }
 
+// FR-EDIT-06, design 3.6, section 8 item 11: the nesting is drawn with branch glyphs, as the session tree draws it
+#[test]
+fn nesting_is_drawn_with_branch_glyphs_in_a_utf8_locale() {
+    let mut h = Harness::new("tui_edit-glyphs-utf8");
+    h.terminal.set_size(80, 24);
+    h.env = h.env.clone().with_var("LANG", "en_US.UTF-8");
+    let app = fixture(&h);
+    // Expand src: docs, src (expanded) and main under it.
+    h.terminal.script(vec![down(), down(), right(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    assert!(line_with(&lines, "docs").contains("├─  docs"), "{lines:#?}");
+    assert!(line_with(&lines, "src").contains("└─- src"), "{lines:#?}");
+    assert!(
+        line_with(&lines, "main").contains("  └─  main"),
+        "{lines:#?}"
+    );
+}
+
+// design section 7: without a UTF-8 locale the ASCII set of the session tree is used
+#[test]
+fn nesting_is_drawn_with_ascii_glyphs_without_a_utf8_locale() {
+    let h = Harness::new("tui_edit-glyphs-ascii");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![down(), down(), right(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    assert!(line_with(&lines, "docs").contains("|-  docs"), "{lines:#?}");
+    assert!(line_with(&lines, "src").contains("`-- src"), "{lines:#?}");
+    assert!(
+        line_with(&lines, "main").contains("  `-  main"),
+        "{lines:#?}"
+    );
+}
+
+// D-15, P-61 (rule under the prompt): the edit window has no prompt row, so its column header is the first row under
+// the border label and no separator is drawn above it
+#[test]
+fn header_is_the_first_row_when_there_is_no_prompt() {
+    let h = Harness::new("tui_edit-no-prompt-header");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let lines = screen(&h);
+    assert!(lines[1].contains("Directory"), "{lines:#?}");
+    assert!(lines[2].starts_with("│───"), "{lines:#?}");
+}
+
 // D-15, architecture 6.2: the border label and the footer are the given texts
 #[test]
 fn label_and_footer_are_the_edit_window_texts() {

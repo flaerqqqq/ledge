@@ -20,7 +20,8 @@ const BAR: &str = "▌";
 const BAR_WIDTH: usize = 1;
 /// Blank cells inside the frame on the left and on the right of every line (design 3.1).
 const MARGIN: usize = 1;
-/// The header rule under the column titles (design 3.1).
+/// The rule under the prompt row and the rule under the column titles (design 3.1, P-61): one dim line across the
+/// inner width.
 const RULE: &str = "─";
 
 /// Cells of a list line that the columns take: the inner width less both margins and the selection bar.
@@ -31,15 +32,6 @@ fn content_width(full: usize) -> usize {
 /// Smallest terminal the picker draws in (A-06). Below it only the too-small line is shown.
 pub const MIN_WIDTH: u16 = 40;
 pub const MIN_HEIGHT: u16 = 8;
-
-/// Border label icons per picker (architecture 6.2).
-pub mod icon {
-    pub const PROJECTS: &str = "▸";
-    pub const HISTORY: &str = "↺";
-    pub const SESSIONS: &str = "◉";
-    pub const BOOKMARKS: &str = "★";
-    pub const PROFILES: &str = "≡";
-}
 
 /// FR-TUI-09, A-04: colors are on unless `NO_COLOR` is set and non-empty, or `TERM` is `dumb`.
 /// The values are passed in so the rule is a pure function.
@@ -79,10 +71,11 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
         frame.render_widget(Block::new().style(Style::new().bg(background)), area);
     }
     let chrome = model.chrome();
-    // The label as the section 3 mock-ups draw it: the icon at the corner, one blank before the rule.
+    // The label in the top edge, one blank before it and after it (P-61: no icon). It takes the footer key colour, the
+    // text token, so the label and the keys read as one line of chrome.
     let title = Span::styled(
-        format!("{} {} ", chrome.icon, chrome.label),
-        paint(theme, Token::Accent, color),
+        format!(" {} ", chrome.label),
+        paint(theme, Token::Text, color),
     );
     // The footer keys sit in the bottom edge, fitted to the cells between the corners and the one-cell padding of
     // the edge (design 3.1). Pairs are dropped from the end when they do not fit (design 4.2).
@@ -101,7 +94,9 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     // The prompt row has no height unless the picker filters (architecture 6.2, D-15) or the edit window's search bar
     // is open or keeps a match (FR-EDIT-13).
     let prompted = model.has_prompt();
-    let [prompt, header, rule, list, status] = Layout::vertical([
+    // The rule between the prompt row and the column titles is drawn only with the prompt row (P-61).
+    let [prompt, prompt_rule, header, rule, list, status] = Layout::vertical([
+        Constraint::Length(u16::from(prompted)),
         Constraint::Length(u16::from(prompted)),
         Constraint::Length(1),
         Constraint::Length(1),
@@ -136,6 +131,10 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     let full = usize::from(inner.width);
     let widths = column_widths(model, content_width(full));
 
+    if prompted {
+        draw_rule(frame, prompt_rule, full, theme, color);
+    }
+
     // Column titles: text_muted and bold (design 3.1). The first cell after the margin is blank, where the selection
     // bar is drawn.
     let title_style = paint(theme, Token::TextMuted, color).add_modifier(Modifier::BOLD);
@@ -155,14 +154,7 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     frame.render_widget(Paragraph::new(Line::from(header_line)), header);
 
     // The rule under the titles: a dim line across the inner width (design 3.1).
-    let mut rule_style = paint(theme, Token::Border, color);
-    if color {
-        rule_style = rule_style.add_modifier(Modifier::DIM);
-    }
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(RULE.repeat(full), rule_style))),
-        rule,
-    );
+    draw_rule(frame, rule, full, theme, color);
 
     let lines = list_lines(model, &widths, theme, color, full);
     frame.render_widget(Paragraph::new(lines), list);
@@ -181,6 +173,18 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     frame.render_widget(
         Paragraph::new(Line::from(vec![Span::raw(" ".repeat(MARGIN)), status_line])),
         status,
+    );
+}
+
+/// A dim rule of `width` cells in `area` (design 3.1): the border token, dimmed when colour is on.
+fn draw_rule(frame: &mut Frame, area: Rect, width: usize, theme: &Theme, color: bool) {
+    let mut style = paint(theme, Token::Border, color);
+    if color {
+        style = style.add_modifier(Modifier::DIM);
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(RULE.repeat(width), style))),
+        area,
     );
 }
 
@@ -456,12 +460,11 @@ fn cell_style<T>(
     if color && row.dimmed {
         style = style.add_modifier(Modifier::DIM);
     }
-    // Marker columns: `*` and `★` are accent, `●` is the live-session token (design 5).
+    // Marker columns: the bookmark mark `★` is accent (FR-EDIT-06).
     if spec.fixed_width.is_some() {
         let raw = row.cells.get(column).map_or("", String::as_str).trim();
         let marker = match raw {
-            "●" => Some(Token::SessionActive),
-            "*" | "★" => Some(Token::Accent),
+            "★" => Some(Token::Accent),
             _ => None,
         };
         if let Some(marker) = marker {
@@ -487,7 +490,7 @@ fn cell_spans<T>(
     chrome: &Chrome,
 ) -> Vec<Span<'static>> {
     let (prefix, raw, suffix) = cell_parts(row, column, chrome);
-    // The current mark of a session cell is the accent token, as the project picker's `*` (design 3.5).
+    // The current mark of a cell is the accent token (design 3.5, P-61).
     let lead_spans = |prefix: String| -> Vec<Span<'static>> {
         match prefix.strip_prefix('*') {
             Some(rest) => vec![

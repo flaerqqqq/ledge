@@ -143,15 +143,16 @@ fn non_project_current_directory_is_an_extra_first_row_with_its_path() {
     let outcome = project_picker(&h.ctx(), None, &ProfileOpt::Unset);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
     let lines = screen(&h);
-    let first = line_with(&lines, "*○");
+    let first = line_with(&lines, "*/");
     assert!(first.contains("/projects"), "{first}");
-    assert!(line_with(&lines, "app").contains("○"));
+    assert!(!line_with(&lines, "app").contains('*'), "{lines:#?}");
 }
 
-// FR-PICK-06, FR-PICK-07: a live managed session shows its session name and profile and a filled marker;
-// other projects have the empty marker. The border label and the footer are the project picker's (FR-TUI-04).
+// FR-PICK-06, FR-PICK-07, P-61: a live managed session shows its session name and profile in the session column; the
+// project picker has no marker column, so no circle is drawn. The border label and the footer are the project
+// picker's (FR-TUI-04).
 #[test]
-fn live_session_shows_name_profile_and_filled_marker() {
+fn live_session_shows_its_name_and_profile_with_no_marker_column() {
     let mut h = Harness::new("tui_project_picker-live");
     search_config(&h);
     let app = h.project("app");
@@ -163,13 +164,41 @@ fn live_session_shows_name_profile_and_filled_marker() {
     project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
     let lines = screen(&h);
     let lib_row = line_with(&lines, "lib");
-    assert!(lib_row.contains("●"), "{lib_row}");
     assert!(lib_row.contains(&name_of(&lib)), "{lib_row}");
     assert!(lib_row.contains("basic"), "{lib_row}");
-    assert!(line_with(&lines, "web").contains("○"));
-    assert!(line_with(&lines, "*○").contains("app"));
-    assert!(line_with(&lines, "▸ Projects & Submodules").contains("▸"));
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains('●') || line.contains('○')),
+        "{lines:#?}"
+    );
+    assert!(
+        line_with(&lines, "web").starts_with("│   web"),
+        "{lines:#?}"
+    );
+    assert!(line_with(&lines, "Projects & Submodules").starts_with("╭ Projects"));
     assert!(line_with(&lines, PROJECT_FOOTER).contains(PROJECT_FOOTER));
+}
+
+// FR-PICK-05, P-61: the header starts at the project column (no marker column before it); the current directory is
+// marked with `*` in the project cell, and the other rows keep a blank there so the names line up
+#[test]
+fn current_directory_is_marked_in_the_project_cell_and_no_column_comes_first() {
+    let mut h = Harness::new("tui_project_picker-current-mark");
+    search_config(&h);
+    let app = h.project("app");
+    h.project("lib");
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![esc()]);
+    project_picker(&h.ctx(), None, &ProfileOpt::Unset).expect("picker runs");
+    let lines = screen(&h);
+    assert!(
+        line_with(&lines, "Session").starts_with("│  Project"),
+        "{lines:#?}"
+    );
+    assert!(line_with(&lines, "*app").contains("*app"), "{lines:#?}");
+    assert!(line_with(&lines, "lib").contains("  lib"), "{lines:#?}");
+    assert!(!line_with(&lines, "lib").contains('*'), "{lines:#?}");
 }
 
 // FR-PICK-08: enter opens the chosen project through the open flow: its session is created and attached, and the
@@ -250,16 +279,16 @@ fn border_label_names_the_profile_that_applies() {
     let app = h.project("app");
     launch_from(&mut h, &app);
     let cases = [
-        (ProfileOpt::Unset, "▸ Projects & Submodules"),
+        (ProfileOpt::Unset, "Projects & Submodules"),
         (
             ProfileOpt::Named("dev".to_string()),
-            "▸ Projects (Profile: dev)",
+            "Projects (Profile: dev)",
         ),
         (
             ProfileOpt::Named("basic".to_string()),
-            "▸ Projects & Submodules",
+            "Projects & Submodules",
         ),
-        (ProfileOpt::None, "▸ Projects & Submodules"),
+        (ProfileOpt::None, "Projects & Submodules"),
     ];
     for (option, label) in cases {
         h.terminal.script(vec![esc()]);
@@ -370,7 +399,7 @@ fn history_lists_entries_newest_first_with_the_footer() {
     h.terminal.script(vec![esc()]);
     history_picker(&h.ctx(), &ProfileOpt::Unset).expect("picker runs");
     let lines = screen(&h);
-    assert!(line_with(&lines, "↺ History").contains("↺ History"));
+    assert!(line_with(&lines, "History").starts_with("╭ History "));
     let header = line_with(&lines, "Session");
     assert!(
         header.contains("Project") && header.contains("Profile"),
@@ -486,8 +515,8 @@ fn kill_key_kills_the_selected_session_and_reopens_the_list() {
     assert!(!live_names(&h).contains(&name_of(&lib)));
     let lines = screen(&h);
     let lib_row = line_with(&lines, "lib");
-    assert!(lib_row.contains("○"), "{lib_row}");
     assert!(!lib_row.contains(&name_of(&lib)), "{lib_row}");
+    assert!(!lines.iter().any(|line| line.contains('●')), "{lines:#?}");
     assert_eq!(restores(&h), 1);
 }
 
@@ -650,7 +679,7 @@ fn profile_key_opens_the_profile_picker_in_the_listed_order() {
         positions.windows(2).all(|pair| pair[0] < pair[1]),
         "{nested:#?}"
     );
-    assert!(line_with(&nested, "≡ Profiles").contains("≡ Profiles"));
+    assert!(line_with(&nested, "Profiles").starts_with("╭ Profiles "));
     assert!(line_with(&nested, "enter choose · esc cancel").contains("enter choose · esc cancel"));
 }
 
@@ -736,7 +765,7 @@ fn non_project_current_directory_under_home_shows_tilde() {
         Ok(Outcome::Cancelled)
     );
     let lines = screen(&h);
-    let first = line_with(&lines, "*○");
+    let first = line_with(&lines, "*~/notes");
     assert!(first.contains("~/notes"), "{first}");
     assert!(!first.contains(&notes), "{first}");
 }

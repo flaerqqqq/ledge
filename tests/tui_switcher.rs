@@ -241,7 +241,7 @@ fn activity_column_shows_the_age_text() {
 }
 
 // FR-SESS-03, architecture 6.2: the columns are session, project, profile and activity; the border label is
-// "Sessions" with its icon; the footer is the switcher key list
+// "Sessions" (no icon); the footer is the switcher key list
 #[test]
 fn headers_label_and_footer_are_as_specified() {
     let h = Harness::new("tui_switcher-chrome");
@@ -251,7 +251,8 @@ fn headers_label_and_footer_are_as_specified() {
     h.terminal.script(vec![esc()]);
     session_switcher(&h.ctx()).expect("switcher runs");
     let lines = screen(&h);
-    assert!(lines.iter().any(|line| line.contains("◉ Sessions")));
+    assert!(lines[0].starts_with("╭ Sessions "), "{:?}", lines[0]);
+    assert!(!lines[0].contains('◉'), "{:?}", lines[0]);
     let header = line_with(&lines, "Activity");
     for title in ["Session", "Project", "Profile", "Activity"] {
         assert!(header.contains(title), "header {header:?} lacks {title:?}");

@@ -487,7 +487,6 @@ fn profile_row(choice: &ProfileChoice) -> PickerRow<String> {
 fn profile_chrome() -> Chrome {
     Chrome::new(
         messages::PROFILES_LABEL,
-        render::icon::PROFILES,
         vec![ColumnSpec::text(messages::HEADER_PROFILE)],
         messages::PROFILE_PICKER_FOOTER,
     )
@@ -504,8 +503,9 @@ fn applied_profile(option: &ProfileOpt, default_profile: Option<&str>) -> Option
         .map(|_| name)
 }
 
-/// FR-PICK-04..07: one row per project (and the launch directory, FR-PICK-05). The marker cell is the
-/// current-directory flag then the live flag (architecture 6.2). The launch directory's row is preselected.
+/// FR-PICK-04..07, P-61: one row per project (and the launch directory, FR-PICK-05). The project picker has no marker
+/// column: the current directory is marked `*` in the project cell, and a live session shows in the session cell. The
+/// launch directory's row is preselected.
 fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
     let home = home_of(ctx);
@@ -513,23 +513,15 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
         .into_iter()
         .map(|row| {
             let live = live_session(&sessions, &row.path);
-            let marker = format!(
-                "{}{}",
-                if row.current { "*" } else { " " },
-                if live.is_some() { "●" } else { "○" }
-            );
             let shown = if row.project {
                 basename(&row.path)
             } else {
                 row.path.display_with_home(home.as_ref())
             };
-            let cells = vec![
-                marker,
-                shown.clone(),
-                session_text(live),
-                profile_text(live),
-            ];
+            let cells = vec![shown.clone(), session_text(live), profile_text(live)];
             let mut picker_row = PickerRow::new(cells, &shown, row.path.clone());
+            // The mark of the current directory, or a blank so the names line up (design 3.5, P-61).
+            picker_row.lead = Some(current_mark(row.current).to_string());
             picker_row.missing = is_missing(ctx, &row.path);
             picker_row.dimmed = picker_row.missing;
             picker_row.session_cell = live_cell(live);
@@ -626,22 +618,21 @@ fn project_text(projects: &[Project], dir: &AbsPath, home: Option<&AbsPath>) -> 
     }
 }
 
-/// Architecture 6.2: the project picker chrome. The search and the missing cue are on the project column.
+/// Architecture 6.2, P-61: the project picker chrome. No marker column: the search, the missing cue and the current
+/// mark are on the project column (column 0), the live session is in the session column (column 1).
 fn project_chrome(label: &str) -> Chrome {
     let mut chrome = Chrome::new(
         label,
-        render::icon::PROJECTS,
         vec![
-            ColumnSpec::fixed("", 2),
             ColumnSpec::path(messages::HEADER_PROJECT),
             ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROFILE),
         ],
         messages::PICKER_FOOTER,
     );
-    chrome.search_column = Some(1);
-    chrome.missing_column = Some(1);
-    chrome.session_column = Some(2);
+    chrome.search_column = Some(0);
+    chrome.missing_column = Some(0);
+    chrome.session_column = Some(1);
     chrome
 }
 
@@ -650,7 +641,6 @@ fn project_chrome(label: &str) -> Chrome {
 fn history_chrome() -> Chrome {
     let mut chrome = Chrome::new(
         messages::HISTORY_LABEL,
-        render::icon::HISTORY,
         vec![
             ColumnSpec::path(messages::HEADER_PROJECT),
             ColumnSpec::name(messages::HEADER_SESSION),
@@ -667,7 +657,6 @@ fn history_chrome() -> Chrome {
 fn bookmark_chrome() -> Chrome {
     let mut chrome = Chrome::new(
         messages::BOOKMARKS_LABEL,
-        render::icon::BOOKMARKS,
         vec![
             ColumnSpec::path(messages::HEADER_BOOKMARK),
             ColumnSpec::name(messages::HEADER_SESSION),
@@ -760,7 +749,6 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
 fn switcher_chrome() -> Chrome {
     let mut chrome = Chrome::new(
         messages::SESSIONS_LABEL,
-        render::icon::SESSIONS,
         vec![
             ColumnSpec::name(messages::HEADER_SESSION),
             ColumnSpec::text(messages::HEADER_PROJECT),
@@ -953,16 +941,14 @@ fn run_tree_window(
 
 /// Architecture 6.2: the tree window chrome. The empty list says so and stays open (D-12, FR-TREE-12).
 fn tree_chrome(kind: TreeKind) -> Chrome {
-    let (label, icon, footer, empty) = match kind {
+    let (label, footer, empty) = match kind {
         TreeKind::Bookmarks => (
             messages::BOOKMARK_TREE_LABEL,
-            render::icon::BOOKMARKS,
             messages::BOOKMARK_TREE_FOOTER,
             messages::no_bookmarks(),
         ),
         TreeKind::Sessions => (
             messages::SESSION_TREE_LABEL,
-            render::icon::SESSIONS,
             messages::SESSION_TREE_FOOTER,
             messages::no_ledge_sessions(),
         ),
@@ -990,7 +976,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
             1,
         ),
     };
-    let mut chrome = Chrome::new(label, icon, columns, footer);
+    let mut chrome = Chrome::new(label, columns, footer);
     chrome.tree_column = Some(tree_column);
     chrome.search_column = Some(search_column);
     // FR-TUI-08, design 3.2: the Directory column of the bookmark tree and the Project column of the session tree.
@@ -1047,7 +1033,7 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
 
 /// Design 7: the locale is UTF-8 when the character set of `LC_ALL`, else `LC_CTYPE`, else `LANG` says so. Unset
 /// counts as not UTF-8, so the ASCII branch glyphs are used.
-fn utf8_locale(env: &dyn crate::ports::env::Env) -> bool {
+pub(crate) fn utf8_locale(env: &dyn crate::ports::env::Env) -> bool {
     let locale = ["LC_ALL", "LC_CTYPE", "LANG"]
         .iter()
         .filter_map(|name| env.var(name))

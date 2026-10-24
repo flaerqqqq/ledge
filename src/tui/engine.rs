@@ -199,8 +199,8 @@ fn draw<T>(
     term.draw(&mut |frame: &mut Frame| {
         let area = frame.area();
         // The edit window has no prompt row unless its search bar is open or a match is kept (architecture 6.2),
-        // so its list gets one more row without it.
-        let no_prompt = usize::from(!model.has_prompt());
+        // so its list gets the prompt row and its rule back (two rows) without it.
+        let no_prompt = if model.has_prompt() { 0 } else { 2 };
         model.set_list_height(picker::list_height(area.height) + no_prompt);
         render::draw(model, area, frame, theme, color);
     })

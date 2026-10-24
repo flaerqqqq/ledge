@@ -502,7 +502,7 @@ have no FR-IDs state why.
 - branch: slice/S-39-visual-redesign
 
 ### S-40 Visual polish: header colours, rule under the prompt, edit-window glyphs, no project markers
-- status: in-progress
+- status: done
 - deps: S-39
 - FR-IDs: FR-TUI-04 (label colours and no icon), FR-EDIT-06 (glyphs in the edit window), FR-PICK-05 and FR-PICK-07 (marker column removed from the project picker; proposal P-61, the user owns requirements.md)
 - scope: src/tui/render.rs (top-edge label colours and no icon, rule between prompt and header), src/app/pickers.rs (edit window tree glyphs, project picker without the marker column), src/tui/picker.rs and src/tui/columns.rs where the column list changes

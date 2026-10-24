@@ -10,7 +10,7 @@ use ledge::tui::columns::ColumnSpec;
 use ledge::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use ledge::tui::keys::{self, Action};
 use ledge::tui::picker::{self, Chrome, Effect, PickerModel, PickerRow, SessionCell};
-use ledge::tui::render::{self, icon};
+use ledge::tui::render;
 use ledge::tui::terminal::{Input, TerminalSession};
 use ledge::tui::theme::Theme;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -81,7 +81,6 @@ fn draw_themed(model: &PickerModel<usize>, term: &mut FakeTerminal, theme: &Them
 fn projects_chrome() -> Chrome {
     Chrome::new(
         "Projects & Submodules",
-        icon::PROJECTS,
         vec![
             ColumnSpec::fixed("", 2),
             ColumnSpec::path("Project"),
@@ -95,7 +94,6 @@ fn projects_chrome() -> Chrome {
 fn name_chrome(footer: &str) -> Chrome {
     Chrome::new(
         "Names",
-        icon::PROJECTS,
         vec![ColumnSpec::text("Name"), ColumnSpec::text("Session")],
         footer,
     )
@@ -132,7 +130,7 @@ fn line_containing(term: &FakeTerminal, needle: &str) -> Option<(u16, String)> {
         .and_then(|(y, line)| u16::try_from(y).ok().map(|y| (y, line)))
 }
 
-// FR-TUI-04: header row, border label with icon, footer, and the "> " prompt
+// FR-TUI-04: header row, border label, footer, and the "> " prompt
 #[test]
 fn chrome_shows_label_prompt_header_status_and_footer() {
     let rows = vec![
@@ -159,22 +157,39 @@ fn chrome_shows_label_prompt_header_status_and_footer() {
     let lines = term.lines();
 
     assert!(
-        lines[0].contains("▸ Projects & Submodules"),
+        lines[0].starts_with("╭ Projects & Submodules "),
         "{:?}",
         lines[0]
     );
     assert!(lines[1].contains("> "), "prompt row: {:?}", lines[1]);
-    assert!(lines[2].contains("Project"), "header: {:?}", lines[2]);
-    assert!(lines[2].contains("Session"), "header: {:?}", lines[2]);
-    assert!(lines[2].contains("Profile"), "header: {:?}", lines[2]);
-    assert!(lines[3].starts_with("│───"), "header rule: {:?}", lines[3]);
-    assert!(lines[4].contains("/home/u/dev/alpha"), "{:?}", lines[4]);
+    assert!(lines[2].starts_with("│───"), "separator: {:?}", lines[2]);
+    assert!(lines[3].contains("Project"), "header: {:?}", lines[3]);
+    assert!(lines[3].contains("Session"), "header: {:?}", lines[3]);
+    assert!(lines[3].contains("Profile"), "header: {:?}", lines[3]);
+    assert!(lines[4].starts_with("│───"), "header rule: {:?}", lines[4]);
+    assert!(lines[5].contains("/home/u/dev/alpha"), "{:?}", lines[5]);
     assert!(lines[18].contains("cannot kill the session you are in."));
     assert!(
         lines[19].contains(PROJECT_FOOTER),
         "footer: {:?}",
         lines[19]
     );
+}
+
+// FR-TUI-04, FR-TUI-09: the window label has no icon and takes the footer key colour (text), not the accent
+#[test]
+fn label_has_no_icon_and_takes_the_footer_key_colour() {
+    let mut model = PickerModel::new(named_rows(3), projects_chrome());
+    let mut term = FakeTerminal::new(80, 20, Vec::new()).unwrap();
+    drive(&mut model, &mut term, true);
+    let lines = term.lines();
+    assert!(!lines[0].contains('▸'), "{:?}", lines[0]);
+    // The label starts after the corner and one blank; the footer key `enter` starts after the corner and one blank.
+    let label_fg = term.cell(2, 0).unwrap().fg;
+    let key_fg = term.cell(2, 19).unwrap().fg;
+    assert_eq!(lines[19].chars().nth(2), Some('e'), "{:?}", lines[19]);
+    assert_eq!(label_fg, key_fg);
+    assert_ne!(label_fg, Color::Cyan, "the label is not the accent");
 }
 
 // FR-TUI-04, FR-TUI-02: the prompt shows the filter typed so far
@@ -204,13 +219,13 @@ fn arrow_page_home_and_end_move_the_selection() {
     let (position, _) = run(vec![key(KeyCode::Home)]);
     assert_eq!(position, 0);
 
-    // The list is 14 rows high at 40x20, so a page is 13 rows.
+    // The list is 13 rows high at 40x20 (prompt, separator, header, header rule and status take 7), so a page is 12.
     let (position, line) = run(vec![key(KeyCode::PageDown)]);
-    assert_eq!(position, 13);
-    assert!(line.unwrap().contains("row13"));
+    assert_eq!(position, 12);
+    assert!(line.unwrap().contains("row12"));
 
     let (position, _) = run(vec![key(KeyCode::PageDown), key(KeyCode::PageDown)]);
-    assert_eq!(position, 26);
+    assert_eq!(position, 24);
 
     let (position, _) = run(vec![
         key(KeyCode::Down),
@@ -235,8 +250,8 @@ fn resize_keeps_the_selected_row_visible() {
         selected_line(&term).unwrap().contains("row29"),
         "selected row not visible at 40x8"
     );
-    // At 40x8 the list has two rows: the selection is the bottom one.
-    assert!(line_containing(&term, "row28").is_some());
+    // At 40x8 the list has one row: the selection is the only visible row.
+    assert!(line_containing(&term, "row28").is_none());
 
     let mut model = PickerModel::new(named_rows(30), name_chrome("enter open"));
     let mut term =
@@ -356,7 +371,6 @@ fn selected_row_is_reverse_video_without_color() {
 fn connector_is_parenthesised_and_gray_with_color() {
     let chrome = Chrome::new(
         "Bookmark tree",
-        icon::BOOKMARKS,
         vec![ColumnSpec::text("Directory"), ColumnSpec::text("Session")],
         "enter open",
     );
@@ -415,7 +429,6 @@ fn session_cells_take_their_row_state_token() {
 fn lead_is_drawn_before_the_text_and_the_cue_needs_the_missing_flag() {
     let mut chrome = Chrome::new(
         "Session tree",
-        icon::SESSIONS,
         vec![ColumnSpec::name("Session"), ColumnSpec::text("Project")],
         "enter open",
     );
@@ -496,7 +509,7 @@ fn picker_stays_open_with_rows_and_closes_when_empty_unless_staying_open() {
     assert!(!staying.should_close());
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut staying, &mut term, false);
-    assert!(term.lines()[0].contains("▸ Names"));
+    assert!(term.lines()[0].starts_with("╭ Names "));
 }
 
 // FR-TUI-09, design 9.2a: the selected row has the bar in column 0, and reverse video runs over the whole row
@@ -569,7 +582,6 @@ fn long_session_name_is_cut_in_the_middle_keeping_the_hash() {
     let name = "api-gateway-service-long-session-name-91bc";
     let chrome = Chrome::new(
         "Sessions",
-        icon::SESSIONS,
         vec![ColumnSpec::name("Session")],
         "enter switch",
     );
@@ -603,7 +615,7 @@ fn frame_is_rounded_with_label_on_top_and_footer_on_bottom() {
     drive(&mut model, &mut term, false);
     let lines = term.lines();
     assert!(
-        lines[0].starts_with("╭▸ Projects & Submodules "),
+        lines[0].starts_with("╭ Projects & Submodules "),
         "{:?}",
         lines[0]
     );
@@ -633,7 +645,7 @@ fn columns_are_two_cells_apart_in_the_header_and_the_rows() {
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, false);
     let lines = term.lines();
-    let header = &lines[2];
+    let header = &lines[3];
     let (y, row) = line_containing(&term, "row00-1a2b").unwrap();
     // The name column is 5 cells wide (the widest name), so Session starts 5 + 2 cells after Name.
     let name_at = cell_x(&row, "row00");
@@ -661,20 +673,23 @@ fn one_cell_margin_inside_the_frame_on_both_sides() {
     assert_eq!(term.cell(59, y).unwrap().symbol(), "│");
 }
 
-// design 3.1: the header row is bold and a dim rule of ─ runs under it across the inner width
+// design 3.1, P-61: the header row is bold; a dim rule of ─ runs under the prompt row and under the header, across
+// the inner width
 #[test]
-fn header_row_is_bold_and_has_a_dim_rule_under_it() {
+fn header_row_is_bold_and_has_dim_rules_under_the_prompt_and_under_it() {
     let mut model = PickerModel::new(named_rows(3), name_chrome("enter open"));
     let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
     drive(&mut model, &mut term, true);
-    assert!(term.cell(3, 2).unwrap().modifier.contains(Modifier::BOLD));
-    assert_eq!(term.cell(0, 3).unwrap().symbol(), "│");
-    for x in 1..=58 {
-        let cell = term.cell(x, 3).unwrap();
-        assert_eq!(cell.symbol(), "─", "x={x}");
-        assert!(cell.modifier.contains(Modifier::DIM), "x={x}");
+    assert!(term.cell(3, 3).unwrap().modifier.contains(Modifier::BOLD));
+    for y in [2, 4] {
+        assert_eq!(term.cell(0, y).unwrap().symbol(), "│", "y={y}");
+        for x in 1..=58 {
+            let cell = term.cell(x, y).unwrap();
+            assert_eq!(cell.symbol(), "─", "x={x} y={y}");
+            assert!(cell.modifier.contains(Modifier::DIM), "x={x} y={y}");
+        }
+        assert_eq!(term.cell(59, y).unwrap().symbol(), "│", "y={y}");
     }
-    assert_eq!(term.cell(59, 3).unwrap().symbol(), "│");
 }
 
 // design 3.1, 4.5: the status line sits above the bottom border; information is dim, an error is bold
@@ -741,7 +756,6 @@ impl PickerHandler<usize> for Recorder {
 fn engine_model(rows: usize) -> PickerModel<usize> {
     let chrome = Chrome::new(
         "Projects & Submodules",
-        icon::PROJECTS,
         vec![ColumnSpec::text("Name"), ColumnSpec::text("Session")],
         "enter open",
     );
