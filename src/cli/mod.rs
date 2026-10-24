@@ -12,6 +12,7 @@ use crate::app::pickers::{
     bookmark_picker, history_picker_with_editor, project_picker_with_editor, session_switcher,
     session_tree_picker,
 };
+use crate::app::session_cmd;
 use crate::app::Ctx;
 use crate::domain::profile_rules::ProfileOpt;
 use crate::domain::sessions::tmux_version_supported;
@@ -75,6 +76,14 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
                 require_tmux(ctx)?;
             }
             bookmark_cmd::edit(ctx, dir.as_deref(), session_scope)
+        }
+        Command::SsList => {
+            require_tmux(ctx)?;
+            session_cmd::list(ctx)
+        }
+        Command::SsKill { target } => {
+            require_tmux(ctx)?;
+            session_cmd::kill_target(ctx, &target)
         }
         other => Err(LedgeError::Fatal(messages::command_not_available(
             other.words(),

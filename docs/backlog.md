@@ -384,7 +384,7 @@ have no FR-IDs state why.
 - branch: slice/24-bookmark-tree
 
 ### S-25 Session list and kill commands
-- status: in-progress
+- status: done
 - deps: S-14, S-09, S-17
 - FR-IDs: FR-SESS-09, FR-SESS-10, FR-SESS-11, FR-SESS-12, FR-SESS-13
 - scope: `app/session_cmd.rs` (`ss list`, `ss kill`), table formatting in `tui/columns.rs` reused or in `app/session_cmd.rs`.
@@ -396,7 +396,7 @@ have no FR-IDs state why.
 - branch: slice/25-session-list-kill
 
 ### S-26 Doctor
-- status: blocked
+- status: in-progress
 - deps: S-02, S-03, S-04, S-09, S-17
 - FR-IDs: FR-DOC-01, FR-DOC-02, FR-DOC-03, FR-DOC-04, FR-DOC-05, FR-DOC-06, FR-DOC-07, FR-DOC-08
 - scope: `app/doctor.rs`, `cli` wiring of `doctor`.

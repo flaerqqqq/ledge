@@ -245,6 +245,36 @@ pub const PROFILES_LABEL: &str = "Profiles";
 /// Architecture 6.2 and A-03: the key footer of the profile picker.
 pub const PROFILE_PICKER_FOOTER: &str = "enter choose · esc cancel";
 
+/// FR-SESS-12: a managed session was killed by `ss kill` (info, exit 0).
+pub fn killed_session(name: &str) -> String {
+    format!("Killed session '{name}'.")
+}
+
+/// FR-SESS-13: `ss kill` with no name or directory (error, exit 1).
+pub fn kill_requires_target() -> &'static str {
+    "kill requires a session name or directory."
+}
+
+/// Proposal P-46 [new]: `ss kill` with more than one name or directory (error, exit 1).
+pub fn ss_kill_takes_one_target() -> &'static str {
+    "ss kill takes one session name or directory."
+}
+
+/// FR-SESS-09, A-34: the column title of the session count in `ss list`.
+pub const HEADER_WINDOWS: &str = "Windows";
+
+/// FR-SESS-09, A-34: the column title of the attached or detached state in `ss list`.
+pub const HEADER_STATE: &str = "State";
+
+/// FR-SESS-09, A-34: the column title of the session path in `ss list`.
+pub const HEADER_PATH: &str = "Path";
+
+/// FR-SESS-09, A-34: the state of a session with a client attached.
+pub const STATE_ATTACHED: &str = "attached";
+
+/// FR-SESS-09, A-34: the state of a session with no client attached.
+pub const STATE_DETACHED: &str = "detached";
+
 /// FR-SESS-03, architecture 6.2: the border label of the session switcher.
 pub const SESSIONS_LABEL: &str = "Sessions";
 

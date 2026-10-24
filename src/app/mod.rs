@@ -21,6 +21,7 @@ pub mod history_cmd;
 pub mod launch;
 pub mod open;
 pub mod pickers;
+pub mod session_cmd;
 pub mod store;
 
 /// Architecture 4, S-11: the ports and folders a command runs with. Built once in `main` (or in a test

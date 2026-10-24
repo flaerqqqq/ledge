@@ -9,6 +9,7 @@ mod support;
 
 use ledge::app::actions::{delete_node_bookmarks, kill, kill_node, rebuild, rebuild_node};
 use ledge::app::build::ensure_session;
+use ledge::app::session_cmd;
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
 use ledge::domain::profile::{Profile, ProfileName};
@@ -664,4 +665,149 @@ fn node_delete_removes_bookmarks_under_the_node_and_kills_their_sessions() {
     assert!(!exists(&h, &session_name(&n.app)));
     assert!(!exists(&h, &session_name(&n.api)));
     assert!(exists(&h, &session_name(&n.lib)));
+}
+
+// FR-SESS-10: `ss kill` removes the managed session with the exact name and prints the FR-SESS-12 line
+#[test]
+fn ss_kill_by_exact_name_removes_the_managed_session() {
+    let h = Harness::new("sess_kill_exact");
+    let dir = dir_of(&h, "app");
+    let name = session_name(&dir);
+    build_managed(&h, &dir, &Profile::basic());
+    let text = session_cmd::kill_target(&h.ctx(), &name);
+    assert_eq!(text, Ok(Outcome::Info(format!("Killed session '{name}'."))));
+    assert!(!exists(&h, &name));
+}
+
+// FR-SESS-10, A-20: a directory argument kills the managed session of that directory
+#[test]
+fn ss_kill_by_directory_removes_the_session_of_that_directory() {
+    let h = Harness::new("sess_kill_dir");
+    let dir = dir_of(&h, "app");
+    let name = session_name(&dir);
+    build_managed(&h, &dir, &Profile::basic());
+    let typed = dir.as_str().to_string();
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), &typed),
+        Ok(Outcome::Info(format!("Killed session '{name}'.")))
+    );
+    assert!(!exists(&h, &name));
+}
+
+// FR-SESS-10, A-20: a relative directory argument is cleaned against the working directory
+#[test]
+fn ss_kill_by_relative_directory_removes_the_session_of_that_directory() {
+    let h = Harness::new("sess_kill_rel");
+    let dir = dir_of(&h, "app");
+    let name = session_name(&dir);
+    build_managed(&h, &dir, &Profile::basic());
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), "app"),
+        Ok(Outcome::Info(format!("Killed session '{name}'.")))
+    );
+    assert!(!exists(&h, &name));
+}
+
+// FR-SESS-10, F-29: the exact managed name is tried first, so a session named like a directory is the one killed
+#[test]
+fn ss_kill_prefers_the_exact_name_over_a_directory_of_the_same_text() {
+    let h = Harness::new("sess_kill_name_first");
+    let dir = dir_of(&h, "app");
+    let dir_name = session_name(&dir);
+    build_managed(&h, &dir, &Profile::basic());
+    let other = AbsPath::clean(
+        &format!("{}/elsewhere", h.root().display()),
+        &AbsPath::root(),
+    );
+    h.backend
+        .create_session(&NewSession {
+            name: "app".to_string(),
+            dir: other.as_str().to_string(),
+            window_name: "Terminal".to_string(),
+        })
+        .expect("create");
+    h.backend
+        .set_option("app", OPT_MANAGED, "1")
+        .expect("mark managed");
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), "app"),
+        Ok(Outcome::Info("Killed session 'app'.".to_string()))
+    );
+    assert!(!exists(&h, "app"));
+    assert!(exists(&h, &dir_name));
+}
+
+// FR-SESS-11: a target that is neither a managed name nor the session of a directory
+#[test]
+fn ss_kill_of_an_unknown_target_is_not_a_ledge_session() {
+    let h = Harness::new("sess_kill_unknown");
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), "nope"),
+        Err(fatal("'nope' is not a ledge session."))
+    );
+}
+
+// FR-SESS-11, FR-ACT-13: an unmanaged session is refused by name and left running
+#[test]
+fn ss_kill_of_an_unmanaged_session_is_refused_and_kept() {
+    let h = Harness::new("sess_kill_unmanaged");
+    h.backend
+        .create_session(&NewSession {
+            name: "plain".to_string(),
+            dir: h.cwd.as_str().to_string(),
+            window_name: "Terminal".to_string(),
+        })
+        .expect("create");
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), "plain"),
+        Err(fatal("'plain' is not a ledge session."))
+    );
+    assert!(exists(&h, "plain"));
+}
+
+// FR-SESS-11: a directory whose session is not running is reported with the typed argument
+#[test]
+fn ss_kill_of_a_directory_without_a_session_is_not_a_ledge_session() {
+    let h = Harness::new("sess_kill_dir_none");
+    let dir = dir_of(&h, "app");
+    let typed = dir.as_str().to_string();
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), &typed),
+        Err(fatal(&format!("'{typed}' is not a ledge session.")))
+    );
+}
+
+// FR-SESS-11, FR-ACT-13: the session of a directory that is unmanaged is refused and kept
+#[test]
+fn ss_kill_of_an_unmanaged_directory_session_is_refused_and_kept() {
+    let h = Harness::new("sess_kill_dir_unmanaged");
+    let dir = dir_of(&h, "app");
+    let name = session_name(&dir);
+    h.backend
+        .create_session(&NewSession {
+            name: name.clone(),
+            dir: dir.as_str().to_string(),
+            window_name: "Terminal".to_string(),
+        })
+        .expect("create");
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), "app"),
+        Err(fatal("'app' is not a ledge session."))
+    );
+    assert!(exists(&h, &name));
+}
+
+// FR-SESS-10, A-20, D-17: the session the user is in is refused with the D-17 text and kept
+#[test]
+fn ss_kill_of_the_current_session_is_refused_and_kept() {
+    let mut h = Harness::new("sess_kill_current");
+    let dir = dir_of(&h, "app");
+    let name = session_name(&dir);
+    build_managed(&h, &dir, &Profile::basic());
+    be_inside(&mut h, &name);
+    assert_eq!(
+        session_cmd::kill_target(&h.ctx(), &name),
+        Err(fatal("cannot kill the session you are in."))
+    );
+    assert!(exists(&h, &name));
 }

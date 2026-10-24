@@ -11,6 +11,7 @@ use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
 use ledge::domain::profile::{Profile, ProfileName};
 use ledge::error::{LedgeError, Outcome, Result};
+use ledge::ports::backend::{NewSession, SessionBackend};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::process::Command;
 use support::ctx::Harness;
@@ -522,4 +523,97 @@ fn bm_tree_session_scope_outside_a_session_is_refused() {
     let text = fatal(run(&args(&["bm", "tree", "--session-scope"]), &h.ctx()));
     assert_eq!(text, "--session-scope requires running inside a session.");
     assert_eq!(h.terminal.opened(), 0, "no window is opened");
+}
+
+// FR-SESS-09: `ss list` with no managed session prints `No ledge sessions.` (info, exit 0)
+#[test]
+fn ss_list_with_no_sessions_says_so() {
+    let h = Harness::new("cli-ss-list-empty");
+    assert_eq!(
+        info(run(&args(&["ss", "list"]), &h.ctx())),
+        "No ledge sessions."
+    );
+}
+
+// FR-SESS-09, A-34: the table has a header row, one row per managed session sorted by name, the window count, the
+// state word and the path; unmanaged sessions are left out
+#[test]
+fn ss_list_prints_managed_sessions_as_a_sorted_table() {
+    let h = Harness::new("cli-ss-list-table");
+    let zeta = h.project("zeta");
+    let alpha = h.project("alpha");
+    let plain = h.project("plain");
+    for dir in [&zeta, &alpha] {
+        let dir = AbsPath::clean(dir, &AbsPath::root());
+        ensure_session(&h.backend, &dir, &Profile::basic()).expect("build");
+    }
+    h.backend
+        .create_session(&NewSession {
+            name: "stray-0000".to_string(),
+            dir: plain.clone(),
+            window_name: "Terminal".to_string(),
+        })
+        .expect("create unmanaged");
+    h.backend
+        .add_window(
+            &session_name(&AbsPath::clean(&alpha, &AbsPath::root())),
+            "logs",
+            &alpha,
+        )
+        .expect("second window");
+    h.backend.set_attached(
+        &session_name(&AbsPath::clean(&alpha, &AbsPath::root())),
+        true,
+    );
+    let alpha_name = session_name(&AbsPath::clean(&alpha, &AbsPath::root()));
+    let zeta_name = session_name(&AbsPath::clean(&zeta, &AbsPath::root()));
+    let text = info(run(&args(&["ss", "list"]), &h.ctx()));
+    let expected = [
+        "Session     Windows  State     Path".to_string(),
+        format!("{alpha_name}  2        attached  {alpha}"),
+        format!("{zeta_name}   1        detached  {zeta}"),
+    ]
+    .join("\n");
+    assert_eq!(text, expected);
+}
+
+// FR-SESS-09, FR-CMD-10: `ss list` needs tmux
+#[test]
+fn ss_list_without_tmux_reports_it_missing() {
+    let mut h = Harness::new("cli-ss-list-no-tmux");
+    h.process = FakeProcess::missing();
+    assert_eq!(
+        fatal(run(&args(&["ss", "list"]), &h.ctx())),
+        "Required tool 'tmux' is not installed."
+    );
+}
+
+// FR-SESS-13: `ss kill` with no target fails with the message, before tmux is needed
+#[test]
+fn ss_kill_without_target_fails() {
+    let h = Harness::new("cli-ss-kill-none");
+    assert_eq!(
+        fatal(run(&args(&["ss", "kill"]), &h.ctx())),
+        "kill requires a session name or directory."
+    );
+}
+
+// FR-SESS-10, P-46: two targets for `ss kill` fail with the one-target message
+#[test]
+fn ss_kill_with_two_targets_fails() {
+    let h = Harness::new("cli-ss-kill-two");
+    assert_eq!(
+        fatal(run(&args(&["ss", "kill", "a", "b"]), &h.ctx())),
+        "ss kill takes one session name or directory."
+    );
+}
+
+// FR-SESS-11, FR-SESS-10: `ss kill NAME` through the command form reports an unknown target
+#[test]
+fn ss_kill_through_the_command_reports_unknown_target() {
+    let h = Harness::new("cli-ss-kill-unknown");
+    assert_eq!(
+        fatal(run(&args(&["ss", "kill", "ghost"]), &h.ctx())),
+        "'ghost' is not a ledge session."
+    );
 }

@@ -457,3 +457,16 @@ Format:
 - change: `bm tree` takes the open options from the parser and passes `options.profile` to the window (enter opens the chosen directory with that profile). `--editor`, `--code` and `--idea` are accepted and not used by the window, the same choice as P-36 (`bm pick`) and P-43 (`ss tree`). A-18 says editor options apply to `bm tree`; this slice does not implement that for the window, and the user may decide whether the window launches the editor on enter.
 - why: keeps the window behaviour of S-22 and S-23 the same for all trees. Tests: tests/component_cli.rs and src/cli/parse.rs (parsing); tests/tui_trees.rs (enter path).
 - status: Open
+
+### P-46 S-25 session list and kill: messages and target rules the spec leaves open
+- from: implementer / slice S-25
+- doc: requirements.md (FR-SESS-09..13, Messages), docs/architecture.md (A-20, A-34, 2.3 grammar, 8.3), docs/analysis.md (F-29), docs/proposals.md (P-27)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) `ss kill TARGET` takes the managed session with the exact name first (F-29, the suggested rule), then the managed session of the directory `TARGET` (cleaned against the working directory, D-06). An unmanaged session of the exact name does not stop the directory lookup, so a directory whose managed session exists is still killed.
+  (b) Every miss gives `'<target>' is not a ledge session.` with the argument as typed (FR-SESS-11 for both the name and the directory case). A directory whose session is not running is therefore reported the same way, as F-29 asks.
+  (c) `ss kill` with two or more words is refused with `ss kill takes one session name or directory.` (error, exit 1). This text is new and not in requirements.md or architecture 8.3; the user may give a better one. P-32 (b) had left the count open.
+  (d) `ss kill` with no word is refused in the grammar with `kill requires a session name or directory.` before tmux is checked (FR-SESS-13).
+  (e) `ss list` header row is `Session`, `Windows`, `State`, `Path` (A-34), with two spaces between columns and the last column unpadded. The header words and the state words are constants in `messages.rs`.
+  (f) The kill of the session the user is in is refused by the existing kill service (D-17, P-27 b), so `ss kill` prints `cannot kill the session you are in.` as an error.
+- why: each choice is the smallest one that passes the S-25 tests in tests/component_actions.rs, tests/component_cli.rs, src/cli/parse.rs and tests/messages_verbatim.rs. None changes an accepted decision (D-08, D-14, D-16, A-20, A-34).
+- status: Open

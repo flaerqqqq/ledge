@@ -684,3 +684,41 @@ fn bookmark_tree_empty_and_footer_are_verbatim() {
         "enter open · ^r/^p/^x/^d selected · alt-r/alt-p/alt-x/alt-d whole node"
     );
 }
+
+// FR-SESS-12, message "Killed session '<name>'." (stdout, exit 0)
+#[test]
+fn killed_session_text_is_verbatim() {
+    assert_eq!(
+        messages::killed_session("app-1a2b"),
+        "Killed session 'app-1a2b'."
+    );
+}
+
+// FR-SESS-13, message "kill requires a session name or directory." (stderr, exit 1)
+#[test]
+fn kill_requires_target_text_is_verbatim() {
+    assert_eq!(
+        messages::kill_requires_target(),
+        "kill requires a session name or directory."
+    );
+}
+
+// P-46 [new], FR-SESS-10: `ss kill` with more than one target (stderr, exit 1)
+#[test]
+fn ss_kill_takes_one_target_text_is_verbatim() {
+    assert_eq!(
+        messages::ss_kill_takes_one_target(),
+        "ss kill takes one session name or directory."
+    );
+}
+
+// FR-SESS-09, A-34: the header row of `ss list` and the state words
+#[test]
+fn session_list_header_and_state_words_are_verbatim() {
+    assert_eq!(messages::HEADER_SESSION, "Session");
+    assert_eq!(messages::HEADER_WINDOWS, "Windows");
+    assert_eq!(messages::HEADER_STATE, "State");
+    assert_eq!(messages::HEADER_PATH, "Path");
+    assert_eq!(messages::STATE_ATTACHED, "attached");
+    assert_eq!(messages::STATE_DETACHED, "detached");
+}

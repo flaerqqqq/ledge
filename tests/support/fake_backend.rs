@@ -24,6 +24,7 @@ struct Session {
     windows: Vec<Window>,
     options: BTreeMap<String, String>,
     activity: i64,
+    attached: bool,
 }
 
 #[derive(Default)]
@@ -58,6 +59,14 @@ impl FakeBackend {
         let mut sessions = self.sessions.borrow_mut();
         if let Some(found) = sessions.iter_mut().find(|s| s.name == session) {
             found.activity = activity;
+        }
+    }
+
+    /// FR-SESS-09 (test setup): marks a session as attached by a client, as `list-sessions` reports it.
+    pub fn set_attached(&self, session: &str, attached: bool) {
+        let mut sessions = self.sessions.borrow_mut();
+        if let Some(found) = sessions.iter_mut().find(|s| s.name == session) {
+            found.attached = attached;
         }
     }
 
@@ -188,7 +197,7 @@ impl SessionBackend for FakeBackend {
             .map(|s| SessionInfo {
                 name: s.name.clone(),
                 windows: s.windows.len() as u32,
-                attached: false,
+                attached: s.attached,
                 activity: s.activity,
                 managed: s.options.get("@ledge_managed").map(String::as_str) == Some("1"),
                 profile: s.options.get("@ledge_profile").cloned(),
@@ -217,6 +226,7 @@ impl SessionBackend for FakeBackend {
                 typed: Vec::new(),
             }],
             options: BTreeMap::new(),
+            attached: false,
         });
         Ok(id)
     }

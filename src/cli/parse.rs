@@ -81,7 +81,10 @@ pub enum Command {
     SsList,
     /// FR-SESS-06: `ss tree`, the session tree window; takes the open options (P-36 applies: the editor is not used).
     SsTree(Options),
-    SsKill,
+    /// FR-SESS-10: `ss kill NAME|DIR`; the one word is the exact session name or a directory.
+    SsKill {
+        target: String,
+    },
     Doctor,
 }
 
@@ -104,7 +107,7 @@ impl Command {
             Command::BmTree { .. } => "bm tree",
             Command::SsList => "ss list",
             Command::SsTree(_) => "ss tree",
-            Command::SsKill => "ss kill",
+            Command::SsKill { .. } => "ss kill",
             Command::Doctor => "doctor",
         }
     }
@@ -443,7 +446,13 @@ fn ss(words: &[String], opts: &[Opt]) -> Result<Command, String> {
         }
         Some("kill") => {
             check(opts, NONE)?;
-            Ok(Command::SsKill)
+            match words.get(1..).unwrap_or_default() {
+                [] => Err(messages::kill_requires_target().to_string()),
+                [target] => Ok(Command::SsKill {
+                    target: target.clone(),
+                }),
+                _ => Err(messages::ss_kill_takes_one_target().to_string()),
+            }
         }
         _ => {
             check(opts, OPEN)?;
@@ -853,6 +862,45 @@ mod tests {
         );
     }
 
+    // FR-SESS-10: `ss kill` takes the name or directory as its one word
+    #[test]
+    fn ss_kill_takes_one_target() {
+        assert_eq!(
+            parse(&argv(&["ss", "kill", "app-1a2b"])),
+            Ok(Command::SsKill {
+                target: "app-1a2b".to_string()
+            })
+        );
+    }
+
+    // FR-SESS-13: `ss kill` with no target fails before tmux is asked
+    #[test]
+    fn ss_kill_without_target_is_refused() {
+        assert_eq!(
+            parse(&argv(&["ss", "kill"])),
+            Err("kill requires a session name or directory.".to_string())
+        );
+    }
+
+    // FR-SESS-10, P-46: two targets for `ss kill` are refused
+    #[test]
+    fn ss_kill_with_two_targets_is_refused() {
+        assert_eq!(
+            parse(&argv(&["ss", "kill", "a", "b"])),
+            Err("ss kill takes one session name or directory.".to_string())
+        );
+    }
+
+    // FR-SESS-09: `ss list` takes no arguments
+    #[test]
+    fn ss_list_parses_and_takes_no_arguments() {
+        assert_eq!(parse(&argv(&["ss", "list"])), Ok(Command::SsList));
+        assert_eq!(
+            parse(&argv(&["ss", "list", "x"])),
+            Err("'ss list' takes no arguments.".to_string())
+        );
+    }
+
     // Architecture 2.3: the commands whose slice is not built yet still parse
     #[test]
     fn unbuilt_commands_parse() {
@@ -860,7 +908,6 @@ mod tests {
             parse(&argv(&["history", "clean"])),
             Ok(Command::HistoryClean)
         );
-        assert_eq!(parse(&argv(&["ss", "kill", "x"])), Ok(Command::SsKill));
         assert_eq!(
             parse(&argv(&["bm", "edit", "--session-scope"])),
             Ok(Command::BmEdit {
