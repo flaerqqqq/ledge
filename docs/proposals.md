@@ -620,3 +620,10 @@ Format:
 - change: killing the session the user is in is allowed from any ledge window and from `ss kill`. The client switches to the most recent remaining tmux session (last activity, then name). If no session remains, the tmux server is killed, so tmux closes. Rebuild of the current session keeps the D-17 copy-and-switch rule.
 - why: the user wants to kill sessions freely from any window and not be stopped by the current one.
 - open choice: "most recent" uses every remaining tmux session, not only ledge-managed ones, so the client never lands on a window it cannot use. Tell me if you want managed sessions only.
+
+### P-64 Profile preview in the profile picker (FR-PROF-13)
+- from: user request / coordinator, slice S-45
+- status: Open
+- doc: requirements.md (FR-PROF-13)
+- change: the profile picker shows a preview of the highlighted profile: its source (built-in, or the file path with ~), its window count, and one line per window with its command. A profile whose file is missing or invalid keeps its row, and the preview shows its error. New texts: built-in, 1 window, N windows, + N more, Preview.
+- why: the user picks a profile without knowing what it starts, and a rebuild kills the running session.
