@@ -938,7 +938,7 @@ fn tree_item(
     ctx: &Ctx<'_>,
     sessions: &[ManagedSession],
     kind: TreeKind,
-    row: TreeRow<NodeKind>,
+    mut row: TreeRow<NodeKind>,
 ) -> TreeItem {
     let name = match kind {
         TreeKind::Bookmarks => Some(session_name(&row.path)),
@@ -950,6 +950,8 @@ fn tree_item(
             .map(ManagedSession::info)
             .find(|info| info.name == name)
     });
+    // The ctrl actions act on `row.session` (FR-TUI-07), so a bookmark row with a live session must carry its name.
+    row.session = live.map(|info| info.name.clone());
     let cells = vec![row.label.clone(), session_text(live), profile_text(live)];
     let search = row.label.clone();
     let depth = row.depth;

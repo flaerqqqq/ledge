@@ -370,6 +370,27 @@ fn ctrl_d_on_a_bookmark_row_deletes_that_bookmark_and_stays_open() {
     assert_eq!(bookmarks_text(&h).trim(), web.as_str());
 }
 
+// FR-ACT-02, FR-SESS-12, FR-TUI-07: ctrl-x on a bookmark row with a live session kills that session
+#[test]
+fn ctrl_x_on_a_bookmark_row_with_a_session_kills_it() {
+    let h = Harness::new("tui_trees-ctrl-x-bookmark");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let api = abs(&format!("{}/api", app.as_str()));
+    write_bookmarks(&h, &[api.as_str()]);
+    live(&h, &api, "dev", DEV);
+    assert!(exists(&h, &name_of(&api)));
+    h.terminal.script(vec![
+        down(),
+        Input::Key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL)),
+        esc(),
+    ]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert!(!exists(&h, &name_of(&api)));
+    assert_eq!(bookmarks_text(&h).trim(), api.as_str());
+}
+
 // Architecture 6.2, Screens: the footers of the two trees are the given texts
 #[test]
 fn trees_show_their_given_footers() {
