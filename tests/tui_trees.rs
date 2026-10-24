@@ -521,3 +521,74 @@ fn empty_bookmark_tree_says_so_and_stays_open() {
     assert_eq!(h.terminal.opened(), 1, "the window opened and stayed open");
     assert!(screen(&h).iter().any(|line| line.contains("No bookmarks.")));
 }
+
+/// The first screen row that contains `needle`.
+fn line_with<'a>(lines: &'a [String], needle: &str) -> &'a str {
+    lines
+        .iter()
+        .find(|line| line.contains(needle))
+        .map(String::as_str)
+        .unwrap_or_else(|| panic!("no row with {needle:?} in {lines:#?}"))
+}
+
+// FR-TREE-13, P-53: a bookmark whose directory has a managed session shows the session name and its profile on its row
+#[test]
+fn bookmark_row_with_a_session_shows_its_name_and_profile() {
+    let h = Harness::new("tui_trees-bm-session");
+    search_in_projects(&h);
+    let api = abs(&format!("{}/api", h.project("app")));
+    fs::create_dir_all(api.as_str()).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    live(&h, &api, "zeta", DEV);
+    h.terminal.script(vec![esc()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    let row = line_with(&lines, &name_of(&api));
+    assert!(row.contains("zeta"), "profile on the same row: {row}");
+}
+
+// FR-TREE-13, P-53: a bookmark without a managed session shows no session name and no profile
+#[test]
+fn bookmark_row_without_a_session_shows_no_session_text() {
+    let h = Harness::new("tui_trees-bm-no-session");
+    search_in_projects(&h);
+    let api = abs(&format!("{}/api", h.project("app")));
+    fs::create_dir_all(api.as_str()).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    h.terminal.script(vec![esc()]);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    assert!(
+        line_with(&lines, "api").contains("api"),
+        "the bookmark is shown: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains(&name_of(&api))),
+        "no session name for a bookmark without a session: {lines:#?}"
+    );
+}
+
+// FR-TREE-13, P-53: a session created for a bookmark shows on its row once the tree is drawn again (the next reload)
+#[test]
+fn session_created_for_a_bookmark_shows_on_the_next_draw_of_the_tree() {
+    let h = Harness::new("tui_trees-bm-next-reload");
+    search_in_projects(&h);
+    let api = abs(&format!("{}/api", h.project("app")));
+    fs::create_dir_all(api.as_str()).expect("create api");
+    write_bookmarks(&h, &[api.as_str()]);
+    h.terminal.script(vec![esc()]);
+    h.terminal.queue(vec![esc()]);
+    let _ = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    assert!(
+        !screen(&h).iter().any(|line| line.contains(&name_of(&api))),
+        "no session yet: {:#?}",
+        screen(&h)
+    );
+    live(&h, &api, "zeta", DEV);
+    let _ = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
+    let lines = screen(&h);
+    let row = line_with(&lines, &name_of(&api));
+    assert!(row.contains("zeta"), "profile on the same row: {row}");
+}

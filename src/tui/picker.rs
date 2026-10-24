@@ -113,6 +113,10 @@ pub struct PickerModel<T> {
     /// List height in rows; 0 until the size is set.
     page: usize,
     status: Option<String>,
+    /// FR-EDIT-13, P-53: the search bar is open, so typed characters go to the filter (edit window only).
+    bar_open: bool,
+    /// The row that was selected when the bar opened; escape selects it again.
+    bar_anchor: Option<usize>,
 }
 
 impl<T> PickerModel<T> {
@@ -129,6 +133,8 @@ impl<T> PickerModel<T> {
             scroll: 0,
             page: 0,
             status: None,
+            bar_open: false,
+            bar_anchor: None,
         }
     }
 
@@ -166,6 +172,12 @@ impl<T> PickerModel<T> {
         self.scroll..end
     }
 
+    /// Whether the list has a prompt row: a filtered picker always does; the edit window does while its search bar is
+    /// open or a match is kept (FR-EDIT-13).
+    pub fn has_prompt(&self) -> bool {
+        self.chrome.search_column.is_some() || self.bar_open || !self.filter.is_empty()
+    }
+
     pub fn status(&self) -> Option<&str> {
         self.status.as_deref()
     }
@@ -189,9 +201,12 @@ impl<T> PickerModel<T> {
     pub fn apply(&mut self, action: Action) -> Effect {
         // P-52, FR-TUI-11: without a filter (the edit window, D-15) plain j and k move as the arrows do. With a filter
         // they are typed (FR-TUI-02) and ctrl-j and ctrl-k move, through the shared key map.
+        // FR-EDIT-12: h and l are the left and right arrows in the same way; with a filter they are typed.
         let action = match action {
             Action::Type('j') if !self.has_filter() => Action::Down,
             Action::Type('k') if !self.has_filter() => Action::Up,
+            Action::Type('h') if !self.has_filter() => Action::Left,
+            Action::Type('l') if !self.has_filter() => Action::Right,
             other => other,
         };
         let last = self.visible.len().saturating_sub(1);
@@ -205,6 +220,12 @@ impl<T> PickerModel<T> {
             Action::End => last,
             // Tree keys belong to the caller: the edit window expands and collapses (FR-EDIT-03).
             Action::Left | Action::Right => return Effect::Act(action),
+            // FR-EDIT-13: enter keeps the match and closes the search bar.
+            Action::Choose if self.bar_open => {
+                self.bar_open = false;
+                self.bar_anchor = None;
+                return Effect::Handled;
+            }
             Action::Choose => {
                 return if self.selected_row().is_some() {
                     Effect::Choose
@@ -212,7 +233,18 @@ impl<T> PickerModel<T> {
                     Effect::Cancel
                 };
             }
+            // FR-EDIT-13: escape clears the match and closes the search bar; the window stays open.
+            Action::Cancel if self.bar_open => {
+                self.clear_search();
+                return Effect::Handled;
+            }
             Action::Cancel => return Effect::Cancel,
+            // FR-EDIT-13: / opens the search bar of the edit window (no filter, D-15 as amended by P-53).
+            Action::Type('/') if !self.has_filter() => {
+                self.bar_open = true;
+                self.bar_anchor = self.visible.get(self.selected).copied();
+                return Effect::Handled;
+            }
             // The edit window has no filter (D-15, FR-TUI-02 exception): typing does nothing and backspace is collapse.
             Action::Type(_) if !self.has_filter() => return Effect::Handled,
             Action::Backspace if !self.has_filter() => return Effect::Act(Action::Left),
@@ -233,9 +265,21 @@ impl<T> PickerModel<T> {
         Effect::Handled
     }
 
-    /// Whether the picker filters its rows as the user types (architecture 6.2: the search column is set).
+    /// Whether typed characters go to the filter: the search column is set, or the edit window's search bar is open.
     fn has_filter(&self) -> bool {
-        self.chrome.search_column.is_some()
+        self.chrome.search_column.is_some() || self.bar_open
+    }
+
+    /// FR-EDIT-13: clears the filter and closes the search bar. The row selected when the bar opened is selected again.
+    fn clear_search(&mut self) {
+        self.bar_open = false;
+        self.filter.clear();
+        let anchor = self.bar_anchor.take();
+        self.visible = (0..self.rows.len()).collect();
+        if let Some(position) = anchor.and_then(|row| self.visible.iter().position(|&v| v == row)) {
+            self.selected = position;
+        }
+        self.ensure_visible();
     }
 
     /// FR-EDIT-03: moves the selection to the nearest visible row above with a smaller tree depth (the parent).

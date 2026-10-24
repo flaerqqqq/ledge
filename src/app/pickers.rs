@@ -911,7 +911,7 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
     };
     let items = rows
         .into_iter()
-        .map(|row| tree_item(ctx, &sessions, row))
+        .map(|row| tree_item(ctx, &sessions, kind, row))
         .collect();
     Ok((items, cursor))
 }
@@ -931,9 +931,20 @@ fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
 }
 
 /// One tree row as a picker row: the label is searched, the session and profile are shown, and a row that is not
-/// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08).
-fn tree_item(ctx: &Ctx<'_>, sessions: &[ManagedSession], row: TreeRow<NodeKind>) -> TreeItem {
-    let live = row.session.as_deref().and_then(|name| {
+/// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08). In the bookmark tree the
+/// session of a row is the managed session of its directory, found by name as the project picker does (FR-TREE-13,
+/// FR-PICK-06); the session tree shows the session on its row.
+fn tree_item(
+    ctx: &Ctx<'_>,
+    sessions: &[ManagedSession],
+    kind: TreeKind,
+    row: TreeRow<NodeKind>,
+) -> TreeItem {
+    let name = match kind {
+        TreeKind::Bookmarks => Some(session_name(&row.path)),
+        TreeKind::Sessions => row.session.clone(),
+    };
+    let live = name.and_then(|name| {
         sessions
             .iter()
             .map(ManagedSession::info)

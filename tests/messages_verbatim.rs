@@ -45,6 +45,12 @@ fn edit_window_label_and_footer_are_verbatim() {
     assert_eq!(messages::HEADER_DIRECTORY, "Directory");
 }
 
+// FR-EDIT-13, P-53, architecture 8.3 [new] (placeholder): the search bar prompt of the edit window is a slash
+#[test]
+fn edit_search_prompt_text_is_verbatim() {
+    assert_eq!(messages::edit_search_prompt(), "/");
+}
+
 // FR-CONF-05, message "config is not valid JSON: <file>"
 #[test]
 fn config_not_valid_json_text_is_verbatim() {

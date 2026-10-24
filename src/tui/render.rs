@@ -48,10 +48,11 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, color: boo
     let block = Block::bordered().title(format!("{} {}", chrome.icon, chrome.label));
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    // The edit window has no filter row (architecture 6.2, D-15): its prompt row has no height.
-    let filtered = chrome.search_column.is_some();
+    // The prompt row has no height unless the picker filters (architecture 6.2, D-15) or the edit window's search bar
+    // is open or keeps a match (FR-EDIT-13).
+    let prompted = model.has_prompt();
     let [prompt, header, list, status, footer] = Layout::vertical([
-        Constraint::Length(u16::from(filtered)),
+        Constraint::Length(u16::from(prompted)),
         Constraint::Length(1),
         Constraint::Min(0),
         Constraint::Length(1),
@@ -59,13 +60,19 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, color: boo
     ])
     .areas(inner);
 
-    // Prompt: "> " and the filter, cursor at its end (architecture 6.2 item 1).
-    if filtered {
+    // Prompt: "> " and the filter, cursor at its end (architecture 6.2 item 1). The edit window's search bar has the
+    // prompt "/" (FR-EDIT-13).
+    if prompted {
         let filter = model.filter();
-        frame.render_widget(Paragraph::new(format!("> {filter}")), prompt);
+        let lead = if chrome.search_column.is_some() {
+            "> "
+        } else {
+            messages::edit_search_prompt()
+        };
+        frame.render_widget(Paragraph::new(format!("{lead}{filter}")), prompt);
         let cursor = prompt
             .x
-            .saturating_add(2)
+            .saturating_add(u16::try_from(columns::width(lead)).unwrap_or(u16::MAX))
             .saturating_add(u16::try_from(columns::width(filter)).unwrap_or(u16::MAX))
             .min(prompt.right().saturating_sub(1));
         frame.set_cursor_position((cursor, prompt.y));

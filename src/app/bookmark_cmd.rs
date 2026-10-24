@@ -275,9 +275,10 @@ fn edit_row(row: &EditRow) -> PickerRow<EditRow> {
     } else {
         row.marker.text()
     };
+    // FR-EDIT-13: the search matches the folder name.
     let mut picker_row = PickerRow::new(
         vec![mark.to_string(), format!("{marker} {}", row.name)],
-        "",
+        &row.name,
         row.clone(),
     );
     picker_row.depth = row.depth;

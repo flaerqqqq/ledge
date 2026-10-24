@@ -279,3 +279,135 @@ fn label_and_footer_are_the_edit_window_texts() {
     assert!(lines.iter().any(|line| line.contains(LABEL)), "{lines:#?}");
     assert!(lines.iter().any(|line| line.contains(FOOTER)), "{lines:#?}");
 }
+
+fn ch(c: char) -> Input {
+    key(KeyCode::Char(c))
+}
+
+/// Runs the edit window with `script` over the fixture and returns the bookmarks text, the last screen and the
+/// expanded folders (the project path is replaced by `<app>`).
+fn run_edit(test: &str, script: Vec<Input>) -> (String, Vec<String>, String) {
+    let h = Harness::new(test);
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(script);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    let bookmarks = bookmarks_text(&h).replace(&app, "<app>");
+    let expanded = expanded_text(&h).replace(&app, "<app>");
+    (bookmarks, screen(&h), expanded)
+}
+
+// FR-EDIT-12: h collapses an expanded folder, as the left arrow does
+#[test]
+fn h_collapses_an_expanded_folder() {
+    let h = Harness::new("tui_edit-h-collapses");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal
+        .script(vec![down(), down(), right(), ch('h'), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert!(
+        !screen_has(&h, "main"),
+        "src is collapsed: {:#?}",
+        screen(&h)
+    );
+    assert_eq!(expanded_text(&h), "");
+}
+
+// FR-EDIT-12: h on a leaf row moves the selection to its parent row
+#[test]
+fn h_on_a_leaf_moves_to_the_parent_row() {
+    let h = Harness::new("tui_edit-h-leaf-parent");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    // Expand src, select main (a leaf), h moves to src, enter bookmarks src.
+    h.terminal.script(vec![
+        down(),
+        down(),
+        right(),
+        down(),
+        ch('h'),
+        enter(),
+        esc(),
+    ]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert_eq!(bookmarks_text(&h), format!("{app}/src\n"));
+}
+
+// FR-EDIT-12: h on a collapsed folder that has a parent moves the selection to the parent row
+#[test]
+fn h_on_a_collapsed_folder_moves_to_the_parent_row() {
+    let h = Harness::new("tui_edit-h-collapsed-parent");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    fs::create_dir_all(format!("{app}/src/main/deep")).expect("create deep");
+    // Expand src, select main (collapsed, with a subfolder), h moves to src, enter bookmarks src.
+    h.terminal.script(vec![
+        down(),
+        down(),
+        right(),
+        down(),
+        ch('h'),
+        enter(),
+        esc(),
+    ]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert_eq!(bookmarks_text(&h), format!("{app}/src\n"));
+    assert_eq!(
+        expanded_text(&h),
+        format!("{app}/src\n"),
+        "main stays collapsed"
+    );
+}
+
+// FR-EDIT-12: l expands a folder that has subfolders, as the right arrow does
+#[test]
+fn l_expands_a_folder_with_subfolders() {
+    let h = Harness::new("tui_edit-l-expands");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    h.terminal.script(vec![down(), down(), ch('l'), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert!(screen_has(&h, "main"), "src is expanded: {:#?}", screen(&h));
+    assert_eq!(expanded_text(&h), format!("{app}/src\n"));
+}
+
+// FR-EDIT-12: l on a leaf row does nothing; the selection stays on it
+#[test]
+fn l_on_a_leaf_does_nothing() {
+    let h = Harness::new("tui_edit-l-leaf");
+    h.terminal.set_size(80, 24);
+    let app = fixture(&h);
+    // docs is a leaf: l changes nothing, so enter still bookmarks docs.
+    h.terminal.script(vec![down(), ch('l'), enter(), esc()]);
+    assert_eq!(edit(&h.ctx(), Some(&app), false), Ok(Outcome::Done));
+    assert_eq!(bookmarks_text(&h), format!("{app}/docs\n"));
+    assert_eq!(expanded_text(&h), "");
+}
+
+// FR-EDIT-12: h and l do what the left and right arrows do, with the same expand state and selection
+#[test]
+fn h_and_l_match_the_arrow_keys() {
+    let arrows = run_edit(
+        "tui_edit-hl-arrows",
+        vec![down(), down(), right(), down(), left(), enter(), esc()],
+    );
+    let letters = run_edit(
+        "tui_edit-hl-letters",
+        vec![down(), down(), ch('l'), down(), ch('h'), enter(), esc()],
+    );
+    assert_eq!(arrows.0, "<app>/src\n", "the arrows bookmark src");
+    assert_eq!(letters, arrows);
+}
+
+// FR-EDIT-12: j and k still move the selection in the edit window
+#[test]
+fn j_and_k_still_move_the_selection() {
+    let (down_twice, _, _) = run_edit("tui_edit-jk-j", vec![ch('j'), ch('j'), enter(), esc()]);
+    assert_eq!(down_twice, "<app>/src\n");
+    let (up_again, _, _) = run_edit(
+        "tui_edit-jk-k",
+        vec![ch('j'), ch('j'), ch('k'), enter(), esc()],
+    );
+    assert_eq!(up_again, "<app>/docs\n");
+}

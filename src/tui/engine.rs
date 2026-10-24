@@ -90,6 +90,11 @@ fn event_loop<T: Clone>(
         let Some(input) = term.poll(POLL_INTERVAL).map_err(terminal_error)? else {
             continue;
         };
+        // ctrl-c always closes the picker, even with the edit window's search bar open (FR-EDIT-13): escape only
+        // closes the bar, and both keys are the same action in the map.
+        if keys::is_interrupt_key(&input) {
+            return Ok(PickerResult::Cancelled);
+        }
         // A resize needs no action: the next draw takes the new size (FR-TUI-05).
         let Some(action) = keys::map(&input) else {
             continue;
@@ -178,8 +183,9 @@ fn draw<T>(
 ) -> io::Result<()> {
     term.draw(&mut |frame: &mut Frame| {
         let area = frame.area();
-        // The edit window has no prompt row (architecture 6.2), so its list gets one more row.
-        let no_prompt = usize::from(model.chrome().search_column.is_none());
+        // The edit window has no prompt row unless its search bar is open or a match is kept (architecture 6.2),
+        // so its list gets one more row without it.
+        let no_prompt = usize::from(!model.has_prompt());
         model.set_list_height(picker::list_height(area.height) + no_prompt);
         render::draw(model, area, frame, color);
     })

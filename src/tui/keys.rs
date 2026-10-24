@@ -30,6 +30,19 @@ pub enum Action {
     DeleteNode,
 }
 
+/// FR-TUI-07: whether the input is ctrl-c. It cancels the picker whatever the picker state; escape is the same action
+/// but only closes an open search bar (FR-EDIT-13).
+pub fn is_interrupt_key(input: &Input) -> bool {
+    match input {
+        Input::Key(key) => {
+            key.kind != KeyEventKind::Release
+                && key.modifiers.contains(KeyModifiers::CONTROL)
+                && key.code == KeyCode::Char('c')
+        }
+        Input::Resize(..) => false,
+    }
+}
+
 /// FR-TUI-03, FR-TUI-07: maps one input event to an action. Resizes map to nothing.
 pub fn map(input: &Input) -> Option<Action> {
     match input {

@@ -489,6 +489,11 @@ pub const EDIT_WINDOW_FOOTER: &str = "enter toggle bookmark · →/^l open · �
 /// FR-EDIT-01, architecture 6.2: the column title of the directory tree in the bookmark edit window.
 pub const HEADER_DIRECTORY: &str = "Directory";
 
+/// FR-EDIT-13, P-53, architecture 8.3 [new]: the prompt of the search bar in the bookmark edit window.
+pub fn edit_search_prompt() -> &'static str {
+    "/"
+}
+
 /// FR-TREE-11, architecture 6.2: the border label of the bookmark tree window.
 pub const BOOKMARK_TREE_LABEL: &str = "Bookmark tree";
 

@@ -430,7 +430,7 @@ have no FR-IDs state why.
 - branch: slice/S-28-vim-navigation
 
 ### S-29 Bookmark tree shows session and profile; edit window hjkl and search
-- status: in-progress
+- status: done
 - deps: S-19, S-21, S-22, S-28
 - FR-IDs: FR-TREE-13 and FR-EDIT-12, FR-EDIT-13 (proposed in docs/proposals.md P-53; not yet in requirements.md). They supersede D-15 (no type-to-filter in the edit window) for the search part.
 - scope: src/app/pickers.rs (bookmark tree rows and the edit window handler), src/tui/keys.rs and src/tui/picker.rs (h, l and / in the edit window), src/tui/render.rs (session and profile columns on tree rows, the search bar), src/messages.rs (search prompt text is a new [new] message, via proposal)
