@@ -7,7 +7,7 @@
 
 mod support;
 
-use ledge::app::actions::{kill, rebuild};
+use ledge::app::actions::{delete_node_bookmarks, kill, kill_node, rebuild, rebuild_node};
 use ledge::app::build::ensure_session;
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
@@ -15,6 +15,8 @@ use ledge::domain::profile::{Profile, ProfileName};
 use ledge::domain::profile_rules::ProfileOpt;
 use ledge::error::{LedgeError, Outcome};
 use ledge::ports::backend::{NewSession, SessionBackend, OPT_DIR, OPT_MANAGED, OPT_PROFILE};
+use std::fs;
+use std::path::PathBuf;
 use support::ctx::Harness;
 use support::fake_backend::FakeBackend;
 
@@ -516,4 +518,150 @@ fn rebuild_of_another_session_inside_tmux_is_a_plain_rebuild() {
     );
     assert_eq!(windows(&h, &lib_name), expected(&[("Terminal", &[])]));
     assert_eq!(h.backend.current_session(), Ok(Some(lib_name.clone())));
+}
+
+/// The profile file text of the fresh profile used after a profile file is edited (FR-PROF-08).
+const FRESH: &str = r#"{"windows": [{"name": "fresh"}]}"#;
+
+/// A managed session of `dir` with the profile `name` (`DEV`, `WEB` or `FRESH`), as the open flow records it.
+fn managed_with(h: &Harness, dir: &AbsPath, name: &str, text: &str) {
+    build_managed(h, dir, &profile_of(name, text));
+}
+
+/// The session names of the nodes of these tests: `app` holds `app/api`; `lib` is outside.
+struct Node {
+    app: AbsPath,
+    api: AbsPath,
+    lib: AbsPath,
+}
+
+/// Three managed sessions: `app` (dev), `app/api` (web) under the node, and `lib` (dev) outside it. The dev
+/// profile file is then rewritten, so a rebuild shows whether it applied the current file (FR-PROF-08).
+fn node_fixture(h: &mut Harness) -> Node {
+    h.write_profile("dev", DEV);
+    h.write_profile("web", WEB);
+    let app = dir_of(h, "app");
+    let api = AbsPath::clean(&format!("{}/api", app.as_str()), &AbsPath::root());
+    let lib = dir_of(h, "lib");
+    managed_with(h, &app, "dev", DEV);
+    managed_with(h, &api, "web", WEB);
+    managed_with(h, &lib, "dev", DEV);
+    h.write_profile("dev", FRESH);
+    Node { app, api, lib }
+}
+
+/// The bookmarks file in the cache folder.
+fn bookmarks_file(h: &Harness) -> PathBuf {
+    PathBuf::from(h.dirs.cache.as_str()).join("bookmarks")
+}
+
+// FR-ACT-08: alt-r rebuilds each session under the node with the profile recorded on it; the one outside is untouched
+#[test]
+fn node_rebuild_uses_each_recorded_profile_and_leaves_outside_sessions_alone() {
+    let mut h = Harness::new("component_actions-node-rebuild");
+    let n = node_fixture(&mut h);
+    rebuild_node(&h.ctx(), &n.app, &ProfileOpt::Unset).expect("node rebuild");
+    assert_eq!(
+        windows(&h, &session_name(&n.app)),
+        expected(&[("fresh", &[])])
+    );
+    assert_eq!(
+        windows(&h, &session_name(&n.api)),
+        expected(&[("server", &["npm start"]), ("logs", &[])])
+    );
+    assert_eq!(
+        windows(&h, &session_name(&n.lib)),
+        expected(&[("editor", &["nvim"]), ("shell", &[])])
+    );
+}
+
+// FR-ACT-09: alt-p rebuilds every session under the node with the one profile chosen, and records it
+#[test]
+fn node_profile_rebuilds_every_session_under_the_node_with_the_chosen_profile() {
+    let mut h = Harness::new("component_actions-node-profile");
+    let n = node_fixture(&mut h);
+    rebuild_node(&h.ctx(), &n.app, &ProfileOpt::Named("web".to_string())).expect("node profile");
+    for dir in [&n.app, &n.api] {
+        let name = session_name(dir);
+        assert_eq!(
+            windows(&h, &name),
+            expected(&[("server", &["npm start"]), ("logs", &[])])
+        );
+        assert_eq!(h.backend.option(&name, OPT_PROFILE).as_deref(), Some("web"));
+    }
+    assert_eq!(
+        windows(&h, &session_name(&n.lib)),
+        expected(&[("editor", &["nvim"]), ("shell", &[])])
+    );
+}
+
+// FR-ACT-07: the session the user is in is not rebuilt by an alt-key action; the others under the node are
+#[test]
+fn node_rebuild_never_touches_the_session_the_user_is_in() {
+    let mut h = Harness::new("component_actions-node-rebuild-current");
+    let n = node_fixture(&mut h);
+    be_inside(&mut h, &session_name(&n.app));
+    rebuild_node(&h.ctx(), &n.app, &ProfileOpt::Unset).expect("node rebuild");
+    assert_eq!(
+        windows(&h, &session_name(&n.app)),
+        expected(&[("editor", &["nvim"]), ("shell", &[])])
+    );
+    assert_eq!(
+        windows(&h, &session_name(&n.api)),
+        expected(&[("server", &["npm start"]), ("logs", &[])])
+    );
+}
+
+// FR-ACT-06, FR-ACT-13: alt-x kills the managed sessions under the node; the one outside and unmanaged ones stay
+#[test]
+fn node_kill_removes_managed_sessions_under_the_node_only() {
+    let mut h = Harness::new("component_actions-node-kill");
+    let n = node_fixture(&mut h);
+    let stray = format!("{}/stray", n.app.as_str());
+    h.backend
+        .create_session(&NewSession {
+            name: "stray-0000".to_string(),
+            dir: stray,
+            window_name: "Terminal".to_string(),
+        })
+        .expect("unmanaged session");
+    kill_node(&h.ctx(), &n.app).expect("node kill");
+    assert!(!exists(&h, &session_name(&n.app)));
+    assert!(!exists(&h, &session_name(&n.api)));
+    assert!(exists(&h, &session_name(&n.lib)));
+    assert!(exists(&h, "stray-0000"));
+}
+
+// FR-ACT-07: alt-x never kills the session the user is in, even when it is under the node
+#[test]
+fn node_kill_spares_the_session_the_user_is_in() {
+    let mut h = Harness::new("component_actions-node-kill-current");
+    let n = node_fixture(&mut h);
+    be_inside(&mut h, &session_name(&n.api));
+    kill_node(&h.ctx(), &n.app).expect("node kill");
+    assert!(!exists(&h, &session_name(&n.app)));
+    assert!(exists(&h, &session_name(&n.api)));
+    assert!(exists(&h, &session_name(&n.lib)));
+}
+
+// FR-ACT-10 (service part of alt-d): every bookmark under the node is deleted and the managed sessions of those
+// bookmarks are killed; a bookmark outside the node and its session stay
+#[test]
+fn node_delete_removes_bookmarks_under_the_node_and_kills_their_sessions() {
+    let mut h = Harness::new("component_actions-node-delete");
+    let n = node_fixture(&mut h);
+    let lib_child = format!("{}/x", n.lib.as_str());
+    fs::create_dir_all(PathBuf::from(&lib_child)).expect("lib child");
+    fs::create_dir_all(PathBuf::from(h.dirs.cache.as_str())).expect("cache folder");
+    fs::write(
+        bookmarks_file(&h),
+        format!("{}\n{}\n{}\n", n.app.as_str(), n.api.as_str(), lib_child),
+    )
+    .expect("write bookmarks");
+    delete_node_bookmarks(&h.ctx(), &n.app).expect("node delete");
+    let text = fs::read_to_string(bookmarks_file(&h)).expect("bookmarks");
+    assert_eq!(text.trim(), lib_child);
+    assert!(!exists(&h, &session_name(&n.app)));
+    assert!(!exists(&h, &session_name(&n.api)));
+    assert!(exists(&h, &session_name(&n.lib)));
 }

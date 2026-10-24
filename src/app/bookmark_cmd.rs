@@ -120,9 +120,10 @@ pub fn edit(ctx: &Ctx<'_>, dir: Option<&str>, session_scope: bool) -> Result<Out
     let model = PickerModel::new(rows, edit_chrome(&project.name));
     match run_in_terminal(ctx, model, &mut handler)? {
         PickerResult::Closed(outcome) => Ok(outcome),
-        PickerResult::Cancelled | PickerResult::Chosen(_) | PickerResult::Profile(_) => {
-            Ok(Outcome::Done)
-        }
+        PickerResult::Cancelled
+        | PickerResult::Chosen(_)
+        | PickerResult::Profile(_)
+        | PickerResult::ProfileNode(_) => Ok(Outcome::Done),
     }
 }
 

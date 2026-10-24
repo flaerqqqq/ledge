@@ -2,6 +2,7 @@
 //! FR-ACT-12, FR-ACT-13, FR-PROF-14, FR-PROF-15, D-04, D-13, D-14, D-17, A-07). The pickers and the tree actions call
 //! these services; the messages are the ones of `messages`. Only the ports in `Ctx` are used.
 
+use crate::app::bookmark_cmd::{read_bookmarks, write_bookmarks};
 use crate::app::build::build_session;
 use crate::app::open::{attach_error, inside_tmux};
 use crate::app::pickers::backend_fatal;
@@ -10,7 +11,9 @@ use crate::domain::naming::session_name;
 use crate::domain::path::AbsPath;
 use crate::domain::profile::Profile;
 use crate::domain::profile_rules::{rebuild_profile, ProfileOpt, RebuildProfile};
-use crate::domain::sessions::SessionInfo;
+use crate::domain::sessions::{
+    group_members, managed, session_directory, ManagedSession, SessionInfo,
+};
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::ports::backend::BackendError;
@@ -101,6 +104,107 @@ fn rebuild_current(ctx: &Ctx<'_>, name: &str, dir: &AbsPath, profile: &Profile) 
         .rename_session(&copy, name)
         .map_err(|error| rename_error(&copy, name, error))?;
     Ok(Outcome::Done)
+}
+
+/// FR-ACT-06, FR-ACT-08, FR-ACT-09, FR-ACT-07, A-38: rebuilds every managed session under `node` (the directory of the
+/// tree row, FR-SCOPE-02). `option` is `Unset` for alt-r, so each session keeps the profile recorded on it; alt-p passes
+/// the one profile chosen. The session the user is in is skipped. Every session is tried; the first failure is returned.
+pub fn rebuild_node(ctx: &Ctx<'_>, node: &AbsPath, option: &ProfileOpt) -> Result<()> {
+    let current = current_session(ctx)?;
+    let mut first = None;
+    for (name, dir) in node_sessions(ctx, node)? {
+        if never_touch_current(&name, current.as_deref()) {
+            continue;
+        }
+        if let Err(error) = rebuild(ctx, &dir, option) {
+            first.get_or_insert(error);
+        }
+    }
+    first.map_or(Ok(()), Err)
+}
+
+/// FR-ACT-06, FR-ACT-07: kills every managed session under `node`, except the session the user is in. Every session is
+/// tried; the first failure is returned.
+pub fn kill_node(ctx: &Ctx<'_>, node: &AbsPath) -> Result<()> {
+    let current = current_session(ctx)?;
+    let mut first = None;
+    for (name, _) in node_sessions(ctx, node)? {
+        if never_touch_current(&name, current.as_deref()) {
+            continue;
+        }
+        if let Err(error) = ctx
+            .backend
+            .kill_session(&name)
+            .map_err(|error| kill_error(&name, error))
+        {
+            first.get_or_insert(error);
+        }
+    }
+    first.map_or(Ok(()), Err)
+}
+
+/// FR-ACT-10 (alt-d), FR-ACT-07: deletes every bookmark under `node` and kills the managed sessions of those
+/// directories, except the session the user is in. Nothing is written when no bookmark is under the node.
+pub fn delete_node_bookmarks(ctx: &Ctx<'_>, node: &AbsPath) -> Result<()> {
+    let mut bookmarks = read_bookmarks(ctx)?;
+    let inside: Vec<AbsPath> = bookmarks
+        .entries()
+        .iter()
+        .filter(|dir| dir.is_inside(node))
+        .cloned()
+        .collect();
+    if inside.is_empty() {
+        return Ok(());
+    }
+    for dir in &inside {
+        bookmarks.remove(dir);
+    }
+    write_bookmarks(ctx, &bookmarks)?;
+    let current = current_session(ctx)?;
+    let live: Vec<String> = list_sessions(ctx)?
+        .into_iter()
+        .filter(|session| session.managed)
+        .map(|session| session.name)
+        .collect();
+    let mut first = None;
+    for dir in &inside {
+        let name = session_name(dir);
+        if !live.contains(&name) || never_touch_current(&name, current.as_deref()) {
+            continue;
+        }
+        if let Err(error) = ctx
+            .backend
+            .kill_session(&name)
+            .map_err(|error| kill_error(&name, error))
+        {
+            first.get_or_insert(error);
+        }
+    }
+    first.map_or(Ok(()), Err)
+}
+
+/// FR-SCOPE-02, A-37: the managed sessions whose directory is `node` or inside it, as (session name, directory). A
+/// session whose name is not the name of its directory is left out: rebuild finds sessions by directory name (D-14).
+fn node_sessions(ctx: &Ctx<'_>, node: &AbsPath) -> Result<Vec<(String, AbsPath)>> {
+    let sessions: Vec<ManagedSession> = ctx
+        .backend
+        .list_sessions()
+        .map(managed)
+        .map_err(backend_fatal)?;
+    let infos: Vec<&SessionInfo> = sessions.iter().map(ManagedSession::info).collect();
+    let dirs: Vec<Option<AbsPath>> = infos
+        .iter()
+        .map(|info| session_directory(info).map(|text| AbsPath::clean(text, &ctx.cwd)))
+        .collect();
+    let members = group_members(node, &dirs)
+        .into_iter()
+        .filter_map(|index| {
+            let info = infos.get(index)?;
+            let dir = dirs.get(index)?.clone()?;
+            (session_name(&dir) == info.name).then(|| (info.name.clone(), dir))
+        })
+        .collect();
+    Ok(members)
 }
 
 /// FR-PROF-14, FR-PROF-15, FR-ACT-12, D-04, D-13: loads the profile a rebuild uses. A recorded profile that cannot be

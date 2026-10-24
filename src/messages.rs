@@ -459,6 +459,20 @@ pub const EDIT_WINDOW_FOOTER: &str = "enter toggle bookmark · →/^l open · �
 /// FR-EDIT-01, architecture 6.2: the column title of the directory tree in the bookmark edit window.
 pub const HEADER_DIRECTORY: &str = "Directory";
 
+/// FR-TREE-11, architecture 6.2: the border label of the bookmark tree window.
+pub const BOOKMARK_TREE_LABEL: &str = "Bookmark tree";
+
+/// FR-SESS-06, architecture 6.2: the border label of the session tree window.
+pub const SESSION_TREE_LABEL: &str = "Session tree";
+
+/// Screens and interactions (given): the key footer of the bookmark tree window.
+pub const BOOKMARK_TREE_FOOTER: &str =
+    "enter open · ^r/^p/^x/^d selected · alt-r/alt-p/alt-x/alt-d whole node";
+
+/// Screens and interactions (given): the key footer of the session tree window.
+pub const SESSION_TREE_FOOTER: &str =
+    "enter open · ^r/^p/^x selected · alt-r/alt-p/alt-x whole node";
+
 /// Proposal P-39 [new, not yet accepted]: the edit window state file exists but cannot be read; error.
 pub fn could_not_read_edit_state(detail: &str) -> String {
     format!("could not read the bookmark edit state: {detail}")

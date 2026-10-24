@@ -350,7 +350,7 @@ have no FR-IDs state why.
 - branch: slice/21-edit-command
 
 ### S-22 Tree node actions (alt keys) and tree window behaviour
-- status: in-progress
+- status: done
 - deps: S-05, S-14, S-15
 - FR-IDs: FR-ACT-06, FR-ACT-08, FR-ACT-09, FR-TREE-12
 - scope: `app/actions.rs` (node actions over `domain/sessions.rs` node membership), tree picker wiring in `app/pickers.rs`, `tui/keys.rs` (alt keys).
@@ -362,7 +362,7 @@ have no FR-IDs state why.
 - branch: slice/22-node-actions
 
 ### S-23 Session tree command
-- status: blocked
+- status: in-progress
 - deps: S-22, S-11
 - FR-IDs: FR-SESS-08
 - scope: `app/session_cmd.rs` (`ss tree`), session tree screen (6.2, 6.3 table), `ss tree` in `cli` wiring.

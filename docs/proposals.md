@@ -407,3 +407,24 @@ Format:
 - change: the implementation shows the architecture text, which names the arrow keys as well as ctrl-l and ctrl-h, and matches D-15. The requirements text is kept unchanged. Only the user can pick one, so the text in `messages::EDIT_WINDOW_FOOTER` follows the architecture until the user decides.
 - why: the two documents disagree on the footer. D-15 and the architecture 6.2 table are the more specific ones, and the screen table is the one with the shorter key names.
 - status: Open
+
+### P-41 S-22 node actions and tree window: choices the spec leaves open
+- from: implementer / slice S-22
+- doc: requirements.md (FR-ACT-06..10, FR-TREE-11, FR-TREE-12, FR-SCOPE-02, Screens and interactions, Bookmark tree and session tree), docs/architecture.md (6.2, 6.3, 6.4) and docs/backlog.md (S-22, S-23, S-24)
+- change: the implementation makes these choices; the user may confirm or reverse each:
+  (a) alt-r, alt-p and alt-x skip the session the user is in silently. No status line is shown (D-17 gives the status line only for ctrl-x and ctrl-d on that row). FR-ACT-07 is met either way.
+  (b) A node action tries every session under the node. The first failure is the status line. Sessions are not skipped on failure.
+  (c) A managed session whose name is not `session_name` of its directory (an adopted session) is left out of node actions. Rebuild finds sessions by directory name (D-14), so acting on it could build a second session.
+  (d) alt-d on a bookmark node deletes every bookmark inside the node, the node itself included, and kills their managed sessions except the one the user is in. It is in the bookmark tree only (FR-ACT-10 is S-24).
+  (e) The tree windows bind ctrl-r, ctrl-p and ctrl-x only on rows with a session. ctrl-d (delete the selected bookmark, screen table) is not bound in the bookmark tree window yet; it belongs to S-24 with the bookmark tree command.
+  (f) The tree windows open every tree (`pickers::session_tree_picker`, `pickers::bookmark_tree_picker`). Scope selection (FR-TREE-05..08) and the commands `ss tree` and `bm tree` are S-23 and S-24.
+  (g) alt-r and alt-p with no managed session under the node do nothing and show no status line ("Node has sessions" in the screen table).
+- why: each choice is the smallest that passes tests/component_actions.rs (node tests) and tests/tui_trees.rs. None changes an accepted decision (D-12, D-14, D-17, A-37, A-38).
+- status: Open
+
+### P-42 S-22 engine: a step and a result for alt-p on a node
+- from: implementer / slice S-22
+- doc: docs/architecture.md (6.4 engine loop, `Step` and `PickerResult` description) and requirements.md (FR-ACT-09)
+- change: `tui::engine` gains `Step::ProfileNode` (returned by `act`) and `PickerResult::ProfileNode(T)`, the node version of the existing `Step::Profile` and `PickerResult::Profile`. The caller asks one profile and rebuilds every session under the row's node. The architecture 6.4 text does not list these variants; the file is not edited here, so the architecture is left as it is until the user accepts this change.
+- why: `Profile(T)` hands the row back for a one-session rebuild and carries no action, so the caller cannot tell alt-p from ctrl-p. Adding a variant is the smallest change that keeps the picker loop and the handler separate.
+- status: Open

@@ -6,7 +6,10 @@
 //! FR-ACT-12). ctrl-d deletes a bookmark and kills its session in the bookmark picker only (S-19, FR-BM-13, FR-ACT-11);
 //! the alt-key actions are not bound in these pickers.
 
-use crate::app::actions::{current_session, kill, never_touch_current, rebuild};
+use crate::app::actions::{
+    current_session, delete_node_bookmarks, kill, kill_node, never_touch_current, rebuild,
+    rebuild_node,
+};
 use crate::app::bookmark_cmd::{read_bookmarks, write_bookmarks};
 use crate::app::launch::Editor;
 use crate::app::load_projects;
@@ -23,6 +26,7 @@ use crate::domain::profile_rules::{
 use crate::domain::projects::{project_containing, project_rows, Project};
 use crate::domain::sessions::SessionInfo;
 use crate::domain::sessions::{managed, session_directory, switcher_order, ManagedSession};
+use crate::domain::tree::{bookmark_tree, session_tree, NodeKind, SessionDir, TreeRow};
 use crate::error::{LedgeError, Outcome, Result};
 use crate::messages;
 use crate::ports::backend::BackendError;
@@ -323,17 +327,7 @@ fn kill_row(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
 fn profile_then_rebuild(ctx: &Ctx<'_>, dir: &AbsPath) -> Result<Step> {
     let sessions = live_sessions(ctx)?;
     let current = live_session(&sessions, dir).and_then(|info| info.profile.clone());
-    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
-    let files = store::profile_files(ctx.fs, &ctx.dirs);
-    let choices = profile_choices(
-        &files,
-        current.as_deref(),
-        config.default_profile.as_deref(),
-    );
-    let rows: Vec<PickerRow<String>> = choices.iter().map(profile_row).collect();
-    let model = PickerModel::new(rows.clone(), profile_chrome());
-    let mut handler = ProfileHandler { rows };
-    match run_in_terminal(ctx, model, &mut handler)? {
+    match pick_profile(ctx, current.as_deref())? {
         PickerResult::Chosen(name) => Ok(match rebuild(ctx, dir, &ProfileOpt::Named(name)) {
             Ok(_) => Step::Continue {
                 status: None,
@@ -341,7 +335,9 @@ fn profile_then_rebuild(ctx: &Ctx<'_>, dir: &AbsPath) -> Result<Step> {
             },
             Err(error) => failed(error),
         }),
-        PickerResult::Cancelled | PickerResult::Profile(_) => Ok(no_action()),
+        PickerResult::Cancelled | PickerResult::Profile(_) | PickerResult::ProfileNode(_) => {
+            Ok(no_action())
+        }
         PickerResult::Closed(outcome) => Ok(Step::Close(outcome)),
     }
 }
@@ -362,13 +358,15 @@ fn run_dir_picker(
             PickerResult::Chosen(dir) => {
                 return open_dir_with_editor(ctx, Some(dir.as_str()), option, editor)
             }
-            PickerResult::Cancelled => return Ok(Outcome::Cancelled),
+            PickerResult::Cancelled | PickerResult::ProfileNode(_) => {
+                return Ok(Outcome::Cancelled)
+            }
             PickerResult::Closed(outcome) => return Ok(outcome),
             PickerResult::Profile(dir) => {
                 let status = match profile_then_rebuild(ctx, &dir)? {
                     Step::Close(outcome) => return Ok(outcome),
                     Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile | Step::ToParent => None,
+                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => None,
                 };
                 let rows = preselect_row(handler.reload()?, &dir);
                 model = PickerModel::new(rows, chrome);
@@ -398,6 +396,18 @@ fn preselect_row(mut rows: Vec<DirRow>, dir: &AbsPath) -> Vec<DirRow> {
         row.preselect = row.payload.as_str() == dir.as_str();
     }
     rows
+}
+
+/// FR-PROF-13, A-11: the nested profile picker. `current` is the profile of the session when there is one; the rows
+/// follow `profile_choices`. The result is the picker's, so the caller decides what the choice rebuilds.
+fn pick_profile(ctx: &Ctx<'_>, current: Option<&str>) -> Result<PickerResult<String>> {
+    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
+    let files = store::profile_files(ctx.fs, &ctx.dirs);
+    let choices = profile_choices(&files, current, config.default_profile.as_deref());
+    let rows: Vec<PickerRow<String>> = choices.iter().map(profile_row).collect();
+    let model = PickerModel::new(rows.clone(), profile_chrome());
+    let mut handler = ProfileHandler { rows };
+    run_in_terminal(ctx, model, &mut handler)
 }
 
 /// Enter and the keys of the profile picker. Ctrl and alt keys do nothing here, so the picker is never nested.
@@ -740,7 +750,9 @@ fn run_switcher(
         let chrome = model.chrome().clone();
         match run_in_terminal(ctx, model, handler)? {
             PickerResult::Chosen(name) => return attach_or_switch(ctx, &name),
-            PickerResult::Cancelled => return Ok(Outcome::Cancelled),
+            PickerResult::Cancelled | PickerResult::ProfileNode(_) => {
+                return Ok(Outcome::Cancelled)
+            }
             PickerResult::Closed(outcome) => return Ok(outcome),
             PickerResult::Profile(name) => {
                 let step = match session_directory_of(ctx, &name)? {
@@ -750,7 +762,7 @@ fn run_switcher(
                 let status = match step {
                     Step::Close(outcome) => return Ok(outcome),
                     Step::Continue { status, .. } => status,
-                    Step::Accept | Step::Profile | Step::ToParent => None,
+                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => None,
                 };
                 let rows = preselect_session(handler.reload()?, &name);
                 model = PickerModel::new(rows, chrome);
@@ -766,6 +778,215 @@ fn preselect_session(mut rows: Vec<PickerRow<String>>, name: &str) -> Vec<Picker
         row.preselect = row.payload == name;
     }
     rows
+}
+
+/// Which tree a tree window shows (architecture 6.2): the bookmark tree or the session tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TreeKind {
+    Bookmarks,
+    Sessions,
+}
+
+/// One row of a tree window: the tree row (path, kind, openable, session) is the payload.
+type TreeItem = PickerRow<TreeRow<NodeKind>>;
+
+/// FR-SESS-06..08, FR-TREE-11, FR-TREE-12, FR-ACT-06..09, D-12, S-22: runs the session tree over the managed sessions.
+/// Enter opens an openable entry; the alt keys act on the whole node. The window stays open when its list is empty.
+pub fn session_tree_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
+    run_tree_window(ctx, option, TreeKind::Sessions)
+}
+
+/// FR-TREE-05..08 (all trees), FR-TREE-11, FR-TREE-12, FR-ACT-06..10, D-12, S-22: runs the bookmark tree. Enter opens an
+/// openable entry; alt-d deletes the bookmarks under the node. The window stays open when its list is empty.
+pub fn bookmark_tree_picker(ctx: &Ctx<'_>, option: &ProfileOpt) -> Result<Outcome> {
+    run_tree_window(ctx, option, TreeKind::Bookmarks)
+}
+
+/// Runs a tree window. Enter opens the chosen entry after the terminal is restored; ctrl-p and alt-p ask a profile
+/// and reopen the window with the row selected.
+fn run_tree_window(ctx: &Ctx<'_>, option: &ProfileOpt, kind: TreeKind) -> Result<Outcome> {
+    let rows = tree_rows(ctx, kind)?;
+    let mut model = PickerModel::new(rows, tree_chrome(kind));
+    let mut handler = TreeHandler {
+        ctx,
+        option: option.clone(),
+        kind,
+    };
+    loop {
+        let chrome = model.chrome().clone();
+        match run_in_terminal(ctx, model, &mut handler)? {
+            PickerResult::Chosen(row) => {
+                return open_dir_with_editor(ctx, Some(row.path.as_str()), option, None)
+            }
+            PickerResult::Cancelled => return Ok(Outcome::Cancelled),
+            PickerResult::Closed(outcome) => return Ok(outcome),
+            PickerResult::Profile(row) => {
+                let status = match profile_then_rebuild(ctx, &row.path)? {
+                    Step::Close(outcome) => return Ok(outcome),
+                    Step::Continue { status, .. } => status,
+                    Step::Accept | Step::Profile | Step::ProfileNode | Step::ToParent => None,
+                };
+                let rows = preselect_tree_row(handler.reload()?, &row.path);
+                model = PickerModel::new(rows, chrome);
+                model.set_status(status);
+            }
+            PickerResult::ProfileNode(row) => {
+                // FR-ACT-09: one profile for every session under the node; escape changes nothing.
+                let status = match pick_profile(ctx, None)? {
+                    PickerResult::Chosen(name) => {
+                        let result = rebuild_node(ctx, &row.path, &ProfileOpt::Named(name));
+                        result.err().map(|error| error.to_string())
+                    }
+                    PickerResult::Closed(outcome) => return Ok(outcome),
+                    PickerResult::Cancelled
+                    | PickerResult::Profile(_)
+                    | PickerResult::ProfileNode(_) => None,
+                };
+                let rows = preselect_tree_row(handler.reload()?, &row.path);
+                model = PickerModel::new(rows, chrome);
+                model.set_status(status);
+            }
+        }
+    }
+}
+
+/// Architecture 6.2: the tree window chrome. The empty list says so and stays open (D-12, FR-TREE-12).
+fn tree_chrome(kind: TreeKind) -> Chrome {
+    let (label, icon, footer, empty) = match kind {
+        TreeKind::Bookmarks => (
+            messages::BOOKMARK_TREE_LABEL,
+            render::icon::BOOKMARKS,
+            messages::BOOKMARK_TREE_FOOTER,
+            messages::no_bookmarks(),
+        ),
+        TreeKind::Sessions => (
+            messages::SESSION_TREE_LABEL,
+            render::icon::SESSIONS,
+            messages::SESSION_TREE_FOOTER,
+            messages::no_ledge_sessions(),
+        ),
+    };
+    let mut chrome = Chrome::new(
+        label,
+        icon,
+        vec![
+            ColumnSpec::text(messages::HEADER_DIRECTORY),
+            ColumnSpec::text(messages::HEADER_SESSION),
+            ColumnSpec::text(messages::HEADER_PROFILE),
+        ],
+        footer,
+    );
+    chrome.empty_message = Some(empty.to_string());
+    chrome.stay_open_when_empty = true;
+    chrome
+}
+
+/// Rows of a tree window, built from the project list, the bookmarks or the managed sessions (A-13, A-37). Only the
+/// managed sessions with a directory are placed in the session tree (FR-SESS-06).
+fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind) -> Result<Vec<TreeItem>> {
+    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
+    let projects = load_projects(ctx.fs, &config.search_paths);
+    let sessions = live_sessions(ctx)?;
+    let rows = match kind {
+        TreeKind::Bookmarks => bookmark_tree(&projects, &read_bookmarks(ctx)?),
+        TreeKind::Sessions => session_tree(&projects, &session_dirs(ctx, &sessions)),
+    };
+    Ok(rows
+        .into_iter()
+        .map(|row| tree_item(ctx, &sessions, row))
+        .collect())
+}
+
+/// FR-SESS-06, A-37: the managed sessions with their directory (`@ledge_dir`, then tmux's path).
+fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
+    sessions
+        .iter()
+        .filter_map(|managed| {
+            let info = managed.info();
+            session_directory(info).map(|text| SessionDir {
+                name: info.name.clone(),
+                dir: AbsPath::clean(text, &ctx.cwd),
+            })
+        })
+        .collect()
+}
+
+/// One tree row as a picker row: the label is searched, the session and profile are shown, and a row that is not
+/// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08).
+fn tree_item(ctx: &Ctx<'_>, sessions: &[ManagedSession], row: TreeRow<NodeKind>) -> TreeItem {
+    let live = row.session.as_deref().and_then(|name| {
+        sessions
+            .iter()
+            .map(ManagedSession::info)
+            .find(|info| info.name == name)
+    });
+    let cells = vec![row.label.clone(), session_text(live), profile_text(live)];
+    let search = row.label.clone();
+    let depth = row.depth;
+    let connector = !row.openable;
+    let dimmed = !ctx.fs.is_dir(Path::new(row.path.as_str()));
+    let mut item = PickerRow::new(cells, &search, row);
+    item.depth = depth;
+    item.connector = connector;
+    item.dimmed = dimmed;
+    item
+}
+
+/// Selects the tree row of `path` again after a nested picker (the first row with that path).
+fn preselect_tree_row(mut rows: Vec<TreeItem>, path: &AbsPath) -> Vec<TreeItem> {
+    for row in rows.iter_mut() {
+        row.preselect = row.payload.path == *path;
+    }
+    rows
+}
+
+/// Enter, the ctrl keys on a row with a session, and the alt keys of the tree window (architecture 6.4).
+struct TreeHandler<'c, 'a> {
+    ctx: &'c Ctx<'a>,
+    option: ProfileOpt,
+    kind: TreeKind,
+}
+
+impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
+    /// FR-TREE-11: enter opens an openable entry; a gray connector does nothing.
+    fn choose(&mut self, row: &TreeRow<NodeKind>) -> Step {
+        if !row.openable {
+            return no_action();
+        }
+        choose_dir(self.ctx, &row.path)
+    }
+
+    fn act(&mut self, action: Action, row: Option<&TreeRow<NodeKind>>) -> Step {
+        let Some(row) = row else {
+            return no_action();
+        };
+        match action {
+            // The ctrl keys act on the selected session only (FR-TUI-07, architecture 6.3).
+            Action::Rebuild | Action::Kill | Action::Profile if row.session.is_some() => {
+                dir_action(self.ctx, &self.option, action, Some(&row.path))
+            }
+            // FR-ACT-08: alt-r ignores the --profile option, so each session keeps its recorded profile (A-38).
+            Action::RebuildNode => node_step(rebuild_node(self.ctx, &row.path, &ProfileOpt::Unset)),
+            Action::KillNode => node_step(kill_node(self.ctx, &row.path)),
+            Action::ProfileNode => Step::ProfileNode,
+            Action::DeleteNode if self.kind == TreeKind::Bookmarks => {
+                node_step(delete_node_bookmarks(self.ctx, &row.path))
+            }
+            _ => no_action(),
+        }
+    }
+
+    fn reload(&mut self) -> Result<Vec<TreeItem>> {
+        tree_rows(self.ctx, self.kind)
+    }
+}
+
+/// The step of a node action: the list is read again, and a failure is its message in the status line.
+fn node_step(result: Result<()>) -> Step {
+    Step::Continue {
+        status: result.err().map(|error| error.to_string()),
+        reload: true,
+    }
 }
 
 /// Architecture 4: a backend failure as the fatal text of the picker. A missing tmux keeps its own message

@@ -33,6 +33,9 @@ pub enum Step {
     /// ctrl-p on a row (S-15, FR-ACT-04): the picker returns the row as `PickerResult::Profile`, so the caller can
     /// run the profile picker for it and open this picker again. Only meaningful from `act`.
     Profile,
+    /// alt-p on a tree node (S-22, FR-ACT-09): the picker returns the node row as `PickerResult::ProfileNode`, so the
+    /// caller asks one profile and rebuilds every session under the node. Only meaningful from `act`.
+    ProfileNode,
 }
 
 /// What the picker returned. `Closed` carries the outcome of an interrupt or a handler `Close`.
@@ -43,6 +46,8 @@ pub enum PickerResult<T> {
     Closed(Outcome),
     /// ctrl-p on this row: the caller picks a profile for it and then reopens the picker.
     Profile(T),
+    /// alt-p on this node row: the caller picks one profile for every session under it, then reopens the picker.
+    ProfileNode(T),
 }
 
 /// The caller's side of a picker: what enter, actions and reloads do (architecture 6.4).
@@ -120,6 +125,8 @@ fn handle<T: Clone>(
                 (Step::Accept, None) => Ok(Some(PickerResult::Cancelled)),
                 (Step::Profile, Some(payload)) => Ok(Some(PickerResult::Profile(payload))),
                 (Step::Profile, None) => Ok(None),
+                (Step::ProfileNode, Some(payload)) => Ok(Some(PickerResult::ProfileNode(payload))),
+                (Step::ProfileNode, None) => Ok(None),
                 (other, _) => apply_step(model, handler, other),
             }
         }
@@ -148,7 +155,7 @@ fn apply_step<T: Clone>(
         Step::Accept => Ok(Some(PickerResult::Cancelled)),
         Step::Close(outcome) => Ok(Some(PickerResult::Closed(outcome))),
         // Only `act` returns Profile, and `handle` answers it with the row; here there is no row to hand back.
-        Step::Profile => Ok(None),
+        Step::Profile | Step::ProfileNode => Ok(None),
         Step::ToParent => {
             model.select_parent();
             Ok(None)
