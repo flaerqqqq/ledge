@@ -484,7 +484,7 @@ have no FR-IDs state why.
 - branch: slice/S-37-theme-and-render
 
 ### S-38 Picker behaviour from the design (current mark, missing cue, no-op messages, tree glyphs)
-- status: in-progress
+- status: done
 - deps: S-37
 - FR-IDs: FR-TUI-08, FR-TUI-09, FR-PICK-05 (current mark), FR-TREE-02 (glyphs) with proposal P-59; design sections 3, 4.5, 4.4, 9 step 4 a-e
 - scope: src/app/pickers.rs (switcher and tree missing column, current mark, empty footer, no-op messages), src/tui/render.rs (tree branch glyphs ├─ └─ │ in the tree column; session_active, session_none and "(no session)" colouring from row state), src/messages.rs (P-59 texts only)

@@ -830,3 +830,18 @@ fn doctor_profile_bookmark_and_session_lines_are_verbatim() {
         "sessions not checked (tmux is not installed)"
     );
 }
+
+// Proposal P-59, Messages: the status texts of keys with no effect, and the footer of an empty window
+#[test]
+fn p59_texts_are_verbatim() {
+    assert_eq!(messages::EMPTY_WINDOW_FOOTER, "esc close");
+    assert_eq!(messages::NO_SESSION_ON_ROW, "No session on this row.");
+    assert_eq!(
+        messages::NOTHING_TO_OPEN_ON_ROW,
+        "Nothing to open on this row."
+    );
+    assert_eq!(
+        messages::ONLY_BOOKMARK_CAN_BE_DELETED,
+        "Only a bookmark can be deleted."
+    );
+}

@@ -6,7 +6,7 @@
 use crate::messages;
 use crate::tui::columns::{self, ColumnSpec, Cut, GAP};
 use crate::tui::fuzzy;
-use crate::tui::picker::{Chrome, PickerModel, PickerRow};
+use crate::tui::picker::{Chrome, PickerModel, PickerRow, SessionCell};
 use crate::tui::theme::{Theme, Token};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -150,7 +150,12 @@ pub fn draw<T>(model: &PickerModel<T>, area: Rect, frame: &mut Frame, theme: &Th
     frame.render_widget(Paragraph::new(Line::from(status_line)), status);
 
     // Footer: whole key pairs are dropped from the end when too wide (design 4.2); keys in text, labels in text_muted.
-    let footer_text = columns::fit_pairs(&chrome.footer, usize::from(inner.width));
+    // A window with no rows may have its own footer (design 3.2: `esc close`, P-59).
+    let footer_source = match (&chrome.empty_footer, model.rows().is_empty()) {
+        (Some(empty), true) => empty.as_str(),
+        _ => chrome.footer.as_str(),
+    };
+    let footer_text = columns::fit_pairs(footer_source, usize::from(inner.width));
     frame.render_widget(
         Paragraph::new(footer_line(&footer_text, theme, color)),
         footer,
@@ -211,16 +216,69 @@ fn cell_parts<T>(row: &PickerRow<T>, column: usize, chrome: &Chrome) -> (String,
     let mut prefix = String::new();
     let mut suffix = String::new();
     if chrome.tree_column == Some(column) {
-        prefix.push_str(&"  ".repeat(row.depth));
+        // The lead (mark and branch glyphs) or the plain indent of two cells per depth (design 3.6, 3.8).
+        match &row.lead {
+            Some(lead) => prefix.push_str(lead),
+            None => prefix.push_str(&"  ".repeat(row.depth)),
+        }
         if row.connector {
             prefix.push('(');
             suffix.push(')');
         }
     }
-    if row.dimmed && chrome.missing_column == Some(column) {
+    if row.missing && chrome.missing_column == Some(column) {
         suffix.push_str(" (missing)");
     }
     (prefix, raw, suffix)
+}
+
+/// Branch glyphs of a tree, one lead per row, two cells per level (design 3.6, 3.8, section 8 item 11). `depths` are the
+/// depths of the rows in tree order. Each level above the row shows `│` while its ancestor has later siblings and
+/// blank otherwise; the row's own level shows `├─` or `└─` (its last sibling). With `unicode` false, the ASCII set of
+/// design section 7 (`|-`, `` `- ``, `| `) is used.
+pub fn tree_guides(depths: &[usize], unicode: bool) -> Vec<String> {
+    let (middle, last, pipe) = if unicode {
+        ("├─", "└─", "│ ")
+    } else {
+        ("|-", "`-", "| ")
+    };
+    let blank = "  ";
+    // `is_last[i]`: no later row of the same depth or deeper before a row shallower than row i.
+    let is_last: Vec<bool> = (0..depths.len())
+        .map(|i| {
+            let depth = depths[i];
+            match depths[i + 1..].iter().find(|&&later| later <= depth) {
+                None => true,
+                Some(&later) => later < depth,
+            }
+        })
+        .collect();
+    (0..depths.len())
+        .map(|i| {
+            let depth = depths[i];
+            let mut lead = String::new();
+            // The ancestor of row i at each level 1..depth; level 0 has no glyph.
+            let mut ancestors = Vec::new();
+            let mut level = depth;
+            for above in (0..i).rev() {
+                if level <= 1 {
+                    break;
+                }
+                if depths[above] == level - 1 {
+                    ancestors.push(above);
+                    level -= 1;
+                }
+            }
+            ancestors.reverse();
+            for &ancestor in &ancestors {
+                lead.push_str(if is_last[ancestor] { blank } else { pipe });
+            }
+            if depth > 0 {
+                lead.push_str(if is_last[i] { last } else { middle });
+            }
+            lead
+        })
+        .collect()
 }
 
 fn list_lines<T>(
@@ -303,8 +361,11 @@ fn row_line<T>(
             } else {
                 &[]
             };
-            let base = cell_style(row, column, spec, theme, color);
-            cell_spans(row, column, spec, width, base, matched, highlight, chrome)
+            let base = cell_style(row, column, spec, chrome, theme, color);
+            let mark = paint(theme, Token::Accent, color);
+            cell_spans(
+                row, column, spec, width, base, matched, mark, highlight, chrome,
+            )
         })
         .collect();
     let mut spans = vec![if selected {
@@ -343,13 +404,19 @@ fn cell_style<T>(
     row: &PickerRow<T>,
     column: usize,
     spec: &ColumnSpec,
+    chrome: &Chrome,
     theme: &Theme,
     color: bool,
 ) -> Style {
+    let session_cell = chrome.session_column == Some(column);
     let token = if row.connector {
         Token::Connector
+    } else if session_cell && row.session_cell == SessionCell::NoSession {
+        Token::SessionNone
     } else if row.dimmed {
         Token::Missing
+    } else if session_cell && row.session_cell == SessionCell::Live {
+        Token::SessionActive
     } else if spec.cut == Cut::Start {
         // A path column (design 6.1 `path`).
         Token::Path
@@ -386,10 +453,21 @@ fn cell_spans<T>(
     width: usize,
     base: Style,
     matched: Style,
+    mark: Style,
     highlight: &[usize],
     chrome: &Chrome,
 ) -> Vec<Span<'static>> {
     let (prefix, raw, suffix) = cell_parts(row, column, chrome);
+    // The current mark of a session cell is the accent token, as the project picker's `*` (design 3.5).
+    let lead_spans = |prefix: String| -> Vec<Span<'static>> {
+        match prefix.strip_prefix('*') {
+            Some(rest) => vec![
+                Span::styled("*".to_string(), base.patch(mark)),
+                Span::styled(rest.to_string(), base),
+            ],
+            None => vec![Span::styled(prefix, base)],
+        }
+    };
     let chars: Vec<char> = raw.chars().collect();
     let char_style = |index: usize| {
         if highlight.contains(&index) {
@@ -400,7 +478,7 @@ fn cell_spans<T>(
     };
     let whole = columns::width(&prefix) + columns::width(&raw) + columns::width(&suffix);
     if whole <= width {
-        let mut spans = vec![Span::styled(prefix, base)];
+        let mut spans = lead_spans(prefix);
         spans.extend(
             chars
                 .iter()
@@ -426,7 +504,7 @@ fn cell_spans<T>(
             base,
         )];
     };
-    let mut spans = vec![Span::styled(prefix, base)];
+    let mut spans = lead_spans(prefix);
     spans.extend(
         (0..kept.head).map(|index| Span::styled(chars[index].to_string(), char_style(index))),
     );
@@ -476,5 +554,21 @@ mod tests {
     fn dumb_terminal_turns_color_off() {
         assert!(!color_enabled(None, Some("dumb")));
         assert!(color_enabled(None, None));
+    }
+
+    // design 3.6, section 8 item 11: branch glyphs, the last sibling closes the branch, `│` runs past a row with later
+    // siblings, two cells per level
+    #[test]
+    fn tree_guides_draw_branches_per_level() {
+        let depths = [0, 1, 2, 1, 0, 1];
+        assert_eq!(
+            tree_guides(&depths, true),
+            vec!["", "├─", "│ └─", "└─", "", "└─"]
+        );
+        // section 7: the ASCII fallback has the same shape
+        assert_eq!(
+            tree_guides(&depths, false),
+            vec!["", "|-", "| `-", "`-", "", "`-"]
+        );
     }
 }

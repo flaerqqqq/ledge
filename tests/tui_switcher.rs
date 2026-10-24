@@ -481,3 +481,52 @@ fn profile_key_then_choice_rebuilds_the_session_with_that_profile() {
         Some("dev".to_string())
     );
 }
+
+// FR-TUI-08, design 3.2, 3.5: a session whose directory is gone shows the (missing) cue in the Project column
+#[test]
+fn session_with_a_missing_directory_shows_the_cue_in_the_project_column() {
+    let h = Harness::new("tui_switcher-missing-cue");
+    search_config(&h);
+    let gone = h.project("gone");
+    let name = managed(&h, &gone, FIXED_NOW - 60);
+    fs::remove_dir_all(&gone).expect("remove the directory");
+    h.terminal.script(vec![esc()]);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    assert!(line_with(&lines, &name).contains("(missing)"), "{lines:#?}");
+}
+
+// FR-PICK-05, FR-SESS-02, design 3.5: the session the user is in has a leading * on its name, as the project picker
+// marks the current directory; the others have none
+#[test]
+fn current_session_name_has_a_leading_star() {
+    let mut h = Harness::new("tui_switcher-current-star");
+    search_config(&h);
+    inside_tmux(&mut h);
+    let a = h.project("alpha");
+    let b = h.project("bravo");
+    let alpha = managed(&h, &a, FIXED_NOW - 900);
+    let bravo = managed(&h, &b, FIXED_NOW - 500);
+    h.backend.set_current(&bravo);
+    h.terminal.script(vec![esc()]);
+    session_switcher(&h.ctx()).expect("switcher runs");
+    let lines = screen(&h);
+    assert!(line_with(&lines, &bravo).contains(&format!("*{bravo}")));
+    assert!(!line_with(&lines, &alpha).contains('*'));
+}
+
+// design 3.2, 4.2 (P-59): an empty switcher shows only "esc close" in its footer and stays open
+#[test]
+fn empty_switcher_footer_is_esc_close() {
+    let h = {
+        let h = Harness::new("tui_switcher-empty-footer");
+        search_config(&h);
+        unmanaged(&h, "stray-1234");
+        h.terminal.script(vec![esc()]);
+        h
+    };
+    assert_eq!(session_switcher(&h.ctx()), Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    assert!(lines.iter().any(|line| line.contains("esc close")));
+    assert!(!lines.iter().any(|line| line.contains("enter switch")));
+}

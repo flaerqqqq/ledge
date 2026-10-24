@@ -15,6 +15,18 @@ pub fn list_height(term_height: u16) -> usize {
     usize::from(term_height.saturating_sub(CHROME_ROWS))
 }
 
+/// What the session cell of a row names (design 6.1, 9 step 4b): a live session, the `(no session)` placeholder, or
+/// nothing that is coloured by row state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SessionCell {
+    #[default]
+    Plain,
+    /// A running managed session: `session_active`.
+    Live,
+    /// The `(no session)` placeholder of a project: `session_none`.
+    NoSession,
+}
+
 /// One row of a picker. `cells` has one text per column of the picker's `Chrome`.
 #[derive(Debug, Clone)]
 pub struct PickerRow<T> {
@@ -22,12 +34,20 @@ pub struct PickerRow<T> {
     pub payload: T,
     /// Text the filter matches (architecture 6.1).
     pub search_text: String,
-    /// Missing directory: dimmed, with the missing cue (FR-TUI-08).
+    /// Dimmed row (gray in the session tree, missing directory in the others).
     pub dimmed: bool,
+    /// The directory of the row is gone: the ` (missing)` cue on the missing column (FR-TUI-08). Not the same as
+    /// `dimmed`: a gray placeholder is not missing.
+    pub missing: bool,
     /// Gray tree entry that is not openable (FR-TREE-11).
     pub connector: bool,
-    /// Tree indent.
+    /// Tree indent in cells per depth (two). Used when `lead` is `None`.
     pub depth: usize,
+    /// Text drawn before the text of the tree column: the current mark and the branch glyphs (design 3.6, 3.8). `None`
+    /// draws the plain indent of `depth`.
+    pub lead: Option<String>,
+    /// Colour role of the session cell (design 6.1).
+    pub session_cell: SessionCell,
     /// Edit window bookmark marker.
     pub marked: bool,
     /// Row the selection starts on (FR-PICK-04).
@@ -41,8 +61,11 @@ impl<T> PickerRow<T> {
             payload,
             search_text: search_text.to_string(),
             dimmed: false,
+            missing: false,
             connector: false,
             depth: 0,
+            lead: None,
+            session_cell: SessionCell::Plain,
             marked: false,
             preselect: false,
         }
@@ -61,7 +84,11 @@ pub struct Chrome {
     pub missing_column: Option<usize>,
     /// Column that carries the tree indent and the connector parentheses (FR-EDIT-03).
     pub tree_column: Option<usize>,
+    /// Column that carries the session colour of `PickerRow::session_cell` (design 6.1).
+    pub session_column: Option<usize>,
     pub footer: String,
+    /// Footer of a window with no rows, when it differs (design 3.2: `esc close`, P-59).
+    pub empty_footer: Option<String>,
     /// Info text shown in the list when there are no rows.
     pub empty_message: Option<String>,
     /// The session switcher and session tree stay open when they have no rows (FR-TUI-10, D-12).
@@ -78,7 +105,9 @@ impl Chrome {
             search_column: Some(0),
             missing_column: None,
             tree_column: Some(0),
+            session_column: None,
             footer: footer.to_string(),
+            empty_footer: None,
             empty_message: None,
             stay_open_when_empty: false,
         }

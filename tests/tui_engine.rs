@@ -9,7 +9,7 @@ use ledge::error::{LedgeError, Outcome};
 use ledge::tui::columns::ColumnSpec;
 use ledge::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use ledge::tui::keys::{self, Action};
-use ledge::tui::picker::{self, Chrome, Effect, PickerModel, PickerRow};
+use ledge::tui::picker::{self, Chrome, Effect, PickerModel, PickerRow, SessionCell};
 use ledge::tui::render::{self, icon};
 use ledge::tui::terminal::{Input, TerminalSession};
 use ledge::tui::theme::Theme;
@@ -318,6 +318,7 @@ fn missing_directory_has_the_cue_and_is_dimmed_with_color() {
     chrome.missing_column = Some(0);
     let mut gone = PickerRow::new(vec!["/x/gone".into(), "gone-0000".into()], "gone", 0);
     gone.dimmed = true;
+    gone.missing = true;
     let rows = vec![
         gone,
         PickerRow::new(vec!["/x/here".into(), "".into()], "here", 1),
@@ -375,6 +376,81 @@ fn connector_is_parenthesised_and_gray_with_color() {
     let (y, line) = line_containing(&term, "(work)").unwrap();
     assert!(line.contains("  (work)"));
     assert_ne!(term.cell(2, y).unwrap().fg, Color::DarkGray);
+}
+
+/// Column of the first cell of `text` on the row that contains it.
+fn cell_x(line: &str, text: &str) -> u16 {
+    let at = line.find(text).expect("the text is on the row");
+    u16::try_from(line[..at].chars().count()).expect("the column fits")
+}
+
+// design 6.1, 9 step 4b: a live session name takes session_active and the "(no session)" cell takes session_none
+#[test]
+fn session_cells_take_their_row_state_token() {
+    let mut chrome = name_chrome("enter open");
+    chrome.session_column = Some(1);
+    let mut live = PickerRow::new(vec!["app".into(), "app-1a2b".into()], "app", 0);
+    live.session_cell = SessionCell::Live;
+    let mut none = PickerRow::new(vec!["lib".into(), "(no session)".into()], "lib", 1);
+    none.session_cell = SessionCell::NoSession;
+    let mut model = PickerModel::new(vec![live, none], chrome);
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, true);
+    let (y, line) = line_containing(&term, "app-1a2b").unwrap();
+    assert_eq!(
+        term.cell(cell_x(&line, "app-1a2b"), y).unwrap().fg,
+        Color::Green
+    );
+    let (y, line) = line_containing(&term, "(no session)").unwrap();
+    assert_eq!(
+        term.cell(cell_x(&line, "(no session)"), y).unwrap().fg,
+        Color::DarkGray
+    );
+}
+
+// design 3.5, 3.6: the lead (current mark and tree branch) is drawn before the cell text, and the (missing) cue
+// needs the row's missing flag, not only its dimmed state (a gray placeholder is not missing)
+#[test]
+fn lead_is_drawn_before_the_text_and_the_cue_needs_the_missing_flag() {
+    let mut chrome = Chrome::new(
+        "Session tree",
+        icon::SESSIONS,
+        vec![ColumnSpec::name("Session"), ColumnSpec::text("Project")],
+        "enter open",
+    );
+    chrome.missing_column = Some(1);
+    let mut child = PickerRow::new(vec!["api-91bc".into(), "api".into()], "api", 0);
+    child.lead = Some("*\u{2514}\u{2500}".into());
+    let mut gray = PickerRow::new(vec!["web (no session)".into(), "web".into()], "web", 1);
+    gray.dimmed = true;
+    let mut gone = PickerRow::new(vec!["old-0c4e".into(), "/x/old".into()], "old", 2);
+    gone.missing = true;
+    let mut model = PickerModel::new(vec![child, gray, gone], chrome);
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, false);
+    assert!(line_containing(&term, "*\u{2514}\u{2500}api-91bc").is_some());
+    assert!(line_containing(&term, "/x/old (missing)").is_some());
+    assert!(line_containing(&term, "web (no session)")
+        .unwrap()
+        .1
+        .find("(missing)")
+        .is_none());
+}
+
+// design 3.5, FR-PICK-05: the current mark `*` of a session cell takes the accent token, as the project picker's does
+#[test]
+fn current_mark_takes_the_accent_token() {
+    let mut chrome = name_chrome("enter open");
+    chrome.session_column = Some(0);
+    let other = PickerRow::new(vec!["other".into(), "x".into()], "other", 0);
+    let mut current = PickerRow::new(vec!["app".into(), "x".into()], "app", 1);
+    current.lead = Some("*".into());
+    current.session_cell = SessionCell::Live;
+    let mut model = PickerModel::new(vec![other, current], chrome);
+    let mut term = FakeTerminal::new(60, 12, Vec::new()).unwrap();
+    drive(&mut model, &mut term, true);
+    let (y, line) = line_containing(&term, "*app").unwrap();
+    assert_eq!(term.cell(cell_x(&line, "*app"), y).unwrap().fg, Color::Cyan);
 }
 
 // FR-TUI-02, FR-TUI-09: matched characters are bold and underlined

@@ -33,7 +33,7 @@ use crate::ports::backend::BackendError;
 use crate::tui::columns::ColumnSpec;
 use crate::tui::engine::{run_picker, PickerHandler, PickerResult, Step};
 use crate::tui::keys::Action;
-use crate::tui::picker::{Chrome, PickerModel, PickerRow};
+use crate::tui::picker::{Chrome, PickerModel, PickerRow, SessionCell};
 use crate::tui::render;
 use crate::tui::theme::{self, ColourLevel};
 use std::path::Path;
@@ -258,6 +258,19 @@ fn missing_step(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     }
 }
 
+/// P-59, FR-TUI-14: a key with no effect on the row says so in the status line; nothing else changes.
+fn notice(text: &str) -> Step {
+    Step::Continue {
+        status: Some(text.to_string()),
+        reload: false,
+    }
+}
+
+/// FR-PICK-09, FR-TUI-08: the directory of a row is gone (its cue is the ` (missing)` text).
+fn is_missing(ctx: &Ctx<'_>, dir: &AbsPath) -> bool {
+    !ctx.fs.is_dir(Path::new(dir.as_str()))
+}
+
 /// An action with no behaviour: the status line is cleared and the picker stays open.
 fn no_action() -> Step {
     Step::Continue {
@@ -304,14 +317,15 @@ fn rebuild_row(ctx: &Ctx<'_>, dir: &AbsPath, option: &ProfileOpt) -> Step {
 }
 
 /// FR-ACT-01, FR-ACT-13, FR-ACT-07, D-17: ctrl-x kills the managed session of the row and the list is shown again.
-/// A row without a managed session has nothing to kill. The refusal for the session the user is in is the status line.
+/// A row without a managed session has nothing to kill: the status line says so (P-59). The refusal for the session
+/// the user is in is the status line.
 fn kill_row(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
     let sessions = match live_sessions(ctx) {
         Ok(sessions) => sessions,
         Err(error) => return failed(error),
     };
     if live_session(&sessions, dir).is_none() {
-        return no_action();
+        return notice(messages::NO_SESSION_ON_ROW);
     }
     match kill(ctx, &session_name(dir)) {
         Ok(_) => Step::Continue {
@@ -516,7 +530,9 @@ fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Resu
                 profile_text(live),
             ];
             let mut picker_row = PickerRow::new(cells, &shown, row.path.clone());
-            picker_row.dimmed = !ctx.fs.is_dir(Path::new(row.path.as_str()));
+            picker_row.missing = is_missing(ctx, &row.path);
+            picker_row.dimmed = picker_row.missing;
+            picker_row.session_cell = live_cell(live);
             picker_row.preselect = row.current;
             picker_row
         })
@@ -536,7 +552,9 @@ fn dir_rows(ctx: &Ctx<'_>, history: &[AbsPath]) -> Result<Vec<DirRow>> {
             let shown = dir.display_with_home(home.as_ref());
             let cells = vec![shown.clone(), session_text(live), profile_text(live)];
             let mut picker_row = PickerRow::new(cells, &shown, dir.clone());
-            picker_row.dimmed = !ctx.fs.is_dir(Path::new(dir.as_str()));
+            picker_row.missing = is_missing(ctx, dir);
+            picker_row.dimmed = picker_row.missing;
+            picker_row.session_cell = live_cell(live);
             picker_row
         })
         .collect())
@@ -569,6 +587,15 @@ fn live_session<'s>(sessions: &'s [ManagedSession], dir: &AbsPath) -> Option<&'s
 
 fn session_text(live: Option<&SessionInfo>) -> String {
     live.map(|info| info.name.clone()).unwrap_or_default()
+}
+
+/// Design 6.1, 9 step 4b: a live session's name takes the `session_active` token; a row without one is plain.
+fn live_cell(live: Option<&SessionInfo>) -> SessionCell {
+    if live.is_some() {
+        SessionCell::Live
+    } else {
+        SessionCell::Plain
+    }
 }
 
 fn profile_text(live: Option<&SessionInfo>) -> String {
@@ -614,6 +641,7 @@ fn project_chrome(label: &str) -> Chrome {
     );
     chrome.search_column = Some(1);
     chrome.missing_column = Some(1);
+    chrome.session_column = Some(2);
     chrome
 }
 
@@ -631,6 +659,7 @@ fn history_chrome() -> Chrome {
         messages::PICKER_FOOTER,
     );
     chrome.missing_column = Some(0);
+    chrome.session_column = Some(1);
     chrome
 }
 
@@ -647,6 +676,7 @@ fn bookmark_chrome() -> Chrome {
         messages::BOOKMARK_PICKER_FOOTER,
     );
     chrome.missing_column = Some(0);
+    chrome.session_column = Some(1);
     chrome
 }
 
@@ -713,9 +743,13 @@ fn switcher_rows(ctx: &Ctx<'_>) -> Result<Vec<PickerRow<String>>> {
                 activity_text(now, info.activity),
             ];
             let mut row = PickerRow::new(cells, &info.name, info.name.clone());
-            row.dimmed = dir
-                .as_ref()
-                .is_some_and(|dir| !ctx.fs.is_dir(Path::new(dir.as_str())));
+            row.missing = dir.as_ref().is_some_and(|dir| is_missing(ctx, dir));
+            row.dimmed = row.missing;
+            row.session_cell = SessionCell::Live;
+            // FR-PICK-05, FR-SESS-02 (design 3.5): the session the user is in is marked `*`; the others keep the
+            // column with a space so the names line up.
+            row.lead =
+                Some(current_mark(current.as_deref() == Some(info.name.as_str())).to_string());
             row
         })
         .collect();
@@ -735,9 +769,21 @@ fn switcher_chrome() -> Chrome {
         ],
         messages::SESSION_SWITCHER_FOOTER,
     );
+    chrome.missing_column = Some(1);
+    chrome.session_column = Some(0);
+    chrome.empty_footer = Some(messages::EMPTY_WINDOW_FOOTER.to_string());
     chrome.empty_message = Some(messages::no_ledge_sessions().to_string());
     chrome.stay_open_when_empty = true;
     chrome
+}
+
+/// Design 3.5, 3.6, FR-PICK-05: the mark of the current session in front of its name: `*`, or a space for the others.
+fn current_mark(is_current: bool) -> &'static str {
+    if is_current {
+        "*"
+    } else {
+        " "
+    }
 }
 
 /// The directory of the managed session `name`, cleaned against the working directory. `None` when the session is
@@ -947,6 +993,16 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
     let mut chrome = Chrome::new(label, icon, columns, footer);
     chrome.tree_column = Some(tree_column);
     chrome.search_column = Some(search_column);
+    // FR-TUI-08, design 3.2: the Directory column of the bookmark tree and the Project column of the session tree.
+    chrome.missing_column = Some(match kind {
+        TreeKind::Bookmarks => 0,
+        TreeKind::Sessions => 1,
+    });
+    chrome.session_column = Some(match kind {
+        TreeKind::Bookmarks => 1,
+        TreeKind::Sessions => 0,
+    });
+    chrome.empty_footer = Some(messages::EMPTY_WINDOW_FOOTER.to_string());
     chrome.empty_message = Some(empty.to_string());
     chrome.stay_open_when_empty = true;
     chrome
@@ -959,6 +1015,7 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
     let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
     let projects = load_projects(ctx.fs, &config.search_paths);
     let sessions = live_sessions(ctx)?;
+    let current = current_session(ctx)?;
     let (rows, cursor) = match kind {
         TreeKind::Bookmarks => {
             let view = bookmark_view(&projects, &read_bookmarks(ctx)?, scope);
@@ -968,11 +1025,36 @@ fn tree_rows(ctx: &Ctx<'_>, kind: TreeKind, scope: &TreeScope) -> Result<(Vec<Tr
     };
     let home = home_of(ctx);
     let now = ctx.clock.now_secs();
-    let items = rows
+    // Design section 7, 8 item 11: branch glyphs in the tree column, ASCII when the locale is not UTF-8.
+    let depths: Vec<usize> = rows.iter().map(|row| row.depth).collect();
+    let guides = render::tree_guides(&depths, utf8_locale(ctx.env));
+    let mut items: Vec<TreeItem> = rows
         .into_iter()
         .map(|row| tree_item(ctx, &sessions, kind, &projects, home.as_ref(), now, row))
         .collect();
+    for (item, guide) in items.iter_mut().zip(guides) {
+        item.lead = Some(match kind {
+            // The session tree marks the current session as the switcher does (FR-PICK-05, design 3.6).
+            TreeKind::Sessions => format!(
+                "{}{guide}",
+                current_mark(item.payload.session.as_deref() == current.as_deref())
+            ),
+            TreeKind::Bookmarks => guide,
+        });
+    }
     Ok((items, cursor))
+}
+
+/// Design 7: the locale is UTF-8 when the character set of `LC_ALL`, else `LC_CTYPE`, else `LANG` says so. Unset
+/// counts as not UTF-8, so the ASCII branch glyphs are used.
+fn utf8_locale(env: &dyn crate::ports::env::Env) -> bool {
+    let locale = ["LC_ALL", "LC_CTYPE", "LANG"]
+        .iter()
+        .filter_map(|name| env.var(name))
+        .find(|value| !value.is_empty())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    locale.contains("utf-8") || locale.contains("utf8")
 }
 
 /// FR-SESS-06, A-37: the managed sessions with their directory (`@ledge_dir`, then tmux's path).
@@ -1051,11 +1133,19 @@ fn tree_item(
     let depth = row.depth;
     let connector = !row.openable;
     let gray = kind == TreeKind::Sessions && row.dimmed;
-    let dimmed = gray || !ctx.fs.is_dir(Path::new(row.path.as_str()));
+    let missing = is_missing(ctx, &row.path);
+    // The placeholder is gray but not missing: it has no session, not a directory that is gone.
+    let session_cell = match (row.kind, live) {
+        (NodeKind::Placeholder, _) => SessionCell::NoSession,
+        (_, Some(_)) => SessionCell::Live,
+        (_, None) => SessionCell::Plain,
+    };
     let mut item = PickerRow::new(cells, &search, row);
     item.depth = depth;
     item.connector = connector;
-    item.dimmed = dimmed;
+    item.missing = missing;
+    item.dimmed = gray || missing;
+    item.session_cell = session_cell;
     item
 }
 
@@ -1076,10 +1166,10 @@ struct TreeHandler<'c, 'a> {
 }
 
 impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
-    /// FR-TREE-11: enter opens an openable entry; a gray connector does nothing.
+    /// FR-TREE-11: enter opens an openable entry; a gray connector does nothing but say so (P-59).
     fn choose(&mut self, row: &TreeRow<NodeKind>) -> Step {
         if !row.openable {
-            return no_action();
+            return notice(messages::NOTHING_TO_OPEN_ON_ROW);
         }
         choose_dir(self.ctx, &row.path)
     }
@@ -1089,10 +1179,12 @@ impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
             return no_action();
         };
         match action {
-            // The ctrl keys act on the selected session only (FR-TUI-07, architecture 6.3).
+            // The ctrl keys act on the selected session only (FR-TUI-07, architecture 6.3). A row with no session
+            // has nothing to act on: the status line says so (P-59, FR-TUI-14).
             Action::Rebuild | Action::Kill | Action::Profile if row.session.is_some() => {
                 dir_action(self.ctx, &self.option, action, Some(&row.path))
             }
+            Action::Rebuild | Action::Kill | Action::Profile => notice(messages::NO_SESSION_ON_ROW),
             // FR-ACT-08: alt-r ignores the --profile option, so each session keeps its recorded profile (A-38).
             Action::RebuildNode => node_step(rebuild_node(self.ctx, &row.path, &ProfileOpt::Unset)),
             Action::KillNode => node_step(kill_node(self.ctx, &row.path)),
@@ -1105,6 +1197,10 @@ impl PickerHandler<TreeRow<NodeKind>> for TreeHandler<'_, '_> {
                 if self.kind == TreeKind::Bookmarks && row.kind == NodeKind::Bookmark =>
             {
                 delete_bookmark(self.ctx, &row.path)
+            }
+            // P-59: only a bookmark row can be deleted; the row is not changed.
+            Action::DeleteBookmark if self.kind == TreeKind::Bookmarks => {
+                notice(messages::ONLY_BOOKMARK_CAN_BE_DELETED)
             }
             _ => no_action(),
         }

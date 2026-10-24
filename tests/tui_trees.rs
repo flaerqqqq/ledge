@@ -537,10 +537,14 @@ fn session_tree_row_starts_with_the_session_name() {
     );
     let name = name_of(&f.api);
     let row = line_with(&lines, &name);
-    let body = row.trim_start_matches('│').trim_start();
+    // The first column may start with the tree lead (the current mark and branch glyphs, design 3.6); the name follows.
+    let body = row
+        .trim_start_matches('│')
+        .trim_start()
+        .trim_start_matches(|c: char| "*|`-│├└─ ".contains(c));
     assert!(
         body.starts_with(&name),
-        "first column is the session: {row}"
+        "first column is the session after its lead: {row}"
     );
     assert_eq!(
         cell_after(row, &name),
@@ -667,15 +671,12 @@ fn empty_bookmark_tree_says_so_and_stays_open() {
     assert!(screen(&h).iter().any(|line| line.contains("No bookmarks.")));
 }
 
-/// Spaces right before `name` on a screen row: the tree indent of its Session cell (two per depth). The selection bar
-/// (design 3.1) takes column 0 of the selected row, so it counts as a space here.
+/// Cells before `name` on a screen row: the column where its Session cell text starts. The selection bar (design 3.1)
+/// is column 0 of the selected row; the current mark and the branch glyphs (design 3.6, section 8 item 11) come before
+/// the name, one cell each, so this is the indent of its depth (two cells per depth).
 fn indent_of(row: &str, name: &str) -> usize {
     let at = row.find(name).expect("the name is on the row");
-    row[..at]
-        .chars()
-        .rev()
-        .take_while(|c| *c == ' ' || *c == '▌')
-        .count()
+    row[..at].chars().count()
 }
 
 /// The first screen row that contains `needle`.
@@ -1016,4 +1017,206 @@ fn bookmark_tree_root_outside_every_project_under_home_shows_tilde() {
         !lines.iter().any(|line| line.contains(&notes_text)),
         "no full path under HOME: {lines:#?}"
     );
+}
+
+fn ctrl(c: char) -> Input {
+    Input::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL))
+}
+
+/// Writes the locale of a UTF-8 terminal into the environment (design 7): the branch glyphs are drawn.
+fn utf8(h: &mut Harness) {
+    h.env = h.env.clone().with_var("LANG", "en_US.UTF-8");
+}
+
+/// The branch fixture of design 3.6: the project `app` with no session of its own, a child `first` with a child
+/// `deep`, and a second child `second`. P-56: `first` is the most recent, so it is listed first. Returns the three
+/// session names.
+fn branch_fixture(h: &Harness) -> (String, String, String) {
+    search_in_projects(h);
+    h.terminal.set_size(240, 40);
+    let app = abs(&h.project("app"));
+    let first = abs(&format!("{}/first", app.as_str()));
+    let deep = abs(&format!("{}/first/deep", app.as_str()));
+    let second = abs(&format!("{}/second", app.as_str()));
+    for dir in [&first, &deep, &second] {
+        fs::create_dir_all(dir.as_str()).expect("create folder");
+    }
+    live(h, &first, "dev", DEV);
+    h.backend.set_activity(&name_of(&first), FIXED_NOW - 10);
+    live(h, &deep, "dev", DEV);
+    h.backend.set_activity(&name_of(&deep), FIXED_NOW - 20);
+    live(h, &second, "dev", DEV);
+    h.backend.set_activity(&name_of(&second), FIXED_NOW - 100);
+    (name_of(&first), name_of(&deep), name_of(&second))
+}
+
+// FR-TREE-02, design 3.6, section 8 item 11: the session tree draws branch glyphs in place of the indent under UTF-8
+#[test]
+fn session_tree_draws_branch_glyphs_under_utf8() {
+    let mut h = Harness::new("tui_trees-glyphs-utf8");
+    utf8(&mut h);
+    let (first, deep, second) = branch_fixture(&h);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(line_with(&lines, &first).contains("├─"), "first");
+    assert!(line_with(&lines, &deep).contains("│ └─"), "deep");
+    assert!(line_with(&lines, &second).contains("└─"), "second");
+}
+
+// design section 7: without a UTF-8 locale the branch glyphs fall back to ASCII, two cells per level
+#[test]
+fn session_tree_draws_ascii_glyphs_without_utf8() {
+    let h = Harness::new("tui_trees-glyphs-ascii");
+    let (first, deep, second) = branch_fixture(&h);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(line_with(&lines, &first).contains("|-"), "first");
+    assert!(line_with(&lines, &deep).contains("| `-"), "deep");
+    assert!(line_with(&lines, &second).contains("`-"), "second");
+}
+
+// FR-TREE-02, design 3.8: the bookmark tree draws branch glyphs in its Directory column
+#[test]
+fn bookmark_tree_draws_branch_glyphs_under_utf8() {
+    let mut h = Harness::new("tui_trees-bm-glyphs");
+    search_in_projects(&h);
+    utf8(&mut h);
+    let app = h.project("app");
+    write_bookmarks(&h, &[&format!("{app}/src/x")]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    assert!(line_with(&lines, "(src)").contains("└─(src)"));
+    assert!(line_with(&lines, "└─x").contains("  └─x"));
+}
+
+// FR-TUI-08, design 3.8: a bookmark whose directory is gone shows the (missing) cue in the bookmark tree
+#[test]
+fn bookmark_tree_shows_the_missing_cue() {
+    let h = Harness::new("tui_trees-bm-missing");
+    search_in_projects(&h);
+    let app = h.project("app");
+    write_bookmarks(&h, &[&format!("{app}/gone")]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    assert!(line_with(&screen(&h), "gone").contains("gone (missing)"));
+}
+
+// FR-TUI-08, design 3.6: a session whose directory is gone shows the (missing) cue in the session tree
+#[test]
+fn session_tree_shows_the_missing_cue() {
+    let h = Harness::new("tui_trees-session-missing");
+    search_in_projects(&h);
+    let scratch = abs(h.root().join("scratch").to_str().expect("UTF-8 path"));
+    fs::create_dir_all(scratch.as_str()).expect("create scratch");
+    live(&h, &scratch, "basic", FRESH);
+    fs::remove_dir_all(scratch.as_str()).expect("remove scratch");
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(line_with(&lines, &name_of(&scratch)).contains("(missing)"));
+}
+
+// FR-SESS-02, FR-PICK-05, design 3.6: the session the user is in has a leading * in the session tree
+#[test]
+fn current_session_has_a_star_in_the_session_tree() {
+    let mut h = Harness::new("tui_trees-current-star");
+    let fixture = session_fixture(&h);
+    be_inside(&mut h, &name_of(&fixture.app));
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let app = name_of(&fixture.app);
+    assert!(line_with(&lines, &app).contains(&format!("*{app}")));
+    assert!(!line_with(&lines, &name_of(&fixture.lib)).contains('*'));
+}
+
+// design 3.2, 4.2 (P-59): an empty session tree and an empty bookmark tree show only "esc close" and stay open
+#[test]
+fn empty_trees_show_only_esc_close_in_the_footer() {
+    let h = Harness::new("tui_trees-empty-session-footer");
+    search_in_projects(&h);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(lines.iter().any(|line| line.contains("esc close")));
+    assert!(!lines.iter().any(|line| line.contains("^r/^p/^x selected")));
+
+    let h = Harness::new("tui_trees-empty-bookmark-footer");
+    search_in_projects(&h);
+    write_bookmarks(&h, &[]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    assert!(lines.iter().any(|line| line.contains("esc close")));
+    assert!(!lines
+        .iter()
+        .any(|line| line.contains("^r/^p/^x/^d selected")));
+}
+
+// FR-TUI-07, design 4.5, 4.6 (P-59): ctrl-r, ctrl-p and ctrl-x on a row with no session change nothing and say so
+#[test]
+fn ctrl_keys_on_a_row_without_a_session_say_so_and_change_nothing() {
+    let h = Harness::new("tui_trees-no-session-keys");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let deep = abs(&format!("{}/src/x", app.as_str()));
+    live(&h, &deep, "dev", DEV);
+    // Row 0 is the placeholder of `app`, which has no session of its own.
+    h.terminal
+        .script(vec![ctrl('r'), ctrl('p'), ctrl('x'), esc()]);
+    let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert_eq!(h.terminal.opened(), 1, "ctrl-p opens no profile picker");
+    assert!(exists(&h, &name_of(&deep)), "ctrl-x kills nothing");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("No session on this row.")));
+}
+
+// FR-TREE-11, design 4.6 (P-59): enter on a gray connector says so in the status line and opens nothing
+#[test]
+fn enter_on_a_connector_says_nothing_to_open() {
+    let h = Harness::new("tui_trees-enter-connector-message");
+    search_in_projects(&h);
+    let app = h.project("app");
+    write_bookmarks(&h, &[&format!("{app}/src/x")]);
+    h.terminal.script(vec![enter(), esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    assert_eq!(h.backend.attached_to(), None);
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("Nothing to open on this row.")));
+}
+
+// FR-BM-13, design 4.1 (P-59): ctrl-d on a row that is not a bookmark deletes nothing and says so
+#[test]
+fn ctrl_d_on_a_connector_says_only_a_bookmark_can_be_deleted() {
+    let h = Harness::new("tui_trees-ctrl-d-connector");
+    search_in_projects(&h);
+    let app = h.project("app");
+    let deep = format!("{app}/src/x");
+    write_bookmarks(&h, &[&deep]);
+    h.terminal.script(vec![ctrl('d'), esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    assert!(bookmarks_text(&h).contains(&deep), "the bookmark stays");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("Only a bookmark can be deleted.")));
+}
+
+// FR-ACT-01, design 4.5 (P-59): ctrl-x on a bookmark without a session says so in the bookmark tree
+#[test]
+fn ctrl_x_on_a_bookmark_without_a_session_says_so() {
+    let h = Harness::new("tui_trees-ctrl-x-no-session");
+    search_in_projects(&h);
+    let app = h.project("app");
+    write_bookmarks(&h, &[&format!("{app}/x")]);
+    h.terminal.script(vec![down(), ctrl('x'), esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("No session on this row.")));
 }

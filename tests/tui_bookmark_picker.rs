@@ -388,3 +388,18 @@ fn enter_on_a_missing_directory_under_home_shows_tilde() {
     assert_eq!(h.backend.attached_to(), None);
     assert!(line_with(&screen(&h), "Missing directory:").contains("Missing directory: ~/gone"));
 }
+
+// FR-ACT-01, design 4.5 (P-59): ctrl-x on a bookmark without a session says so and kills nothing
+#[test]
+fn kill_key_on_a_bookmark_without_a_session_says_so() {
+    let h = Harness::new("tui_bookmark_picker-kill-no-session");
+    h.terminal.set_size(220, 24);
+    let projects = h.root().join("projects").display().to_string();
+    h.project("app");
+    write_bookmarks(&h, &[&format!("{projects}/app")]);
+    h.terminal.script(vec![ctrl('x'), esc()]);
+    assert_eq!(run_picker(&h), Ok(Outcome::Cancelled));
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("No session on this row.")));
+}

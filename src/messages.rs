@@ -519,6 +519,18 @@ pub const BOOKMARK_TREE_FOOTER: &str =
 pub const SESSION_TREE_FOOTER: &str =
     "enter open · ^r/^p/^x selected · alt-r/alt-p/alt-x whole node";
 
+/// Proposal P-59 [new, not yet accepted]: the footer of an empty session switcher or tree window (design 4.2).
+pub const EMPTY_WINDOW_FOOTER: &str = "esc close";
+
+/// Proposal P-59 [new, not yet accepted]: a ctrl key on a row with no session has no effect; status line (FR-TUI-14).
+pub const NO_SESSION_ON_ROW: &str = "No session on this row.";
+
+/// Proposal P-59 [new, not yet accepted]: enter on a gray connector row has no effect; status line (FR-TUI-14).
+pub const NOTHING_TO_OPEN_ON_ROW: &str = "Nothing to open on this row.";
+
+/// Proposal P-59 [new, not yet accepted]: ctrl-d on a row that is not a bookmark, in the bookmark tree; status line.
+pub const ONLY_BOOKMARK_CAN_BE_DELETED: &str = "Only a bookmark can be deleted.";
+
 /// Proposal P-39 [new, not yet accepted]: the edit window state file exists but cannot be read; error.
 pub fn could_not_read_edit_state(detail: &str) -> String {
     format!("could not read the bookmark edit state: {detail}")

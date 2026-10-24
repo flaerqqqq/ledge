@@ -787,3 +787,19 @@ fn theme_warnings_go_to_stderr_and_the_picker_still_opens() {
     );
     assert!(line_with(&screen(&h), "Projects").contains("Projects"));
 }
+
+// FR-ACT-01, design 4.5 (P-59): ctrl-x on a row without a session says so and kills nothing
+#[test]
+fn kill_key_on_a_row_without_a_session_says_so() {
+    let h = Harness::new("tui_project_picker-kill-no-session");
+    search_config(&h);
+    h.project("app");
+    h.terminal.script(vec![ctrl('x'), esc()]);
+    assert_eq!(
+        project_picker(&h.ctx(), None, &ProfileOpt::Unset),
+        Ok(Outcome::Cancelled)
+    );
+    assert!(screen(&h)
+        .iter()
+        .any(|line| line.contains("No session on this row.")));
+}
