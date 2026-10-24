@@ -450,6 +450,32 @@ fn enter_on_a_gray_folder_opens_it_under_its_would_be_name() {
     assert!(exists(&h, &name_of(&app)), "the folder got its session");
 }
 
+// FR-SESS-06, FR-TREE-11: the session tree shows the session name first; the tree-drawn directory column comes next,
+// and the header lists the columns in the same order
+#[test]
+fn session_tree_row_starts_with_the_session_name() {
+    let h = Harness::new("tui_trees-session-first");
+    let f = session_fixture(&h);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let header = line_with(&lines, "Directory");
+    let (session_title, directory_title) = (header.find("Session"), header.find("Directory"));
+    assert!(session_title < directory_title, "header order: {header}");
+    let name = name_of(&f.api);
+    let row = line_with(&lines, &name);
+    let body = row.trim_start_matches('│').trim_start();
+    assert!(
+        body.starts_with(&name),
+        "first column is the session: {row}"
+    );
+    let rest = body.get(name.len()..).unwrap_or_default().trim_start();
+    assert!(
+        rest.starts_with("api"),
+        "directory follows the session: {row}"
+    );
+}
+
 // FR-SESS-08: enter on a deeper session entry opens that session's own directory
 #[test]
 fn enter_on_a_deep_session_entry_opens_its_directory() {

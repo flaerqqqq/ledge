@@ -880,16 +880,29 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
             messages::no_ledge_sessions(),
         ),
     };
-    let mut chrome = Chrome::new(
-        label,
-        icon,
-        vec![
-            ColumnSpec::text(messages::HEADER_DIRECTORY),
-            ColumnSpec::text(messages::HEADER_SESSION),
-            ColumnSpec::text(messages::HEADER_PROFILE),
-        ],
-        footer,
-    );
+    // FR-SESS-06: the session tree shows the session first; the tree is drawn on the directory column, which is
+    // also the column the filter searches.
+    let (columns, tree_column) = match kind {
+        TreeKind::Bookmarks => (
+            vec![
+                ColumnSpec::text(messages::HEADER_DIRECTORY),
+                ColumnSpec::text(messages::HEADER_SESSION),
+                ColumnSpec::text(messages::HEADER_PROFILE),
+            ],
+            0,
+        ),
+        TreeKind::Sessions => (
+            vec![
+                ColumnSpec::text(messages::HEADER_SESSION),
+                ColumnSpec::text(messages::HEADER_DIRECTORY),
+                ColumnSpec::text(messages::HEADER_PROFILE),
+            ],
+            1,
+        ),
+    };
+    let mut chrome = Chrome::new(label, icon, columns, footer);
+    chrome.tree_column = Some(tree_column);
+    chrome.search_column = Some(tree_column);
     chrome.empty_message = Some(empty.to_string());
     chrome.stay_open_when_empty = true;
     chrome
@@ -952,7 +965,10 @@ fn tree_item(
     });
     // The ctrl actions act on `row.session` (FR-TUI-07), so a bookmark row with a live session must carry its name.
     row.session = live.map(|info| info.name.clone());
-    let cells = vec![row.label.clone(), session_text(live), profile_text(live)];
+    let cells = match kind {
+        TreeKind::Bookmarks => vec![row.label.clone(), session_text(live), profile_text(live)],
+        TreeKind::Sessions => vec![session_text(live), row.label.clone(), profile_text(live)],
+    };
     let search = row.label.clone();
     let depth = row.depth;
     let connector = !row.openable;
