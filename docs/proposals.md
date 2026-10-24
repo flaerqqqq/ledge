@@ -605,3 +605,10 @@ Format:
 - doc: requirements.md (FR-PICK-05 current-directory mark, FR-PICK-07 live-session marker)
 - change: the project picker shows no marker column. The live-session state is shown by the session column (name present or empty), and the current directory is marked in the project column instead of with "*" in a separate column.
 - why: the user finds the circles and the star on the left noisy; the session column already shows whether a session exists.
+
+### P-62 No current-mark stars in project or session lists (FR-PICK-05)
+- from: user request / coordinator, slice S-41
+- status: Open
+- doc: requirements.md (FR-PICK-05, and the session-list current mark added in S-38)
+- change: the project picker and the session switcher and session tree do not mark the current directory or session with "*". The current session and directory are not marked in the list.
+- why: the user finds the stars noisy; the border label and the selection already show where the user is.
