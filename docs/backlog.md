@@ -473,3 +473,12 @@ have no FR-IDs state why.
 - acceptance: a path under HOME is shown as ~ or ~/rest everywhere it is displayed; a path outside HOME is shown in full; the stored data and the commands' inputs keep absolute paths; messages keep their wording and only the path text changes.
 - size: M
 - branch: slice/S-36-home-tilde-paths
+
+### S-37 Theme system and render changes (design 9, steps 1-3 and 7)
+- status: in-progress
+- deps: S-36
+- FR-IDs: FR-TUI-08, FR-TUI-09 (cues), FR-TUI-04 (footer) with proposals P-59, P-60; design sections 6, 4.2, 3.2
+- scope: src/tui/theme.rs (new), src/tui/render.rs, src/tui/columns.rs (cut_middle for names, fit_pairs for the footer), src/domain/config.rs and src/app/store.rs (theme keys), tests/tui_engine.rs
+- acceptance: built-in themes default, ink, mist, zen, pearl with the Kanso values in docs/design/themes.md; theme and theme_colors read from config, invalid values warn and use default; selection bar and reverse video over the whole row including gaps; footer drops whole key pairs from the end at narrow widths; names cut in the middle; NO_COLOR and non-tty keep the text cues.
+- size: M
+- branch: slice/S-37-theme-and-render
