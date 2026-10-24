@@ -554,3 +554,12 @@ have no FR-IDs state why.
 - acceptance: the profile picker shows a preview section under the list at every width: for the highlighted profile, a title, a source line (built-in, or its file path with ~) with the window count, and one line per window with its command; basic is built-in; a missing or invalid profile keeps its row and the preview shows its error; more windows than the preview height show "+ N more"; the preview is dropped only when the window is too small for three list rows; the profile flow, labels, footer and every other message are unchanged.
 - size: M
 - branch: slice/S-45-profile-preview
+
+### S-46 Path column in the bookmark tree
+- status: in-progress
+- deps: S-45
+- FR-IDs: FR-TUI-05 (column fit at 120 cells and wider), FR-TREE-01 (bookmark tree rows); the same Path column as the project picker and bookmark edit window
+- scope: src/app/pickers.rs (tree_chrome and tree_item for the bookmark tree), src/tui/columns.rs if the path column needs a new width rule, tests/tui_trees.rs
+- acceptance: at 120 cells and wider the bookmark tree shows a Path column with the directory shown with ~ for home (display_with_home); at narrower widths nothing changes; the session tree is unchanged; the tree glyphs, bookmark column and filter behaviour are unchanged.
+- size: S
+- branch: slice/S-46-bookmark-tree-path
