@@ -68,17 +68,17 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-BM-12 | S-19 | src/app/pickers.rs (bookmark_picker); src/messages.rs (no_bookmarks_to_pick) | tests/tui_bookmark_picker.rs; tests/component_cli.rs; tests/messages_verbatim.rs | covered | No bookmarks at start (file missing or empty): the message, exit 0, no window (picker not drawn). Deleting the last bookmark closes the picker with no output (D-12). |
 | FR-BM-13 | S-19 | src/app/pickers.rs (delete_bookmark, delete_session_of) | tests/tui_bookmark_picker.rs | covered | ctrl-d removes the bookmark from the file, kills its managed session, and reopens the list without the row. On the session the user is in: bookmark deleted, session kept, `cannot kill the session you are in.` (D-17, A-39). Real tmux kill is not run by the gate (tests/component_actions.rs covers the kill on FakeBackend). |
 | FR-BM-14 | S-17 | src/cli/parse.rs | tests/component_cli.rs; src/cli/parse.rs (unit) | covered | The bookmark picker itself is S-19; only the directory rejection is covered here. |
-| FR-EDIT-01 | S-20 |  |  | open |  |
+| FR-EDIT-01 | S-20 | src/domain/bm_edit.rs (visible_rows, subdirectories); src/app/store.rs (load_expanded) | src/domain/bm_edit.rs (unit); tests/component_edit.rs | covered | Listing rule: visible subfolders in name order, hidden skipped, children only under expanded folders. The window that shows them is S-21. |
 | FR-EDIT-02 | S-21 |  |  | open |  |
-| FR-EDIT-03 | S-20 |  |  | open |  |
-| FR-EDIT-04 | S-20 |  |  | open |  |
-| FR-EDIT-05 | S-20 |  |  | open |  |
-| FR-EDIT-06 | S-20 |  |  | open |  |
+| FR-EDIT-03 | S-20 | src/domain/bm_edit.rs (ExpandedFolders::expand, collapse) | src/domain/bm_edit.rs (unit) | open | State only (expand adds, collapse removes only that entry, D-09). The right and left arrow keys and their key table are S-21 (tui edit window). |
+| FR-EDIT-04 | S-20 | src/domain/bm_edit.rs (Marker::text) | src/domain/bm_edit.rs (unit); tests/component_edit.rs | covered | Marker text: "+" collapsed with subfolders, "-" expanded, empty for a leaf. Drawing the marker is S-21. |
+| FR-EDIT-05 | S-20 | src/app/store.rs (load_expanded, save_expanded); src/domain/bm_edit.rs (parse, to_file_text, pruned) | src/domain/bm_edit.rs (unit); tests/component_edit.rs | covered | bm-edit-open persists expanded folders between runs; pruned of missing folders on write (D-09); atomic write (D-05). Root row not stored (P-38). |
+| FR-EDIT-06 | S-20 | src/domain/bm_edit.rs (EditRow::bookmarked) | src/domain/bm_edit.rs (unit) | open | The bookmark flag per row is covered. The marker column itself is drawn by the S-21 window. |
 | FR-EDIT-07 | S-21 |  |  | open |  |
 | FR-EDIT-08 | S-21 |  |  | open |  |
 | FR-EDIT-09 | S-21 |  |  | open |  |
 | FR-EDIT-10 | S-21 |  |  | open |  |
-| FR-EDIT-11 | S-20 |  |  | open |  |
+| FR-EDIT-11 | S-20 | src/domain/bm_edit.rs (visible_rows returns no rows) | src/domain/bm_edit.rs (unit); tests/component_edit.rs | open | The rule (no visible subfolders gives no rows, so no window) is covered. The exit without output is the `bm edit` command, S-21. |
 | FR-TREE-01 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
 | FR-TREE-02 | S-05 | domain/tree.rs | domain/tree.rs | covered |  |
 | FR-TREE-03 | S-05 | domain/tree.rs | domain/tree.rs | covered | Shared parent is a gray connector row, listed once (A-13). |

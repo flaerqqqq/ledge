@@ -373,3 +373,14 @@ Format:
 - why: FR-BM-13 and the screen table say "kill its session" with no exception; D-17 and A-39 make the exception. The code follows D-17. Only the user
   can change the backlog text.
 - status: Open
+
+### P-38 S-20 project root row of the edit window is always expanded
+- from: implementer / slice S-20
+- doc: docs/backlog.md (S-20, FR-EDIT-05), docs/architecture.md (6.3: "enter toggle bookmark (not on the project root row)", D-09)
+- change: the edit window lists the project root as row 0 and always lists its subfolders below it. The root is never recorded in
+  `bm-edit-open`, so its expanded state is not remembered and no "+" or "-" depends on a saved entry. Its marker is "-" when it has
+  subfolders. Left arrow on the root row is left to S-21 (6.3 "collapse, or move to parent"). Implemented that way in S-20
+  (src/domain/bm_edit.rs, visible_rows).
+- why: FR-EDIT-01 says the window lists the subdirectories of a project, so a collapsed root on first open would show nothing. No
+  document says whether the root has an expansion state. D-09 keeps only expanded folders, and this choice adds no entry for the root.
+- status: Open

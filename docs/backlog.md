@@ -324,7 +324,7 @@ have no FR-IDs state why.
 - branch: slice/19-bookmark-picker
 
 ### S-20 Bookmark edit window state and listing
-- status: in-progress
+- status: done
 - deps: S-03, S-04
 - FR-IDs: FR-EDIT-01, FR-EDIT-03, FR-EDIT-04, FR-EDIT-05, FR-EDIT-06, FR-EDIT-11
 - scope: `domain/bm_edit.rs` (expanded folders, lazy listing of subdirectories, `+` and `-` markers, pruning of missing directories on write),
@@ -337,7 +337,7 @@ have no FR-IDs state why.
 - branch: slice/20-edit-state
 
 ### S-21 Bookmark edit window: keys, project choice, and command
-- status: blocked
+- status: in-progress
 - deps: S-20, S-08, S-17
 - FR-IDs: FR-EDIT-02, FR-EDIT-07, FR-EDIT-08, FR-EDIT-09, FR-EDIT-10
 - scope: `app/bookmark_cmd.rs` (`bm edit`), `domain/projects.rs` (project containing a directory), `tui` edit window screen (6.2, 6.3 table).

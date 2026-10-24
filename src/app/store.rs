@@ -2,6 +2,7 @@
 //! read and write the cache files (architecture 9.2 to 9.4, D-05). Reads and writes go through the ports;
 //! the parsing is in `domain::config`, `domain::profile`, `domain::history` and `domain::bookmarks`.
 
+use crate::domain::bm_edit::ExpandedFolders;
 use crate::domain::bookmarks::Bookmarks;
 use crate::domain::config::{self, Config, DEFAULT_CONFIG_TEXT};
 use crate::domain::history::History;
@@ -19,6 +20,7 @@ const CONFIG_FILE: &str = "config.json";
 const PROFILES_FOLDER: &str = "profiles";
 const HISTORY_FILE: &str = "history";
 const BOOKMARKS_FILE: &str = "bookmarks";
+const EXPANDED_FILE: &str = "bm-edit-open";
 
 /// FR-CONF-01, FR-CONF-06, FR-CONF-02, D-05, architecture 9.2: loads `config.json` from the config
 /// folder, creating the file with the default content when it is missing and the profiles folder
@@ -131,6 +133,24 @@ pub fn load_bookmarks(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<Bookmarks>
 /// FR-BM-01, D-05: writes the whole bookmark list to the cache folder through an atomic write.
 pub fn save_bookmarks(fs: &dyn FileSystem, dirs: &Dirs, bookmarks: &Bookmarks) -> io::Result<()> {
     fs.write_atomic(&cache_file(dirs, BOOKMARKS_FILE), &bookmarks.to_file_text())
+}
+
+/// FR-EDIT-05, architecture 9.4: reads the `bm-edit-open` file from the cache folder. A missing file gives no
+/// folder expanded.
+pub fn load_expanded(fs: &dyn FileSystem, dirs: &Dirs) -> io::Result<ExpandedFolders> {
+    let text = fs.read_text(&cache_file(dirs, EXPANDED_FILE))?;
+    Ok(ExpandedFolders::parse(text.as_deref().unwrap_or("")))
+}
+
+/// FR-EDIT-05, D-09, D-05: writes the expanded folders through an atomic write. Folders that no longer exist are
+/// dropped from the written text (D-09); the caller's value is not changed.
+pub fn save_expanded(
+    fs: &dyn FileSystem,
+    dirs: &Dirs,
+    expanded: &ExpandedFolders,
+) -> io::Result<()> {
+    let live = expanded.pruned(&|dir| fs.is_dir(Path::new(dir.as_str())));
+    fs.write_atomic(&cache_file(dirs, EXPANDED_FILE), &live.to_file_text())
 }
 
 /// Architecture 9.1: the config file, `<config>/config.json`.
