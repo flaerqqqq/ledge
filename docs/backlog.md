@@ -446,3 +446,12 @@ have no FR-IDs state why.
 - acceptance: the session tree lists only sessions and the projects that hold them; a session is a child of the session with the nearest ancestor directory (no folder rows); when a project's own session is not running, its row is gray with "(no session)" and its sessions hang under it; projects with no sessions are not listed; the Session column is first and the Directory column is plain; enter on the gray row opens that project's directory under its would-be session name; alt-keys act on all sessions under the node.
 - size: M
 - branch: slice/S-33-session-tree-nesting
+
+### S-34 Session windows show a Project column
+- status: in-progress
+- deps: S-33, S-16
+- FR-IDs: FR-SESS-03 (column text) and FR-SESS-06 (proposal P-55; the user owns requirements.md)
+- scope: src/app/pickers.rs (session tree and switcher rows and headers), src/messages.rs (header text), src/domain/path.rs (home display, existing display_with_home)
+- acceptance: the session tree and the session switcher show a "Project" column in place of "Directory"; the value is the name of the project from the search paths that contains the session directory; for a session outside every project, the value is its directory with the home folder shown as "~".
+- size: S
+- branch: slice/S-34-session-project-column

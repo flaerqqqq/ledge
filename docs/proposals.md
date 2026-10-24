@@ -541,3 +541,10 @@ Format:
 - change: "FR-SESS-06: ledge shall list managed sessions as a tree in which a session is a child of the session with the nearest ancestor directory. The tree has no folder rows between sessions; the Directory column is a plain path. A project whose own session is not running is shown gray with the text '(no session)', and its sessions are listed under it." FR-SESS-07 (gray folder with the would-be session name) is removed for this tree. Projects with no sessions are not listed.
 - why: the user wants a tree drawn from sessions, so that sessions of a project and of its subdirectories read as one group, without intermediate directory rows.
 - decided by the user: nearest-session nesting, the "(no session)" cue, and no gray rows for projects without sessions.
+
+### P-55 Session windows show a Project column
+- from: user request / coordinator, slice S-34
+- status: Open
+- doc: requirements.md (FR-SESS-03 and FR-SESS-06 column text)
+- change: session tree and session switcher show a "Project" column. The value is the project name when the session directory is inside a project from search_paths, otherwise the session directory with the home folder written as "~".
+- why: a full path is long and repeats the project; the project name is what the user thinks in.
