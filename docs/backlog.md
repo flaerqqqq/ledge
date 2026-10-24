@@ -408,7 +408,7 @@ have no FR-IDs state why.
 - branch: slice/26-doctor
 
 ### S-27 Install and uninstall script
-- status: in-progress
+- status: done
 - deps: S-00
 - FR-IDs: none (the installation statements have no FR-IDs in `requirements.md`; see proposal P-1). Traced by its acceptance list until P-1 is accepted.
 - scope: `scripts/install.sh`, `scripts/test_install.sh`, gate wiring in `scripts/gate.sh`.

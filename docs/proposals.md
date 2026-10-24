@@ -502,3 +502,15 @@ Format:
 - change: A-35 says doctor does not read the cache folder, but check 9 must read the bookmarks file, which is in the cache folder (9.4). The implementation reads `bookmarks` read-only (never created). Also, when the config is missing or invalid, the search path and default profile checks print nothing, and the bookmark check judges only whether each directory exists (no project test). A managed session with no directory is reported as `directory is missing: no directory`.
 - why: check 9 and A-35 cannot both hold; the user should pick A-35 or check 9. Tests: tests/component_doctor.rs (bookmarks_missing_or_outside_projects_are_warnings, good_bookmarks_give_one_ok_line_with_the_count, missing_config_is_an_error_and_is_not_created).
 - status: Open
+
+### P-51 S-27 installer messages and choices the spec leaves open
+- from: implementer / slice S-27
+- doc: requirements.md (Messages, Installation and removal), docs/architecture.md (8.3, 11), docs/backlog.md (S-27)
+- change: the installer (scripts/install.sh) uses the wording of architecture 11 and requirements.md "Installation and removal". The gaps and the choices made are:
+  (a) Architecture 8.3 has the rows `Installed <path>` and the PATH warning, but not `Removed <path>`, `Not removed: ...`, `Nothing to remove: ...` or `Error: build toolchain is required to build ledge.`. Those four appear only in architecture 11 and in requirements.md "Installation and removal", not in requirements.md "Messages". P-1 already asks for the Messages entries; 8.3 needs the same four rows. Until then the wording is taken from 11 and tested literally in scripts/test_install.sh (not in tests/messages_verbatim.rs, which covers the binary).
+  (b) `Installed <path>` is `[new]` in 8.3 and is not in requirements.md. Printed on stdout after a successful install.
+  (c) Unknown arguments to `scripts/install.sh` print `Error: usage: scripts/install.sh [--uninstall]` on stderr, exit 1. No document gives this text.
+  (d) `--uninstall` with no binary keeps any stale record (Nothing to remove, exit 0). With a binary and no record, the binary is kept and `Not removed: ...` is printed (architecture 11 says so; the record is what proves the source).
+  (e) The installer tests copy scripts/install.sh into a temp source folder, so the fake cargo writes its stub under that temp folder and the real target/ of the checkout is not overwritten. HOME is also a temp folder. The architecture says only that the fake cargo writes a stub binary.
+- why: the spec gives no text for (c), and (a) and (b) leave two documents disagreeing on which messages exist. Tests: scripts/test_install.sh.
+- status: Open

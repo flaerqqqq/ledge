@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate (docs/testing.md level 6): fmt, clippy, build, test, the ignored tmux integration tests when
+# Gate (docs/testing.md level 6): fmt, clippy, build, test, the installer tests, the ignored tmux integration tests when
 # tmux is on PATH, shellcheck when it is on PATH, and the layer check. Exits non-zero on the first failure.
 set -euo pipefail
 
@@ -32,6 +32,13 @@ if command -v tmux >/dev/null 2>&1; then
     cargo test --locked -- --ignored
 else
     echo "SKIP: tmux is not on PATH; ignored tmux integration tests not run"
+fi
+
+echo "==> scripts/test_install.sh"
+if [[ -f "$root/scripts/test_install.sh" ]]; then
+    bash "$root/scripts/test_install.sh"
+else
+    echo "SKIP: scripts/test_install.sh does not exist"
 fi
 
 echo "==> shellcheck scripts/*.sh"
