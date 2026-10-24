@@ -563,3 +563,12 @@ have no FR-IDs state why.
 - acceptance: at 120 cells and wider the bookmark tree shows a Path column with the directory shown with ~ for home (display_with_home); at narrower widths nothing changes; the session tree is unchanged; the tree glyphs, bookmark column and filter behaviour are unchanged.
 - size: S
 - branch: slice/S-46-bookmark-tree-path
+
+### S-47 Middle-cut long paths in every path column
+- status: in-progress
+- deps: S-46, S-37
+- FR-IDs: FR-TUI-05 (fit), design section 3.2 (middle cut); no requirement change
+- scope: src/tui/columns.rs (a path cut that keeps the start and the last folders with … between), and every path cell that is cut: project picker, history picker, bookmark picker, bookmark tree, session tree and switcher Project cell, bookmark edit window Path column
+- acceptance: a path wider than its column is shortened from the middle with … (one cell): the start (~ or the root and the first folder) and as many final folders as fit stay visible; a path that fits is unchanged; the cut keeps display width (CJK counts two cells); names are not affected (they already use the name middle cut).
+- size: S
+- branch: slice/S-47-path-middle-cut
