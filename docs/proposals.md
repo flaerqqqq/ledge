@@ -612,3 +612,11 @@ Format:
 - doc: requirements.md (FR-PICK-05, and the session-list current mark added in S-38)
 - change: the project picker and the session switcher and session tree do not mark the current directory or session with "*". The current session and directory are not marked in the list.
 - why: the user finds the stars noisy; the border label and the selection already show where the user is.
+
+### P-63 Kill the current session; switch to the most recent, or close tmux when none remain (D-17, FR-ACT-07)
+- from: user request / coordinator, slice S-43
+- status: Open
+- doc: requirements.md (FR-ACT-01, FR-ACT-07, FR-SESS-12); decisions.md D-17 and A-39 for kill
+- change: killing the session the user is in is allowed from any ledge window and from `ss kill`. The client switches to the most recent remaining tmux session (last activity, then name). If no session remains, the tmux server is killed, so tmux closes. Rebuild of the current session keeps the D-17 copy-and-switch rule.
+- why: the user wants to kill sessions freely from any window and not be stopped by the current one.
+- open choice: "most recent" uses every remaining tmux session, not only ledge-managed ones, so the client never lands on a window it cannot use. Tell me if you want managed sessions only.

@@ -527,3 +527,12 @@ have no FR-IDs state why.
 - acceptance: each picker is a framed panel with a section rule under the filter and under the column header; the column header is bold muted text on the surface band; the status strip sits above the bottom edge on the surface band; the footer keys sit in the bottom edge; at 120 cells and up the list has a path column and the selected row's details show below the list; the zen palette is selectable as theme zen with the values above; minimum-size behaviour and every message text unchanged; text cues stay without colour.
 - size: L
 - branch: slice/S-42-design-b-zen
+
+### S-43 Kill the current session: switch to the most recent one, or close tmux when none remain
+- status: in-progress
+- deps: S-14, S-25, S-19, S-16
+- FR-IDs: FR-ACT-07 and D-17 change for kill (proposal P-63; the user owns requirements.md); FR-ACT-01, FR-SESS-12
+- scope: src/ports/backend.rs (kill_server on SessionBackend), src/adapters/tmux.rs (kill-server), tests/support/fake_backend.rs, src/app/actions.rs (kill of the session the client is in), src/app/pickers.rs and src/app/session_cmd.rs (kill paths use it; ctrl-x and ss kill), src/messages.rs only if a new message is needed (proposal P-63)
+- acceptance: killing the session the client is in, from any ledge window or from ss kill, is allowed; the client switches to the most recent remaining tmux session (by last activity, then name); if no other session remains, the tmux server is killed and tmux closes; killing any other session is unchanged; the "cannot kill the session you are in" refusal is removed for kill (not for rebuild of the current session, which keeps its D-17 behaviour); alt-x on a node follows the same rule for the current session.
+- size: M
+- branch: slice/S-43-kill-current-session
