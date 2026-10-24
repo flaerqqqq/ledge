@@ -289,6 +289,12 @@ pub fn no_ledge_sessions() -> &'static str {
     "No ledge sessions."
 }
 
+/// P-54 [new, not yet accepted]: the text after the would-be name on the placeholder row of a project whose own
+/// session is not running (session tree).
+pub fn no_session() -> &'static str {
+    "(no session)"
+}
+
 /// FR-SESS-03, A-10: the activity age text of the switcher.
 pub fn activity_age(age: Age) -> String {
     match age {

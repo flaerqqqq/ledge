@@ -439,7 +439,7 @@ have no FR-IDs state why.
 - branch: slice/S-29-tree-session-and-edit-search
 
 ### S-33 Session tree nests by session, not by folder
-- status: in-progress
+- status: done
 - deps: S-05, S-22, S-23, S-32
 - FR-IDs: FR-SESS-06 and FR-SESS-07 replaced for the session tree (proposal P-54; the user owns requirements.md)
 - scope: src/domain/tree.rs (session_tree builder), src/app/pickers.rs (session tree rows, columns, placeholder enter), src/messages.rs (the "(no session)" text), tests/tui_trees.rs and the tree unit tests

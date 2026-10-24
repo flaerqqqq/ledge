@@ -143,15 +143,17 @@ fn be_inside(h: &mut Harness, name: &str) {
     h.backend.switch_client(name).expect("switch client");
 }
 
-// FR-TREE-11: enter on a gray connector does not open anything; the window stays and escape cancels
+// FR-TREE-11: enter on a gray connector of the bookmark tree does not open anything; the window stays and escape cancels
 #[test]
 fn enter_on_a_gray_connector_does_not_open() {
     let h = Harness::new("tui_trees-connector");
     search_in_projects(&h);
-    let deep = abs(&format!("{}/src/x", h.project("app")));
-    live(&h, &deep, "dev", DEV);
+    let app = h.project("app");
+    let deep = format!("{app}/src/x");
+    write_bookmarks(&h, &[deep.as_str()]);
+    // Row 0 is the gray project root, row 1 the gray connector `src`, row 2 the bookmark.
     h.terminal.script(vec![down(), enter(), esc()]);
-    let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    let outcome = bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All);
     assert_eq!(outcome, Ok(Outcome::Cancelled));
     assert_eq!(h.backend.attached_to(), None, "a connector is not opened");
 }
@@ -417,10 +419,11 @@ fn trees_show_their_given_footers() {
     );
 }
 
-// FR-SESS-07, FR-SESS-08: a gray folder without a session shows the session name it would get
+// FR-SESS-06, P-54: the gray placeholder row of a project without its own session shows its would-be session name
+// followed by "(no session)"; the sessions of the project are listed under it
 #[test]
-fn gray_folder_shows_the_session_name_it_would_get() {
-    let h = Harness::new("tui_trees-gray-name");
+fn placeholder_row_shows_its_would_be_name_and_no_session_text() {
+    let h = Harness::new("tui_trees-placeholder-text");
     search_in_projects(&h);
     let app = abs(&h.project("app"));
     let deep = abs(&format!("{}/src/x", app.as_str()));
@@ -428,33 +431,35 @@ fn gray_folder_shows_the_session_name_it_would_get() {
     h.terminal.script(vec![esc()]);
     session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
     let lines = screen(&h);
+    let row = line_with(&lines, &name_of(&app));
     assert!(
-        lines.iter().any(|line| line.contains(&name_of(&app))),
-        "gray root shows its would-be name: {lines:#?}"
+        row.contains(&format!("{} (no session)", name_of(&app))),
+        "placeholder row says so: {row}"
     );
 }
 
-// FR-SESS-07, FR-SESS-08: enter on a gray folder without a session opens that folder under its would-be name
+// FR-SESS-06, P-54: enter on the placeholder opens the project's directory under its would-be session name
 #[test]
-fn enter_on_a_gray_folder_opens_it_under_its_would_be_name() {
-    let h = Harness::new("tui_trees-gray-enter");
+fn enter_on_the_placeholder_opens_its_directory_under_its_would_be_name() {
+    let h = Harness::new("tui_trees-placeholder-enter");
     search_in_projects(&h);
     let app = abs(&h.project("app"));
     let deep = abs(&format!("{}/src/x", app.as_str()));
     live(&h, &deep, "dev", DEV);
-    // Row 0 is the gray project root (openable in the session tree); row 1 is the connector, row 2 the session.
+    // Row 0 is the placeholder of the project; row 1 is the session below it.
     h.terminal.script(vec![enter()]);
     let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
     assert_eq!(outcome, Ok(Outcome::Done));
     assert_eq!(h.backend.attached_to(), Some(name_of(&app)));
-    assert!(exists(&h, &name_of(&app)), "the folder got its session");
+    assert!(exists(&h, &name_of(&app)), "the project got its session");
 }
 
-// FR-SESS-06, FR-TREE-11: the session tree shows the session name first; the tree-drawn directory column comes next,
-// and the header lists the columns in the same order
+// FR-SESS-06, P-54: the session tree shows the session name first, then the plain directory (its full path, with no
+// tree indent or glyphs), then the profile; the header lists the columns in the same order
 #[test]
 fn session_tree_row_starts_with_the_session_name() {
     let h = Harness::new("tui_trees-session-first");
+    h.terminal.set_size(240, 40);
     let f = session_fixture(&h);
     h.terminal.script(vec![esc()]);
     session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
@@ -471,8 +476,19 @@ fn session_tree_row_starts_with_the_session_name() {
     );
     let rest = body.get(name.len()..).unwrap_or_default().trim_start();
     assert!(
-        rest.starts_with("api"),
-        "directory follows the session: {row}"
+        rest.starts_with(f.api.as_str()),
+        "directory is the full path, right after the session: {row}"
+    );
+    // The gap between the session name and the path is spaces only: no tree glyphs in the directory cell.
+    let gap = body
+        .get(name.len()..)
+        .unwrap_or_default()
+        .split(f.api.as_str())
+        .next()
+        .unwrap_or_default();
+    assert!(
+        !gap.chars().any(|c| "│├└─".contains(c)),
+        "the directory column has no tree glyphs: {row}"
     );
 }
 
@@ -590,6 +606,12 @@ fn empty_bookmark_tree_says_so_and_stays_open() {
     assert!(screen(&h).iter().any(|line| line.contains("No bookmarks.")));
 }
 
+/// Spaces right before `name` on a screen row: the tree indent of its Session cell (two per depth).
+fn indent_of(row: &str, name: &str) -> usize {
+    let at = row.find(name).expect("the name is on the row");
+    row[..at].chars().rev().take_while(|c| *c == ' ').count()
+}
+
 /// The first screen row that contains `needle`.
 fn line_with<'a>(lines: &'a [String], needle: &str) -> &'a str {
     lines
@@ -659,4 +681,113 @@ fn session_created_for_a_bookmark_shows_on_the_next_draw_of_the_tree() {
     let lines = screen(&h);
     let row = line_with(&lines, &name_of(&api));
     assert!(row.contains("zeta"), "profile on the same row: {row}");
+}
+
+// FR-ACT-07, P-54: alt-x on the placeholder kills every session under the project folder
+#[test]
+fn alt_x_on_the_placeholder_kills_the_sessions_under_it() {
+    let h = Harness::new("tui_trees-placeholder-alt-x");
+    search_in_projects(&h);
+    let app = abs(&h.project("app"));
+    let server = abs(&format!("{}/server", app.as_str()));
+    let web = abs(&format!("{}/web", app.as_str()));
+    live(&h, &server, "dev", DEV);
+    live(&h, &web, "basic", FRESH);
+    h.terminal.script(vec![alt('x'), esc()]);
+    let outcome = session_tree_picker(&h.ctx(), &ProfileOpt::Unset);
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    assert!(
+        !exists(&h, &name_of(&server)),
+        "the session under the node is killed"
+    );
+    assert!(
+        !exists(&h, &name_of(&web)),
+        "the session under the node is killed"
+    );
+}
+
+// FR-SESS-06, P-54: the example of P-54 in one tree. Sessions nest by nearest session, the project without its own
+// session has a placeholder, a session outside every project is at depth 0, and a project with no session is not listed
+#[test]
+fn session_tree_nests_the_p54_example_by_nearest_session() {
+    let h = Harness::new("tui_trees-p54-example");
+    search_in_projects(&h);
+    h.terminal.set_size(240, 40);
+    let ledge = abs(&h.project("ledge"));
+    let docs = abs(&h.project("ledge/docs"));
+    let adr = abs(&h.project("ledge/docs/adr"));
+    let api = abs(&h.project("api"));
+    let server = abs(&h.project("api/server"));
+    let web = abs(&h.project("api/web"));
+    h.project("notes");
+    let scratch = abs(h.root().join("scratch").to_str().expect("UTF-8 path"));
+    fs::create_dir_all(scratch.as_str()).expect("create scratch");
+    live(&h, &ledge, "dev", DEV);
+    live(&h, &docs, "basic", FRESH);
+    live(&h, &adr, "basic", FRESH);
+    live(&h, &server, "dev", DEV);
+    live(&h, &web, "basic", FRESH);
+    live(&h, &scratch, "basic", FRESH);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+
+    // Each session cell is indented two cells per depth, from the depth 0 row of ledge.
+    let base = indent_of(line_with(&lines, &name_of(&ledge)), &name_of(&ledge));
+    let rows = [
+        (&ledge, 0),
+        (&docs, 1),
+        (&adr, 2),
+        (&server, 1),
+        (&web, 1),
+        (&scratch, 0),
+    ];
+    for (dir, depth) in rows {
+        let row = line_with(&lines, &name_of(dir));
+        assert_eq!(
+            indent_of(row, &name_of(dir)),
+            base + 2 * depth,
+            "depth of {}: {row}",
+            dir.as_str()
+        );
+        assert!(
+            row.contains(dir.as_str()),
+            "the directory is shown in full: {row}"
+        );
+        assert!(
+            !row.chars().any(|c| "├└─".contains(c)),
+            "no tree glyphs on a session row: {row}"
+        );
+    }
+
+    // The placeholder of api: its would-be name, then the text, at depth 0.
+    let api_row = line_with(&lines, &name_of(&api));
+    assert!(
+        api_row.contains(&format!("{} (no session)", name_of(&api))),
+        "placeholder text: {api_row}"
+    );
+    assert_eq!(
+        indent_of(api_row, &name_of(&api)),
+        base,
+        "placeholder at depth 0"
+    );
+    assert!(
+        api_row.contains(api.as_str()),
+        "placeholder directory: {api_row}"
+    );
+
+    // Tree order inside each project: a parent row comes before the rows under it.
+    let index = |dir: &AbsPath| {
+        lines
+            .iter()
+            .position(|line| line.contains(&name_of(dir)))
+            .expect("row")
+    };
+    assert!(index(&ledge) < index(&docs) && index(&docs) < index(&adr));
+    assert!(index(&api) < index(&server) && index(&server) < index(&web));
+
+    assert!(
+        !lines.iter().any(|line| line.contains("notes")),
+        "a project without a session is not listed: {lines:#?}"
+    );
 }

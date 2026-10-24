@@ -880,15 +880,16 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
             messages::no_ledge_sessions(),
         ),
     };
-    // FR-SESS-06: the session tree shows the session first; the tree is drawn on the directory column, which is
-    // also the column the filter searches.
-    let (columns, tree_column) = match kind {
+    // FR-SESS-06, P-54: the session tree shows the session first and draws its tree on that column; the directory is
+    // the full path after it, and the filter searches the directory (the column that gives way first).
+    let (columns, tree_column, search_column) = match kind {
         TreeKind::Bookmarks => (
             vec![
                 ColumnSpec::text(messages::HEADER_DIRECTORY),
                 ColumnSpec::text(messages::HEADER_SESSION),
                 ColumnSpec::text(messages::HEADER_PROFILE),
             ],
+            0,
             0,
         ),
         TreeKind::Sessions => (
@@ -897,12 +898,13 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
                 ColumnSpec::text(messages::HEADER_DIRECTORY),
                 ColumnSpec::text(messages::HEADER_PROFILE),
             ],
+            0,
             1,
         ),
     };
     let mut chrome = Chrome::new(label, icon, columns, footer);
     chrome.tree_column = Some(tree_column);
-    chrome.search_column = Some(tree_column);
+    chrome.search_column = Some(search_column);
     chrome.empty_message = Some(empty.to_string());
     chrome.stay_open_when_empty = true;
     chrome
@@ -946,7 +948,8 @@ fn session_dirs(ctx: &Ctx<'_>, sessions: &[ManagedSession]) -> Vec<SessionDir> {
 /// One tree row as a picker row: the label is searched, the session and profile are shown, and a row that is not
 /// openable is a gray connector (FR-TREE-11). A missing directory is dimmed (FR-TUI-08). In the bookmark tree the
 /// session of a row is the managed session of its directory, found by name as the project picker does (FR-TREE-13,
-/// FR-PICK-06); the session tree shows the session on its row.
+/// FR-PICK-06); the session tree shows the session on its row (P-54): the directory cell is the full path, and a
+/// placeholder row (a project without its own session) carries its would-be name and `(no session)`, in gray.
 fn tree_item(
     ctx: &Ctx<'_>,
     sessions: &[ManagedSession],
@@ -967,12 +970,23 @@ fn tree_item(
     row.session = live.map(|info| info.name.clone());
     let cells = match kind {
         TreeKind::Bookmarks => vec![row.label.clone(), session_text(live), profile_text(live)],
-        TreeKind::Sessions => vec![session_text(live), row.label.clone(), profile_text(live)],
+        TreeKind::Sessions => {
+            let session = match row.kind {
+                NodeKind::Placeholder => format!("{} {}", row.label, messages::no_session()),
+                _ => session_text(live),
+            };
+            vec![session, row.path.as_str().to_string(), profile_text(live)]
+        }
     };
-    let search = row.label.clone();
+    // The bookmark filter matches the label; the session filter matches the directory (its basename is in the path).
+    let search = match kind {
+        TreeKind::Bookmarks => row.label.clone(),
+        TreeKind::Sessions => row.path.as_str().to_string(),
+    };
     let depth = row.depth;
     let connector = !row.openable;
-    let dimmed = !ctx.fs.is_dir(Path::new(row.path.as_str()));
+    let gray = kind == TreeKind::Sessions && row.dimmed;
+    let dimmed = gray || !ctx.fs.is_dir(Path::new(row.path.as_str()));
     let mut item = PickerRow::new(cells, &search, row);
     item.depth = depth;
     item.connector = connector;

@@ -13,14 +13,16 @@ use super::projects::{project_containing, Project};
 /// architecture 5: what a tree row stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeKind {
-    /// A project folder that is not itself a leaf (gray; openable only in the session tree).
+    /// A project folder that is not itself a bookmark (bookmark tree: gray, not openable).
     Root,
     /// A bookmarked directory (bookmark tree).
     Bookmark,
     /// A directory with a managed session (session tree), or a session outside every project.
     Session,
-    /// A directory between a root and a leaf (gray, never openable).
+    /// A directory between a root and a leaf (bookmark tree: gray, never openable).
     Connector,
+    /// A project with sessions but no session of its own (session tree: gray, named by its would-be session).
+    Placeholder,
 }
 
 /// architecture 5: one flattened row of a tree.
@@ -46,12 +48,21 @@ pub struct SessionDir {
 /// FR-TREE-01..04, FR-TREE-11, FR-SCOPE-01, A-13: rows of the bookmark tree. One root per project that
 /// holds a bookmark; a bookmark outside every project is left out (FR-TREE-04).
 pub fn bookmark_tree(projects: &[Project], bookmarks: &Bookmarks) -> Vec<TreeRow<NodeKind>> {
-    let leaves: Vec<(AbsPath, Leaf)> = bookmarks
-        .entries()
-        .iter()
-        .map(|path| (path.clone(), Leaf::Bookmark))
-        .collect();
-    build(projects, &leaves, Which::Bookmarks)
+    let mut groups: Groups<AbsPath> = BTreeMap::new();
+    for path in bookmarks.entries() {
+        // FR-TREE-04: a bookmark outside every project is left out.
+        if let Some(project) = project_containing(path, projects) {
+            groups
+                .entry(key_of(&project.path))
+                .or_insert_with(|| (project.path.clone(), Vec::new()))
+                .1
+                .push(path.clone());
+        }
+    }
+    groups
+        .into_values()
+        .flat_map(|(root, members)| bookmark_rows(&root, &members))
+        .collect()
 }
 
 /// FR-TREE-05..08: which part of the bookmark tree a window shows. `Directory` is the directory given to `bm tree`,
@@ -141,131 +152,156 @@ fn root_only(dir: &AbsPath, projects: &[Project]) -> TreeView {
     }
 }
 
-/// FR-SESS-06, FR-SESS-07, FR-TREE-11, FR-SCOPE-01, A-13: rows of the session tree. One root per project
-/// that holds a managed session; a session outside every project is its own root labelled with its path.
+/// FR-SESS-06, FR-SESS-07, P-54, FR-TREE-11, FR-SCOPE-01, A-13: rows of the session tree. Sessions nest by nearest
+/// ancestor session; a project with sessions but no session of its own gets one gray placeholder row above them.
+/// Folders without a session add no row. A session outside every project is its own root (A-13), and the sessions
+/// outside every project nest by nearest ancestor session among themselves.
 pub fn session_tree(projects: &[Project], sessions: &[SessionDir]) -> Vec<TreeRow<NodeKind>> {
-    let leaves: Vec<(AbsPath, Leaf)> = sessions
-        .iter()
-        .map(|session| (session.dir.clone(), Leaf::Session(session.name.clone())))
-        .collect();
-    build(projects, &leaves, Which::Sessions)
-}
-
-/// Which tree is built. The two trees differ in the openable and label rules of a root without a leaf.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Which {
-    Bookmarks,
-    Sessions,
-}
-
-/// What a leaf of the tree stands for.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Leaf {
-    Bookmark,
-    Session(String),
-}
-
-/// Tree position of a directory: its path components. The `Ord` of a `Vec<String>` is the tree preorder.
-type Key = Vec<String>;
-
-/// The leaves of one project, by root key, with the project path.
-type Groups = BTreeMap<Key, (AbsPath, Vec<(AbsPath, Leaf)>)>;
-
-/// The rows of one block, keyed by the key of the block root, so blocks come out in tree order.
-type Blocks = BTreeMap<Key, Vec<TreeRow<NodeKind>>>;
-
-fn build(projects: &[Project], leaves: &[(AbsPath, Leaf)], which: Which) -> Vec<TreeRow<NodeKind>> {
-    let mut groups: Groups = BTreeMap::new();
-    let mut blocks: Blocks = BTreeMap::new();
-    for (path, leaf) in leaves {
-        match project_containing(path, projects) {
+    let mut groups: Groups<Member> = BTreeMap::new();
+    let mut outside: Vec<Member> = Vec::new();
+    for session in sessions {
+        let member = (session.dir.clone(), session.name.clone());
+        match project_containing(&session.dir, projects) {
             Some(project) => groups
                 .entry(key_of(&project.path))
                 .or_insert_with(|| (project.path.clone(), Vec::new()))
                 .1
-                .push((path.clone(), leaf.clone())),
-            // FR-TREE-04: a bookmark outside every project is left out. A session outside every
-            // project is a root labelled with its path (A-13).
-            None => {
-                if let Leaf::Session(name) = leaf {
-                    blocks.entry(key_of(path)).or_default().push(TreeRow {
-                        depth: 0,
-                        label: path.as_str().to_string(),
-                        path: path.clone(),
-                        kind: NodeKind::Session,
-                        openable: true,
-                        session: Some(name.clone()),
-                        dimmed: false,
-                    });
-                }
-            }
+                .push(member),
+            None => outside.push(member),
         }
     }
-    for (key, (root, members)) in groups {
-        blocks
-            .entry(key)
-            .or_default()
-            .extend(group_rows(&root, &members, which));
+    let mut blocks: Blocks = BTreeMap::new();
+    for (root, members) in groups.into_values() {
+        push_blocks(&mut blocks, session_rows(Some(&root), members));
     }
+    push_blocks(&mut blocks, session_rows(None, outside));
     blocks.into_values().flatten().collect()
 }
 
-/// The rows under one project root: every directory from the root down to a leaf is a node, a node
-/// without a leaf is a connector (or the gray root), and each leaf is one row.
-fn group_rows(root: &AbsPath, members: &[(AbsPath, Leaf)], which: Which) -> Vec<TreeRow<NodeKind>> {
+/// A managed session: its directory and its name.
+type Member = (AbsPath, String);
+
+/// Tree position of a directory: its path components. The `Ord` of a `Vec<String>` is the tree preorder.
+type Key = Vec<String>;
+
+/// The members of one project, by root key, with the project path.
+type Groups<T> = BTreeMap<Key, (AbsPath, Vec<T>)>;
+
+/// The rows of one block, keyed by the key of the block root, so blocks come out in tree order.
+type Blocks = BTreeMap<Key, Vec<TreeRow<NodeKind>>>;
+
+fn push_blocks(blocks: &mut Blocks, rows: Vec<(Key, TreeRow<NodeKind>)>) {
+    for (key, row) in rows {
+        blocks.entry(key).or_default().push(row);
+    }
+}
+
+/// FR-SESS-06, P-54: the rows of the sessions of one project (`root` given) or of the sessions outside every
+/// project (`root` none), each with the key of its block root. Members sorted by path components are in tree
+/// order, so a parent comes before its children, and a parent is the nearest earlier member that is an ancestor.
+fn session_rows(root: Option<&AbsPath>, mut members: Vec<Member>) -> Vec<(Key, TreeRow<NodeKind>)> {
+    members.sort_by_key(|(path, _)| key_of(path));
+    // The project folder gets a placeholder row when none of its sessions is on the folder itself.
+    let placeholder = root.filter(|root| !members.iter().any(|(path, _)| path == *root));
+    let mut rows = Vec::new();
+    let mut depths: Vec<usize> = Vec::new();
+    let mut keys: Vec<Key> = Vec::new();
+    if let Some(root) = placeholder {
+        rows.push((
+            key_of(root),
+            TreeRow {
+                depth: 0,
+                label: session_name(root),
+                path: root.clone(),
+                kind: NodeKind::Placeholder,
+                openable: true,
+                session: None,
+                dimmed: true,
+            },
+        ));
+    }
+    let top_depth = usize::from(placeholder.is_some());
+    for (index, (path, name)) in members.iter().enumerate() {
+        let parent = members[..index]
+            .iter()
+            .rposition(|(other, _)| other != path && path.is_inside(other));
+        let (depth, key) = match parent {
+            Some(parent) => (depths[parent] + 1, keys[parent].clone()),
+            None => (top_depth, root.map_or_else(|| key_of(path), key_of)),
+        };
+        depths.push(depth);
+        keys.push(key.clone());
+        let label = match root {
+            Some(_) => path
+                .as_str()
+                .rsplit('/')
+                .find(|part| !part.is_empty())
+                .unwrap_or("/")
+                .to_string(),
+            None => path.as_str().to_string(),
+        };
+        rows.push((
+            key,
+            TreeRow {
+                depth,
+                label,
+                path: path.clone(),
+                kind: NodeKind::Session,
+                openable: true,
+                session: Some(name.clone()),
+                dimmed: false,
+            },
+        ));
+    }
+    rows
+}
+
+/// FR-TREE-01..03, FR-TREE-11, A-13: the rows under one project root of the bookmark tree. Every directory from the
+/// root down to a bookmark is a node; a node without a bookmark is a gray connector (or the gray root).
+fn bookmark_rows(root: &AbsPath, members: &[AbsPath]) -> Vec<TreeRow<NodeKind>> {
     let root_key = key_of(root);
-    let mut nodes: BTreeMap<Key, Vec<Leaf>> = BTreeMap::new();
-    nodes.insert(root_key.clone(), Vec::new());
-    for (path, leaf) in members {
+    // Node key -> number of bookmarks on it.
+    let mut nodes: BTreeMap<Key, usize> = BTreeMap::new();
+    nodes.insert(root_key.clone(), 0);
+    for path in members {
         let key = key_of(path);
         for depth in (root_key.len() + 1)..key.len() {
             nodes
                 .entry(key.iter().take(depth).cloned().collect())
                 .or_default();
         }
-        nodes.entry(key).or_default().push(leaf.clone());
+        *nodes.entry(key).or_default() += 1;
     }
 
     let mut rows = Vec::new();
-    for (key, leaves) in nodes {
+    for (key, count) in nodes {
         let path = path_of(&key);
         let depth = key.len().saturating_sub(root_key.len());
         let is_root = key == root_key;
         let base = key.last().cloned().unwrap_or_else(|| "/".to_string());
-        if leaves.is_empty() {
-            // FR-SESS-07, A-13: a gray project folder with no session of its own is labelled with the
-            // session name it would get and is openable in the session tree; in the bookmark tree the
-            // root is gray and not openable.
-            let (label, openable) = match (is_root, which) {
-                (true, Which::Sessions) => (session_name(&path), true),
-                _ => (base, false),
-            };
+        if count == 0 {
             rows.push(TreeRow {
                 depth,
-                label,
+                label: base,
                 path,
                 kind: if is_root {
                     NodeKind::Root
                 } else {
                     NodeKind::Connector
                 },
-                openable,
+                openable: false,
                 session: None,
                 dimmed: true,
             });
         } else {
-            for leaf in leaves {
-                let (kind, session) = match leaf {
-                    Leaf::Bookmark => (NodeKind::Bookmark, None),
-                    Leaf::Session(name) => (NodeKind::Session, Some(name)),
-                };
+            for _ in 0..count {
                 rows.push(TreeRow {
                     depth,
                     label: base.clone(),
                     path: path.clone(),
-                    kind,
+                    kind: NodeKind::Bookmark,
                     openable: true,
-                    session,
+                    session: None,
                     dimmed: false,
                 });
             }
@@ -466,31 +502,100 @@ mod tests {
         assert!(bookmark_tree(&projects, &bookmarks("")).is_empty());
     }
 
-    // FR-SESS-06: a project with a managed session is a root; the project without one is not shown
+    /// (path, depth, session) of every row top-down. A placeholder row has no session.
+    fn session_shape(rows: &[TreeRow<NodeKind>]) -> Vec<(&str, usize, Option<&str>)> {
+        rows.iter()
+            .map(|r| (r.path.as_str(), r.depth, r.session.as_deref()))
+            .collect()
+    }
+
+    // FR-SESS-06, P-54: a session is a child of the session with the nearest ancestor directory; with the
+    // ledge project and its subfolder sessions the rows are at depths 0, 1 and 2
     #[test]
-    fn project_with_session_is_a_root_and_project_without_is_not_shown() {
-        let projects = vec![project("/p/app"), project("/p/lib")];
-        let rows = session_tree(&projects, &[session("s1", "/p/app/src")]);
+    fn session_nests_under_the_nearest_session_ancestor() {
+        let projects = vec![project("/p/ledge")];
+        let rows = session_tree(
+            &projects,
+            &[
+                session("L", "/p/ledge"),
+                session("D", "/p/ledge/docs"),
+                session("A", "/p/ledge/docs/adr"),
+            ],
+        );
         assert_eq!(
-            shape(&rows),
+            session_shape(&rows),
             vec![
-                ("/p/app", 0, NodeKind::Root, true),
-                ("/p/app/src", 1, NodeKind::Session, true),
+                ("/p/ledge", 0, Some("L")),
+                ("/p/ledge/docs", 1, Some("D")),
+                ("/p/ledge/docs/adr", 2, Some("A")),
             ]
         );
     }
 
-    // FR-SESS-07: a gray project folder with no session is labelled with the session name it would get
+    // FR-SESS-06, P-54: depth follows sessions, not folders: a folder with no session adds no row, so
+    // ledge/docs/adr hangs under ledge at depth 1 when ledge/docs has no session
     #[test]
-    fn gray_project_root_shows_the_session_name_it_would_get() {
-        let projects = vec![project("/p/app")];
-        let rows = session_tree(&projects, &[session("s1", "/p/app/src")]);
-        assert_eq!(rows[0].label, session_name(&abs("/p/app")));
-        assert_eq!(rows[0].session, None);
-        assert!(rows[0].dimmed && rows[0].openable);
+    fn folders_without_a_session_add_no_rows_and_no_depth() {
+        let projects = vec![project("/p/ledge")];
+        let rows = session_tree(
+            &projects,
+            &[session("L", "/p/ledge"), session("A", "/p/ledge/docs/adr")],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![
+                ("/p/ledge", 0, Some("L")),
+                ("/p/ledge/docs/adr", 1, Some("A"))
+            ]
+        );
     }
 
-    // FR-SESS-06: a session on the project folder itself is a session row at depth 0
+    // FR-SESS-06, P-54: between a placeholder and the session under it there are folders only, so no
+    // folder rows appear and the session is at depth 1
+    #[test]
+    fn placeholder_is_followed_by_sessions_with_no_folder_rows() {
+        let projects = vec![project("/p/api")];
+        let rows = session_tree(&projects, &[session("S", "/p/api/src/main/x")]);
+        assert_eq!(
+            session_shape(&rows),
+            vec![("/p/api", 0, None), ("/p/api/src/main/x", 1, Some("S"))]
+        );
+    }
+
+    // FR-SESS-06, P-54: a project with sessions but no session of its own gets one gray placeholder row at
+    // depth 0, labelled with the session name it would get; its sessions hang under it
+    #[test]
+    fn project_without_its_own_session_gets_a_placeholder_over_its_sessions() {
+        let projects = vec![project("/p/api")];
+        let rows = session_tree(
+            &projects,
+            &[session("S1", "/p/api/server"), session("S2", "/p/api/web")],
+        );
+        assert_eq!(
+            session_shape(&rows),
+            vec![
+                ("/p/api", 0, None),
+                ("/p/api/server", 1, Some("S1")),
+                ("/p/api/web", 1, Some("S2")),
+            ]
+        );
+        assert_eq!(rows[0].label, session_name(&abs("/p/api")));
+        assert!(rows[0].openable, "enter opens the placeholder's project");
+        assert!(rows[0].dimmed, "the placeholder is gray");
+    }
+
+    // FR-SESS-06, P-54: a project with no session of any kind is not listed; the project with sessions is
+    #[test]
+    fn project_without_sessions_is_not_listed() {
+        let projects = vec![project("/p/api"), project("/p/notes")];
+        let rows = session_tree(&projects, &[session("S", "/p/api/server")]);
+        assert_eq!(
+            session_shape(&rows),
+            vec![("/p/api", 0, None), ("/p/api/server", 1, Some("S"))]
+        );
+    }
+
+    // FR-SESS-06, P-54: a session on the project folder itself is a session row at depth 0, with no placeholder
     #[test]
     fn session_at_project_root_is_a_session_row() {
         let projects = vec![project("/p/app")];
@@ -501,43 +606,25 @@ mod tests {
         assert!(!rows[0].dimmed);
     }
 
-    // FR-SESS-06: connectors between the root and a session are gray and not openable
+    // FR-SESS-06, P-54: several sessions in one project without its own session share one placeholder
     #[test]
-    fn connectors_between_root_and_session_are_gray_and_not_openable() {
-        let projects = vec![project("/p/app")];
-        let rows = session_tree(&projects, &[session("s1", "/p/app/src/main/x")]);
-        assert_eq!(
-            shape(&rows),
-            vec![
-                ("/p/app", 0, NodeKind::Root, true),
-                ("/p/app/src", 1, NodeKind::Connector, false),
-                ("/p/app/src/main", 2, NodeKind::Connector, false),
-                ("/p/app/src/main/x", 3, NodeKind::Session, true),
-            ]
-        );
-        assert!(rows[1].dimmed && rows[2].dimmed);
-        assert_eq!(rows[1].session, None);
-    }
-
-    // FR-SESS-06: several sessions in one project share its root, each on its own row
-    #[test]
-    fn sessions_in_one_project_share_the_root() {
+    fn sessions_in_one_project_share_one_placeholder() {
         let projects = vec![project("/p/app")];
         let rows = session_tree(
             &projects,
             &[session("a", "/p/app/a"), session("b", "/p/app/b")],
         );
         assert_eq!(
-            shape(&rows),
+            session_shape(&rows),
             vec![
-                ("/p/app", 0, NodeKind::Root, true),
-                ("/p/app/a", 1, NodeKind::Session, true),
-                ("/p/app/b", 1, NodeKind::Session, true),
+                ("/p/app", 0, None),
+                ("/p/app/a", 1, Some("a")),
+                ("/p/app/b", 1, Some("b")),
             ]
         );
     }
 
-    // A-13, FR-SESS-06: a session outside every project is its own root labelled with its path
+    // FR-SESS-06, P-54: a session outside every project is a depth 0 row labelled with its path (A-13)
     #[test]
     fn session_outside_every_project_is_a_root_labelled_with_its_path() {
         let projects = vec![project("/p/app")];
@@ -551,7 +638,8 @@ mod tests {
         assert!(!rows[0].dimmed);
     }
 
-    // FR-SCOPE-01: a session is grouped under the deepest project that contains its directory
+    // FR-SESS-06, P-54: a session is grouped under the deepest project that contains its directory, and each
+    // of those projects gets its own placeholder when it has no session of its own
     #[test]
     fn session_is_grouped_under_the_deepest_project_containing_it() {
         let projects = vec![project("/p"), project("/p/app")];
@@ -560,12 +648,12 @@ mod tests {
             &[session("a", "/p/app/src"), session("b", "/p/k")],
         );
         assert_eq!(
-            shape(&rows),
+            session_shape(&rows),
             vec![
-                ("/p", 0, NodeKind::Root, true),
-                ("/p/k", 1, NodeKind::Session, true),
-                ("/p/app", 0, NodeKind::Root, true),
-                ("/p/app/src", 1, NodeKind::Session, true),
+                ("/p", 0, None),
+                ("/p/k", 1, Some("b")),
+                ("/p/app", 0, None),
+                ("/p/app/src", 1, Some("a")),
             ]
         );
     }

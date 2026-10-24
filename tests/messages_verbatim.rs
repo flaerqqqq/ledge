@@ -417,6 +417,12 @@ fn no_ledge_sessions_text_is_verbatim() {
     assert_eq!(messages::no_ledge_sessions(), "No ledge sessions.");
 }
 
+// FR-SESS-06, P-54, Messages: the cue on the placeholder row of a project without its own session
+#[test]
+fn no_session_text_is_verbatim() {
+    assert_eq!(messages::no_session(), "(no session)");
+}
+
 // FR-SESS-03, architecture 6.2: the switcher label, column title and key footer
 #[test]
 fn switcher_label_header_and_footer_are_verbatim() {
