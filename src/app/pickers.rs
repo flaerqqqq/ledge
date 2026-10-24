@@ -479,19 +479,54 @@ impl PickerHandler<String> for ProfileHandler {
 /// FR-PROF-13: one row of the profile picker. The current and default labels come first; a profile with both labels
 /// is one row (A-11). The search matches the profile name.
 fn profile_row(choice: &ProfileChoice) -> PickerRow<String> {
-    let mut labels = Vec::new();
-    if choice.current {
-        labels.push(messages::profile_current(&choice.name));
-    }
-    if choice.default {
-        labels.push(messages::profile_default(&choice.name));
-    }
-    let text = if labels.is_empty() {
-        choice.name.clone()
+    // A profile that is both current and default shows only the current label.
+    let text = if choice.current {
+        messages::profile_current(&choice.name)
+    } else if choice.default {
+        messages::profile_default(&choice.name)
     } else {
-        labels.join(" ")
+        choice.name.clone()
     };
     PickerRow::new(vec![text], &choice.name, choice.name.clone())
+}
+
+#[cfg(test)]
+mod profile_label_tests {
+    use super::*;
+    use crate::domain::profile_rules::ProfileChoice;
+
+    fn label(current: bool, default: bool) -> String {
+        let choice = ProfileChoice {
+            name: "dev".to_string(),
+            current,
+            default,
+        };
+        profile_row(&choice).cells[0].clone()
+    }
+
+    // FR-PROF-13: a profile that is current and default shows only the current label
+    #[test]
+    fn current_and_default_shows_only_current() {
+        assert_eq!(label(true, true), "[Current: dev]");
+    }
+
+    // FR-PROF-13: a default that is not current shows the default label
+    #[test]
+    fn default_alone_shows_default() {
+        assert_eq!(label(false, true), "[Default: dev]");
+    }
+
+    // FR-PROF-13: a current profile that is not the default shows the current label
+    #[test]
+    fn current_alone_shows_current() {
+        assert_eq!(label(true, false), "[Current: dev]");
+    }
+
+    // FR-PROF-13: any other profile shows its bare name
+    #[test]
+    fn neither_shows_the_name() {
+        assert_eq!(label(false, false), "dev");
+    }
 }
 
 /// FR-PROF-13, P-64: the preview of profile `name`. `basic` is built in and has no file, so its source is the built-in
