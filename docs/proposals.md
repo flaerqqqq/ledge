@@ -533,3 +533,11 @@ Format:
   - FR-EDIT-13: ledge shall open a search bar in the bookmark edit window with /, filter the visible rows by fuzzy match as the user types, keep the match on enter and clear it on escape.
 - why: the bookmark tree did not show that a session was created for a bookmark; the edit window has no search and the user wants nvim-style keys. D-15 said no type-to-filter in the edit window; the user has now asked for search there.
 - open choice: the search bar prompt text (not in messages.rs yet) and whether j and k should move while the search bar is open (proposed: no, typed text goes to the bar).
+
+### P-54 Session tree nests by session (replaces FR-SESS-06, FR-SESS-07 for the session tree)
+- from: user request / coordinator, slice S-33
+- status: Open
+- doc: requirements.md (FR-SESS-06, FR-SESS-07)
+- change: "FR-SESS-06: ledge shall list managed sessions as a tree in which a session is a child of the session with the nearest ancestor directory. The tree has no folder rows between sessions; the Directory column is a plain path. A project whose own session is not running is shown gray with the text '(no session)', and its sessions are listed under it." FR-SESS-07 (gray folder with the would-be session name) is removed for this tree. Projects with no sessions are not listed.
+- why: the user wants a tree drawn from sessions, so that sessions of a project and of its subdirectories read as one group, without intermediate directory rows.
+- decided by the user: nearest-session nesting, the "(no session)" cue, and no gray rows for projects without sessions.

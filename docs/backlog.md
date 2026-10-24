@@ -437,3 +437,12 @@ have no FR-IDs state why.
 - acceptance: (a) bookmark tree rows for a directory with a managed session show the session name and its profile, as the project picker does (FR-PICK-06); rows without a session show nothing extra; the view refreshes after enter opens or builds a session. (b) edit window: h collapses the folder or moves to its parent, l expands it, j and k move (as now); / opens a search bar that filters the visible rows by fuzzy match, enter keeps the match and closes the bar, escape clears it and closes the bar; the search applies to the same rows and the expand state is unchanged.
 - size: M
 - branch: slice/S-29-tree-session-and-edit-search
+
+### S-33 Session tree nests by session, not by folder
+- status: in-progress
+- deps: S-05, S-22, S-23, S-32
+- FR-IDs: FR-SESS-06 and FR-SESS-07 replaced for the session tree (proposal P-54; the user owns requirements.md)
+- scope: src/domain/tree.rs (session_tree builder), src/app/pickers.rs (session tree rows, columns, placeholder enter), src/messages.rs (the "(no session)" text), tests/tui_trees.rs and the tree unit tests
+- acceptance: the session tree lists only sessions and the projects that hold them; a session is a child of the session with the nearest ancestor directory (no folder rows); when a project's own session is not running, its row is gray with "(no session)" and its sessions hang under it; projects with no sessions are not listed; the Session column is first and the Directory column is plain; enter on the gray row opens that project's directory under its would-be session name; alt-keys act on all sessions under the node.
+- size: M
+- branch: slice/S-33-session-tree-nesting
