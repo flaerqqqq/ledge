@@ -17,6 +17,7 @@ use ledge::error::Outcome;
 use ledge::ports::backend::{SessionBackend, OPT_PROFILE};
 use ledge::tui::terminal::Input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::style::Modifier;
 use std::fs;
 use std::path::PathBuf;
 use support::ctx::{Harness, FIXED_NOW};
@@ -1606,4 +1607,83 @@ fn ctrl_r_on_a_session_tree_row_without_a_session_still_says_so() {
     assert!(screen(&h)
         .iter()
         .any(|line| line.contains("No session on this row.")));
+}
+
+/// The sessions `zeta` (in project `app`, folder `app/zeta`) and `lib`.
+/// Returns the folders `app` and `zeta`.
+fn search_fixture(h: &Harness) -> (AbsPath, AbsPath) {
+    search_in_projects(h);
+    let app = abs(&h.project("app"));
+    let zeta = abs(&format!("{}/zeta", app.as_str()));
+    let lib = abs(&h.project("lib"));
+    live(h, &zeta, "dev", DEV);
+    live(h, &lib, "dev", DEV);
+    (app, zeta)
+}
+
+/// The modifier of the cell at (`x`, `y`) of the last drawn frame.
+fn modifier_at(h: &Harness, x: u16, y: u16) -> Modifier {
+    let record = h.terminal.last_record().expect("a terminal was opened");
+    let record = record.borrow();
+    let buffer = record.buffer.as_ref().expect("a frame was drawn");
+    buffer.cell((x, y)).expect("a cell on screen").modifier
+}
+
+/// The screen column of the byte `index` of `line` (the lines are ASCII before it).
+fn column_at(line: &str, index: usize) -> u16 {
+    u16::try_from(line[..index].chars().count()).expect("a column")
+}
+
+// FR-TUI-02, S-56: the matched characters are bold and underlined in the Session column, not in the Project column
+#[test]
+fn session_tree_highlights_the_matched_characters_in_the_session_column() {
+    let h = Harness::new("tui_trees-s56-highlight");
+    h.terminal.set_size(240, 40);
+    let (_, zeta) = search_fixture(&h);
+    let mut script = type_text("ze");
+    script.push(esc());
+    h.terminal.script(script);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let name = name_of(&zeta);
+    let y = lines
+        .iter()
+        .position(|line| line.contains(&name))
+        .expect("the session row");
+    let row = lines[y].as_str();
+    let start = row.find(&name).expect("the name in the row");
+    let x = column_at(row, start);
+    for offset in [0, 1] {
+        assert!(
+            modifier_at(&h, x + offset, y as u16).contains(Modifier::BOLD | Modifier::UNDERLINED),
+            "matched character {offset} of the session name: {row}"
+        );
+    }
+    assert!(
+        !modifier_at(&h, x + 2, y as u16).contains(Modifier::UNDERLINED),
+        "an unmatched character of the session name is not highlighted: {row}"
+    );
+    let project_start =
+        start + name.len() + row[start + name.len()..].find("app").expect("project");
+    assert!(
+        !modifier_at(&h, column_at(row, project_start), y as u16).contains(Modifier::UNDERLINED),
+        "the Project column is not highlighted: {row}"
+    );
+}
+
+// FR-TUI-02, S-56: typing a project name does not match a session whose project is that name
+#[test]
+fn session_tree_filter_on_a_project_name_does_not_match_a_session_row() {
+    let h = Harness::new("tui_trees-s56-project-name");
+    h.terminal.set_size(240, 40);
+    let (_, zeta) = search_fixture(&h);
+    let mut script = type_text("app");
+    script.push(esc());
+    h.terminal.script(script);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    assert!(
+        !lines.iter().any(|line| line.contains(&name_of(&zeta))),
+        "the session is not matched by its project name: {lines:#?}"
+    );
 }

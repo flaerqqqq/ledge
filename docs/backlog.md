@@ -637,7 +637,7 @@ have no FR-IDs state why.
 - branch: slice/S-55-tree-rebuild-creates
 
 ### S-56 Session tree search and highlight use the session column
-- status: in-progress
+- status: done
 - deps: S-54
 - FR-IDs: FR-TUI-02 (search over the first visible column), FR-SESS-06
 - scope: src/app/pickers.rs (tree_chrome for TreeKind::Sessions: search_column = 0, the session column; the search text of session rows is the session name), tests/tui_trees.rs

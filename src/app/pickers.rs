@@ -1161,7 +1161,8 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
         ),
     };
     // FR-SESS-06, P-54, P-55, P-56: the session tree shows the session first and draws its tree on that column; the
-    // Project column comes after it, then the profile and the activity; the filter searches the value shown in Project.
+    // Project column comes after it, then the profile and the activity. S-56: the filter searches and highlights the
+    // Session column (the session name, a placeholder its would-be name), not the Project column.
     let (columns, tree_column, search_column) = match kind {
         TreeKind::Bookmarks => (
             vec![
@@ -1181,7 +1182,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
                 ColumnSpec::text(messages::HEADER_ACTIVITY),
             ],
             0,
-            1,
+            0,
         ),
     };
     let mut chrome = Chrome::new(label, columns, footer);
