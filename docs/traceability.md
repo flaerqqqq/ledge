@@ -24,15 +24,15 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-TUI-10 | S-07 | src/tui/picker.rs | src/tui/picker.rs (unit); tests/tui_engine.rs | covered | Model side only: should_close and reload. The action wiring that calls reload comes with the picker services. |
 | FR-OPEN-01 | S-17 |  |  | open |  |
 | FR-OPEN-02 | S-17 |  |  | open |  |
-| FR-OPEN-03 | S-11 |  |  | open |  |
+| FR-OPEN-03 | S-11 | src/app/open.rs; src/messages.rs | tests/component_open.rs; tests/messages_verbatim.rs | covered | Missing and non-directory targets on temp folders; the argument is echoed as typed (A-15). |
 | FR-OPEN-04 | S-17 |  |  | open |  |
 | FR-OPEN-05 | S-01 | domain/naming.rs; domain/path.rs | domain/naming.rs | covered |  |
 | FR-OPEN-06 | S-01 | domain/naming.rs | domain/naming.rs | covered |  |
 | FR-OPEN-07 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Create only when no session of the name exists; existing unmanaged reused, managed with another @ledge_dir refused (D-14). Ctx not created yet (proposal P-20).
-| FR-OPEN-08 | S-11 |  |  | open | Expected manual: attach and switch need a real client and tty; argv covered by adapter test. |
+| FR-OPEN-08 | S-11 | src/app/open.rs; src/ports/backend.rs | tests/component_open.rs | manual | Automated: TMUX non-empty switches, otherwise attaches, with the session name and failure messages checked on FakeBackend. Manual: the real `attach-session` and `switch-client` need a tmux client on a real tty, which the gate does not have. |
 | FR-OPEN-09 | S-09 | src/adapters/tmux.rs | tests/it_tmux_adapter.rs (ignored, real tmux) | covered | With no server, list is empty; the first create starts the server (real tmux, isolated server name). |
-| FR-OPEN-10 | S-11 |  |  | open |  |
-| FR-OPEN-11 | S-11 |  |  | open |  |
+| FR-OPEN-10 | S-11 | src/app/open.rs; src/app/store.rs | tests/component_open.rs | covered | History written before the session is built, so a failed build still records the directory (A-27). |
+| FR-OPEN-11 | S-11 | src/app/open.rs; src/messages.rs | tests/component_open.rs; tests/messages_verbatim.rs | covered | History folder blocked by a file: one `Warning: could not update history:` line on stderr, session still created and attached. |
 | FR-PICK-01 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-PICK-02 | S-04 | domain/projects.rs; app/mod.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
 | FR-PICK-03 | S-04 | domain/projects.rs | domain/projects.rs; tests/component_projects.rs | covered |  |
@@ -125,10 +125,10 @@ each in exactly one slice. Installation statements have no FR-IDs yet (proposal 
 | FR-PROF-06 | S-02 | domain/profile.rs | domain/profile.rs; tests/component_config.rs | covered |  |
 | FR-PROF-07 | S-10 | src/app/build.rs | tests/component_build.rs | covered | @ledge_profile records the profile name; basic for the single-window layout.
 | FR-PROF-08 | S-10 | src/app/build.rs | tests/component_build.rs | covered | Profile applied at creation only; reopening a session with another profile changes nothing.
-| FR-PROF-09 | S-11 |  |  | open |  |
-| FR-PROF-10 | S-11 |  |  | open |  |
-| FR-PROF-11 | S-11 |  |  | open |  |
-| FR-PROF-12 | S-11 |  |  | open |  |
+| FR-PROF-09 | S-11 | src/domain/profile_rules.rs; src/app/open.rs | src/domain/profile_rules.rs (unit); tests/component_open.rs | covered | `--profile` over a valid default profile. |
+| FR-PROF-10 | S-11 | src/domain/profile_rules.rs; src/app/open.rs | src/domain/profile_rules.rs (unit); tests/component_open.rs | covered | `--no-profile` gives the single Terminal window, records basic, and prints no warning. |
+| FR-PROF-11 | S-11 | src/app/open.rs; src/app/store.rs | tests/component_open.rs | covered | Missing and invalid `--profile` return the profile error and create no session. |
+| FR-PROF-12 | S-11 | src/domain/profile_rules.rs; src/app/open.rs | src/domain/profile_rules.rs (unit); tests/component_open.rs; tests/messages_verbatim.rs | covered | Missing or invalid default profile: warning, single-window layout. Valid default applies when no option is given. |
 | FR-PROF-13 | S-15 |  |  | open |  |
 | FR-PROF-14 | S-14 |  |  | open |  |
 | FR-PROF-15 | S-14 |  |  | open |  |

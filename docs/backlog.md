@@ -189,7 +189,7 @@ have no FR-IDs state why.
 - branch: slice/10-build-session
 
 ### S-11 Open flow: directory checks, history, attach or switch, profile precedence at open
-- status: in-progress
+- status: done
 - deps: S-10, S-03
 - FR-IDs: FR-OPEN-03, FR-OPEN-08, FR-OPEN-10, FR-OPEN-11, FR-PROF-09, FR-PROF-10, FR-PROF-11, FR-PROF-12
 - scope: `app/open.rs`, `domain/profile_rules.rs` (open precedence: no-profile > `--profile` > default > basic).
@@ -204,7 +204,7 @@ have no FR-IDs state why.
 - branch: slice/11-open-flow
 
 ### S-12 Editor launch
-- status: blocked
+- status: in-progress
 - deps: S-11
 - FR-IDs: FR-LAUNCH-01, FR-LAUNCH-02, FR-LAUNCH-03
 - scope: `app/launch.rs`, `adapters/process.rs` (`spawn_detached`, `setsid` lookup).

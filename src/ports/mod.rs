@@ -3,6 +3,7 @@
 //! with the slices that first use them.
 
 pub mod backend;
+pub mod console;
 pub mod env;
 pub mod fs;
 pub mod process;

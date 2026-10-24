@@ -9,6 +9,7 @@ pub mod location;
 pub mod naming;
 pub mod path;
 pub mod profile;
+pub mod profile_rules;
 pub mod projects;
 pub mod sessions;
 pub mod tree;

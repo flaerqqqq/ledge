@@ -172,3 +172,54 @@ fn tmux_not_installed_text_is_verbatim() {
         "Required tool 'tmux' is not installed."
     );
 }
+
+// FR-OPEN-03: the open target does not exist; the argument is echoed as typed
+#[test]
+fn directory_not_found_text_is_verbatim() {
+    assert_eq!(
+        messages::directory_not_found("../nope"),
+        "Directory '../nope' not found."
+    );
+}
+
+// FR-OPEN-04: two directories given to the open form
+#[test]
+fn open_takes_one_directory_text_is_verbatim() {
+    assert_eq!(
+        messages::open_takes_one_directory(),
+        "project open takes at most one directory argument."
+    );
+}
+
+// FR-OPEN-11, architecture 8.2: a warning line
+#[test]
+fn warning_prefix_is_verbatim() {
+    assert_eq!(messages::warning("boom"), "Warning: boom");
+}
+
+// FR-OPEN-11, message "could not update history: <detail>" (warning)
+#[test]
+fn could_not_update_history_text_is_verbatim() {
+    assert_eq!(
+        messages::could_not_update_history("Permission denied (os error 13)"),
+        "could not update history: Permission denied (os error 13)"
+    );
+}
+
+// FR-PROF-12, message "default_profile '<name>' is missing or invalid; using single-window layout." (warning)
+#[test]
+fn default_profile_missing_text_is_verbatim() {
+    assert_eq!(
+        messages::default_profile_missing("web"),
+        "default_profile 'web' is missing or invalid; using single-window layout."
+    );
+}
+
+// FR-OPEN-08, message "could not attach to '<name>': <detail>"
+#[test]
+fn could_not_attach_text_is_verbatim() {
+    assert_eq!(
+        messages::could_not_attach("my_app-d7d2", "no server running"),
+        "could not attach to 'my_app-d7d2': no server running"
+    );
+}

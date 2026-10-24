@@ -97,3 +97,33 @@ pub fn session_name_used(name: &str, dir: &str) -> String {
 pub fn tmux_not_installed() -> &'static str {
     "Required tool 'tmux' is not installed."
 }
+
+/// Architecture 8.2: the prefix of a warning line on stderr. It does not change the exit code.
+pub fn warning(text: &str) -> String {
+    format!("Warning: {text}")
+}
+
+/// FR-OPEN-03: the open target is missing or not a directory. `dir` is the argument as typed (A-15).
+pub fn directory_not_found(dir: &str) -> String {
+    format!("Directory '{dir}' not found.")
+}
+
+/// FR-OPEN-04: two directories were given to the open form (parsed by S-17).
+pub fn open_takes_one_directory() -> &'static str {
+    "project open takes at most one directory argument."
+}
+
+/// FR-OPEN-11: the history file cannot be read or written; a warning, and the open continues.
+pub fn could_not_update_history(detail: &str) -> String {
+    format!("could not update history: {detail}")
+}
+
+/// FR-PROF-12: the default profile cannot be loaded at open; a warning, and the single-window layout is used.
+pub fn default_profile_missing(name: &str) -> String {
+    format!("default_profile '{name}' is missing or invalid; using single-window layout.")
+}
+
+/// FR-OPEN-08, FR-SESS-04: attaching to or switching to a session failed.
+pub fn could_not_attach(name: &str, detail: &str) -> String {
+    format!("could not attach to '{name}': {detail}")
+}

@@ -3,7 +3,9 @@
 //! other fakes arrive with the slices that first use them.
 #![allow(dead_code)]
 
+pub mod ctx;
 pub mod fake_backend;
+pub mod fake_console;
 pub mod fake_env;
 pub mod fake_process;
 pub mod fake_signals;

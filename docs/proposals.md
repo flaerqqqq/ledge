@@ -216,3 +216,17 @@ Format:
 - change: (a) `app::build` takes `&dyn SessionBackend` (and `&AbsPath`, `&Profile`) as parameters. `app::Ctx` is not created in S-10: it bundles all ports and arrives with the open flow (S-11), the first caller that needs more than the backend. (b) The option names `@ledge_managed`, `@ledge_profile`, `@ledge_dir` move from `adapters/tmux.rs` to `ports/backend.rs` (`OPT_MANAGED`, `OPT_PROFILE`, `OPT_DIR`); `adapters/tmux.rs` re-exports them, so `tests/component_tmux.rs` is unchanged. Reason: `scripts/check_layers.sh` forbids `app` from naming `adapters`. (c) The test layout gains `tests/component_build.rs` (FR-OPEN-07, FR-PROF-03..08, FR-NAME-03, D-14, A-07 over `FakeBackend`); the table in testing.md lists `component_open.rs` for FR-OPEN and does not list this file. (d) The messages `could not create session '<name>': <detail>`, `... name already used by <dir>` and `Required tool 'tmux' is not installed.` are functions in `messages.rs` with checks in `tests/messages_verbatim.rs`.
 - why: the build flow needs only the backend port; creating `Ctx` now would wire unused ports (P-6 rule). The layer check makes the constants a port concern. Test file naming follows P-19.
 - status: Open
+
+### P-21 S-11 Ctx and Console: which ports exist when the open flow lands
+- from: implementer / slice S-11
+- doc: docs/architecture.md (section 4 `Ctx` and port table, section 2 module tree)
+- change: `app::Ctx` is created in S-11 with the fields the open flow uses: `env`, `fs`, `backend`, `console`, `dirs`, `cwd`. The fields `process`, `clock`, `terminal`, `signals` and `home` are not added here; each arrives with its first user (P-6). The `Console` port (`ports/console.rs`, `out` and `err`) is created here because the open flow prints warnings before it attaches. Its real adapter `StdConsole` and the `main` wiring of `Ctx` arrive with S-17. The open flow's ProfileOpt type lives in `domain/profile_rules.rs` (the architecture 5 and 2.3 name it `ProfileOpt` under cli::parse); S-17 imports it from there.
+- why: P-6 and P-20 say each port and field is created by its first user. The open flow needs the console for FR-OPEN-11 warnings, and precedence (D-13) is a domain rule, so it is pure and sits with profile rules.
+- status: Open
+
+### P-22 S-11 open-time decisions that need the user's confirmation
+- from: implementer / slice S-11
+- doc: requirements.md (FR-PROF-11, FR-PROF-12, FR-OPEN-08) and docs/architecture.md (section 6, 7.1)
+- change: (a) The profile is resolved on every open, also when the session already exists, so a bad `--profile` fails and a bad `default_profile` warns even when the session is only attached (the profile is still applied only at creation, FR-PROF-08). Alternative: resolve only when a session is created. (b) A failed switch-client inside tmux uses the attach message `could not attach to '<name>': <detail>` (the requirements name only the attach failure). (c) FR-OPEN-08 is marked `manual` in traceability, not `covered`, because the real attach and switch need a tmux client on a tty; the automated decision and command are covered by tests/component_open.rs.
+- why: the Messages section gives one attach text and FR-PROF-11/12 do not say whether an existing session still triggers them. These are the open-flow choices made in S-11 so the slice could proceed; the user can reverse any of them.
+- status: Open
