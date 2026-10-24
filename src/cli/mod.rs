@@ -6,12 +6,13 @@ pub mod help;
 pub mod parse;
 
 use crate::app::bookmark_cmd;
+use crate::app::custom_cmd;
 use crate::app::doctor;
 use crate::app::history_cmd;
 use crate::app::open::open_from_command_line;
 use crate::app::pickers::{
-    bookmark_picker, history_picker_with_editor, project_picker_with_editor, session_switcher,
-    session_tree_picker,
+    bookmark_picker, custom_picker, history_picker_with_editor, project_picker_with_editor,
+    session_switcher, session_tree_picker,
 };
 use crate::app::session_cmd;
 use crate::app::Ctx;
@@ -87,6 +88,16 @@ fn dispatch(command: Command, ctx: &Ctx<'_>) -> Result<Outcome> {
         Command::SsKill { target } => {
             require_tmux(ctx)?;
             session_cmd::kill_target(ctx, &target)
+        }
+        Command::CustomAdd { dir } => custom_cmd::add(ctx, dir.as_deref()),
+        Command::CustomRemove { dir } => {
+            require_tmux(ctx)?;
+            custom_cmd::remove(ctx, &dir)
+        }
+        Command::CustomList => custom_cmd::list(ctx),
+        Command::CustomPick(options) => {
+            require_tmux(ctx)?;
+            custom_picker(ctx, &options.profile, options.editor.as_ref())
         }
     }
 }

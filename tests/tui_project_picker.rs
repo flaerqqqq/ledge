@@ -7,7 +7,7 @@
 mod support;
 
 use ledge::app::build::ensure_session;
-use ledge::app::pickers::{history_picker, project_picker};
+use ledge::app::pickers::{custom_picker, history_picker, project_picker};
 use ledge::domain::naming::session_name;
 use ledge::domain::path::AbsPath;
 use ledge::domain::profile::{Profile, ProfileName};
@@ -1452,4 +1452,147 @@ fn custom_project_with_a_colliding_name_keeps_its_mark_after_its_label() {
         lines.iter().any(|line| line.contains("projects/api")),
         "{lines:#?}"
     );
+}
+
+/// P-67, FR-CUST-04: the custom window's label, in the top edge of the screen.
+const CUSTOM_LABEL: &str = "Custom projects";
+
+// P-67, FR-CUST-04: `custom pick` lists only the custom projects, with the project picker's footer and the custom label
+#[test]
+fn custom_pick_lists_only_custom_projects() {
+    let mut h = Harness::new("tui_custom-pick-only");
+    search_config(&h);
+    let app = h.project("app");
+    custom_scratch(&h);
+    launch_from(&mut h, &app);
+    h.terminal.script(vec![esc()]);
+    assert_eq!(
+        custom_picker(&h.ctx(), &ProfileOpt::Unset, None),
+        Ok(Outcome::Cancelled)
+    );
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains(CUSTOM_LABEL)),
+        "{lines:#?}"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("scratch")),
+        "{lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains("app")),
+        "the project app is not a custom project: {lines:#?}"
+    );
+    assert!(lines
+        .iter()
+        .any(|line| line.contains(PROJECT_PICKER_FOOTER)));
+}
+
+// P-67, FR-CUST-04: the launch directory is a row only when it is a custom project
+#[test]
+fn custom_pick_shows_the_launch_directory_only_when_it_is_custom() {
+    let mut h = Harness::new("tui_custom-pick-launch");
+    search_config(&h);
+    h.project("app");
+    let scratch = custom_scratch(&h);
+    launch_from(&mut h, &scratch);
+    h.terminal.script(vec![esc()]);
+    custom_picker(&h.ctx(), &ProfileOpt::Unset, None).expect("picker runs");
+    let lines = screen(&h);
+    let row = line_with(&lines, "scratch");
+    assert!(
+        row.contains("scratch ◆") || row.contains("scratch #"),
+        "{row}"
+    );
+    assert_eq!(
+        lines.iter().filter(|line| line.contains("scratch")).count(),
+        1,
+        "the launch directory is not listed twice: {lines:#?}"
+    );
+}
+
+// P-67, P-65: the custom window marks a custom project with the ◆ mark after its name
+#[test]
+fn custom_pick_marks_custom_projects_with_the_diamond() {
+    let mut h = Harness::new("tui_custom-pick-mark");
+    search_config(&h);
+    custom_scratch(&h);
+    utf8(&mut h);
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![esc()]);
+    custom_picker(&h.ctx(), &ProfileOpt::Unset, None).expect("picker runs");
+    let lines = screen(&h);
+    assert!(
+        lines.iter().any(|line| line.contains("scratch ◆")),
+        "{lines:#?}"
+    );
+}
+
+// P-67, FR-CUST-03: with no custom projects `custom pick` prints the empty message and opens no window
+#[test]
+fn custom_pick_with_no_custom_projects_prints_the_message() {
+    let h = Harness::new("tui_custom-pick-empty");
+    search_config(&h);
+    h.project("app");
+    assert_eq!(
+        custom_picker(&h.ctx(), &ProfileOpt::Unset, None),
+        Ok(Outcome::Info("No custom projects.".to_string()))
+    );
+    assert!(h.terminal.last_record().is_none());
+}
+
+// P-67, FR-CUST-04: enter in the custom window opens the chosen custom project
+#[test]
+fn custom_pick_enter_opens_the_chosen_custom_project() {
+    let mut h = Harness::new("tui_custom-pick-enter");
+    search_config(&h);
+    let scratch = custom_scratch(&h);
+    let projects = projects_dir(&h);
+    launch_from(&mut h, &projects);
+    h.terminal.script(vec![enter()]);
+    assert_eq!(
+        custom_picker(&h.ctx(), &ProfileOpt::Unset, None),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(h.backend.attached_to(), Some(name_of(&scratch)));
+}
+
+// P-67, FR-CUST-04, P-65: ctrl-d in the custom window removes the custom project, its bookmarks and its session
+#[test]
+fn custom_pick_ctrl_d_removes_the_custom_project_and_its_session() {
+    let mut h = Harness::new("tui_custom-pick-ctrl-d");
+    search_config(&h);
+    let scratch = custom_scratch(&h);
+    let keep = format!("{}/keep", h.root().display());
+    fs::create_dir_all(&keep).expect("create keep");
+    h.write_custom_projects(&format!("{scratch}\n{keep}\n"));
+    let src = format!("{scratch}/src");
+    fs::create_dir_all(&src).expect("create src");
+    write_bookmarks_text(&h, &format!("{src}\n"));
+    live(&h, &scratch);
+    launch_from(&mut h, &scratch);
+    h.terminal.script(vec![ctrl_d(), esc()]);
+    assert_eq!(
+        custom_picker(&h.ctx(), &ProfileOpt::Unset, None),
+        Ok(Outcome::Cancelled)
+    );
+    assert_eq!(h.custom_projects_text(), Some(format!("{keep}\n")));
+    assert_eq!(bookmarks_text(&h).as_deref(), Some(""));
+    assert!(!live_names(&h).contains(&name_of(&scratch)));
+}
+
+// P-67: removing the last custom project in the custom window closes it, as the picker closes with no rows
+#[test]
+fn custom_pick_closes_when_its_last_custom_project_is_removed() {
+    let mut h = Harness::new("tui_custom-pick-last");
+    search_config(&h);
+    let scratch = custom_scratch(&h);
+    launch_from(&mut h, &scratch);
+    h.terminal.script(vec![ctrl_d()]);
+    assert_eq!(
+        custom_picker(&h.ctx(), &ProfileOpt::Unset, None),
+        Ok(Outcome::Done)
+    );
+    assert_eq!(h.custom_projects_text(), Some(String::new()));
 }

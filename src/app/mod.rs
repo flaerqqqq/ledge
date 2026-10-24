@@ -19,6 +19,7 @@ use std::path::Path;
 pub mod actions;
 pub mod bookmark_cmd;
 pub mod build;
+pub mod custom_cmd;
 pub mod doctor;
 pub mod history_cmd;
 pub mod launch;

@@ -1,6 +1,7 @@
 //! Component tests for the command line (`cli::run` over the fakes of tests/support, docs/testing.md level 2) and
 //! for the built binary's help and error output. Covers FR-CMD-01..06, FR-CMD-09..11, FR-OPEN-01, FR-OPEN-02,
-//! FR-OPEN-04, FR-PICK-11, FR-BM-14, FR-TREE-09, FR-TREE-10, FR-SESS-05, and the wiring of the commands that exist.
+//! FR-OPEN-04, FR-PICK-11, FR-BM-14, FR-TREE-09, FR-TREE-10, FR-SESS-05, FR-CUST-01..04, and the wiring of the commands
+//! that exist.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod support;
@@ -113,6 +114,10 @@ fn help_words_print_help_listing_every_command() {
         "ledge bm pick",
         "ledge bm edit",
         "ledge bm tree",
+        "ledge custom add",
+        "ledge custom remove",
+        "ledge custom list",
+        "ledge custom pick",
         "ledge ss",
         "ledge ss list",
         "ledge ss tree",
@@ -639,5 +644,105 @@ fn ss_list_shows_session_directories_under_home_as_tilde() {
         text.lines()
             .any(|line| line.ends_with(&format!("  {outside}"))),
         "full path outside HOME: {text}"
+    );
+}
+
+// FR-CUST-01..04: the four custom forms parse to their commands, with the open options on `custom pick`
+#[test]
+fn custom_forms_parse_to_their_commands() {
+    use ledge::cli::parse::{parse, Command, Group, Options};
+    assert_eq!(
+        parse(&args(&["custom", "add"])),
+        Ok(Command::CustomAdd { dir: None })
+    );
+    assert_eq!(
+        parse(&args(&["custom", "add", "/a"])),
+        Ok(Command::CustomAdd {
+            dir: Some("/a".to_string())
+        })
+    );
+    assert_eq!(
+        parse(&args(&["custom", "remove", "/a"])),
+        Ok(Command::CustomRemove {
+            dir: "/a".to_string()
+        })
+    );
+    assert_eq!(parse(&args(&["custom", "list"])), Ok(Command::CustomList));
+    assert_eq!(
+        parse(&args(&["custom", "pick"])),
+        Ok(Command::CustomPick(Options::default()))
+    );
+    assert_eq!(parse(&args(&["custom"])), Ok(Command::Usage(Group::Custom)));
+}
+
+// FR-CUST-02, FR-CMD-03: the argument rules of the custom forms, and an unknown sub-command names the group
+#[test]
+fn custom_argument_errors_are_the_messages_of_messages_rs() {
+    use ledge::cli::parse::parse;
+    assert_eq!(
+        parse(&args(&["custom", "add", "/a", "/b"])),
+        Err("custom add takes at most one directory.".to_string())
+    );
+    assert_eq!(
+        parse(&args(&["custom", "remove"])),
+        Err("custom remove requires a directory.".to_string())
+    );
+    assert_eq!(
+        parse(&args(&["custom", "remove", "/a", "/b"])),
+        Err("custom remove takes one directory.".to_string())
+    );
+    assert_eq!(
+        parse(&args(&["custom", "list", "/a"])),
+        Err("'custom list' takes no arguments.".to_string())
+    );
+    assert_eq!(
+        parse(&args(&["custom", "pick", "/a"])),
+        Err("'custom pick' takes no arguments.".to_string())
+    );
+    assert_eq!(
+        parse(&args(&["custom", "zap"])),
+        Err("Unknown custom command: zap (run 'ledge custom' for the list).".to_string())
+    );
+    assert_eq!(
+        parse(&args(&["custom", "list", "--code"])),
+        Err("Unknown option: --code (run 'ledge help' for usage).".to_string())
+    );
+}
+
+// FR-CUST-02: the group usage lists the four forms, and the custom words are not a directory
+#[test]
+fn custom_group_usage_lists_the_forms() {
+    let h = Harness::new("cli-custom-usage");
+    let text = info(run(&args(&["custom"]), &h.ctx()));
+    assert_eq!(
+        text,
+        "Usage:
+  ledge custom add [DIR]
+  ledge custom remove DIR
+  ledge custom list
+  ledge custom pick [OPTIONS]"
+    );
+}
+
+// FR-CUST-03: `custom list` through the command with no custom projects says so and exits with info
+#[test]
+fn custom_list_through_the_command_says_when_empty() {
+    let h = Harness::new("cli-custom-list-empty");
+    assert_eq!(
+        info(run(&args(&["custom", "list"]), &h.ctx())),
+        "No custom projects."
+    );
+}
+
+// FR-CUST-04, FR-CMD-10: `custom pick` needs tmux; without it the command fails at start
+#[test]
+fn custom_pick_and_remove_need_tmux() {
+    let mut h = Harness::new("cli-custom-no-tmux");
+    h.process = FakeProcess::missing();
+    let expected = "Required tool 'tmux' is not installed.";
+    assert_eq!(fatal(run(&args(&["custom", "pick"]), &h.ctx())), expected);
+    assert_eq!(
+        fatal(run(&args(&["custom", "remove", "/a"]), &h.ctx())),
+        expected
     );
 }

@@ -650,3 +650,19 @@ Format:
 - doc: requirements.md (new FR-CUST-01..04)
 - change: FR-CUST-01 ledge custom add [DIR] records an existing directory outside every project. FR-CUST-02 ledge custom remove DIR removes it, deletes its bookmarks and kills its managed sessions. FR-CUST-03 ledge custom list prints the custom projects, or "No custom projects.". FR-CUST-04 ledge custom pick opens a window listing custom projects only, with the project picker keys.
 - why: the user wants to maintain the custom project list from the command line and see it in a window.
+- messages (src/messages.rs, exact wording):
+  - `No custom projects.` (custom list, custom pick)
+  - `Custom projects` (custom pick window label)
+  - `Added custom project <path>` (custom add)
+  - `Already a custom project: <path>` (custom add of a listed directory, info)
+  - `<path> is inside a project; a custom project lies outside every project.` (custom add inside a project or a custom project, error)
+  - `<path> is a project; open it with 'ledge project pick'.` (custom add of a project; the existing bookmark_is_project text)
+  - `Removed custom project <path>` (custom remove)
+  - `'<path>' is not a custom project.` (custom remove of a directory not listed, error)
+  - `custom add takes at most one directory.` (error)
+  - `custom remove requires a directory.` (error)
+  - `custom remove takes one directory.` (error)
+  - `Unknown custom command: <word> (run 'ledge custom' for the list).` (the existing unknown_group_command text with group `custom`)
+  - `'custom list' takes no arguments.` and `'custom pick' takes no arguments.` (the existing takes_no_arguments text)
+  - `Directory '<dir>' not found.` (add of a missing directory, the existing text)
+  - help and group usage: `ledge custom add [DIR]`, `ledge custom remove DIR`, `ledge custom list`, `ledge custom pick [OPTIONS]`

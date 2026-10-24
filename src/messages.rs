@@ -337,7 +337,7 @@ pub fn activity_age(age: Age) -> String {
     }
 }
 
-/// FR-CMD-03: a group command has no sub-command named `word`. `group` is `project`, `history`, `bm` or `ss`.
+/// FR-CMD-03: a group command has no sub-command named `word`. `group` is `project`, `history`, `bm`, `ss` or `custom`.
 pub fn unknown_group_command(group: &str, word: &str) -> String {
     format!("Unknown {group} command: {word} (run 'ledge {group}' for the list).")
 }
@@ -572,6 +572,52 @@ pub fn could_not_read_custom_projects(detail: &str) -> String {
 /// P-65: the custom projects file cannot be written; a warning at open, an error in the project picker.
 pub fn could_not_write_custom_projects(detail: &str) -> String {
     format!("could not write custom projects: {detail}")
+}
+
+/// P-67, FR-CUST-03: `ledge custom list` and `ledge custom pick` with no custom projects; info, exit 0.
+pub const NO_CUSTOM_PROJECTS: &str = "No custom projects.";
+
+/// P-67, FR-CUST-04: the border label of the custom projects window.
+pub const CUSTOM_PICKER_LABEL: &str = "Custom projects";
+
+/// P-67, FR-CUST-01: `ledge custom add` records `path`; info, exit 0.
+pub fn custom_added(path: &str) -> String {
+    format!("Added custom project {path}")
+}
+
+/// P-67, FR-CUST-01: `ledge custom add` on a directory that is already listed; info, exit 0.
+pub fn custom_already_listed(path: &str) -> String {
+    format!("Already a custom project: {path}")
+}
+
+/// P-67, FR-CUST-01: `ledge custom add` on a directory inside a project (or inside a custom project); error.
+pub fn custom_inside_project(path: &str) -> String {
+    format!("{path} is inside a project; a custom project lies outside every project.")
+}
+
+/// P-67, FR-CUST-01: `custom add` given more than one directory; error.
+pub fn custom_add_takes_at_most_one_directory() -> &'static str {
+    "custom add takes at most one directory."
+}
+
+/// P-67, FR-CUST-02: `custom remove` given no directory; error.
+pub fn custom_remove_requires_directory() -> &'static str {
+    "custom remove requires a directory."
+}
+
+/// P-67, FR-CUST-02: `custom remove` given more than one directory; error.
+pub fn custom_remove_takes_one_directory() -> &'static str {
+    "custom remove takes one directory."
+}
+
+/// P-67, FR-CUST-02: `ledge custom remove` removed `path`; info, exit 0.
+pub fn custom_removed(path: &str) -> String {
+    format!("Removed custom project {path}")
+}
+
+/// P-67, FR-CUST-02: `ledge custom remove` on a directory that is not listed; error.
+pub fn custom_not_listed(path: &str) -> String {
+    format!("'{path}' is not a custom project.")
 }
 
 /// Proposal P-39 [new, not yet accepted]: the edit window state file exists but cannot be read; error.

@@ -9,7 +9,7 @@
 
 use crate::app::actions::{
     current_session, delete_node_bookmarks, kill, kill_node, never_touch_current, rebuild,
-    rebuild_node,
+    rebuild_node, remove_custom_project as remove_custom,
 };
 use crate::app::bookmark_cmd::{read_bookmarks, write_bookmarks};
 use crate::app::launch::Editor;
@@ -76,13 +76,42 @@ pub fn project_picker_with_editor(
     let from = AbsPath::clean(dir.unwrap_or(ctx.cwd.as_str()), &ctx.cwd);
     let applied = applied_profile(option, config.default_profile.as_deref());
     let label = messages::projects_label(applied.as_deref());
-    let rows = project_dir_rows(ctx, &from, &projects)?;
+    let rows = project_dir_rows(ctx, &from, &projects, false)?;
     let model = PickerModel::new(rows, project_chrome(&label));
     let mut handler = ProjectHandler {
         ctx,
         from,
         search_paths: config.search_paths,
         option: option.clone(),
+        custom_only: false,
+    };
+    run_dir_picker(ctx, model, &mut handler, option, editor)
+}
+
+/// P-67, FR-CUST-04: `ledge custom pick`. The project picker over the custom projects only, with its keys, its mark
+/// and its chrome, and the label `Custom projects`. With no custom projects it prints `No custom projects.` and opens
+/// no window. The rows are the project picker's; the list is never empty while the window is open, because the picker
+/// closes when its last row is removed.
+pub fn custom_picker(
+    ctx: &Ctx<'_>,
+    option: &ProfileOpt,
+    editor: Option<&Editor>,
+) -> Result<Outcome> {
+    let custom = custom_projects(ctx);
+    if custom.entries().is_empty() {
+        return Ok(Outcome::Info(messages::NO_CUSTOM_PROJECTS.to_string()));
+    }
+    let config = store::load_config(ctx.fs, ctx.env, &ctx.dirs, &ctx.cwd)?;
+    let projects = load_projects(ctx.fs, &config.search_paths, &custom);
+    let from = ctx.cwd.clone();
+    let rows = project_dir_rows(ctx, &from, &projects, true)?;
+    let model = PickerModel::new(rows, project_chrome(messages::CUSTOM_PICKER_LABEL));
+    let mut handler = ProjectHandler {
+        ctx,
+        from,
+        search_paths: config.search_paths,
+        option: option.clone(),
+        custom_only: true,
     };
     run_dir_picker(ctx, model, &mut handler, option, editor)
 }
@@ -200,12 +229,14 @@ fn delete_session_of(ctx: &Ctx<'_>, name: &str) -> Result<Option<String>> {
     Ok(None)
 }
 
-/// Enter and the actions of the project picker (architecture 6.4).
+/// Enter and the actions of the project picker (architecture 6.4). The custom window (P-67) is this handler over the
+/// custom projects only (`custom_only`).
 struct ProjectHandler<'c, 'a> {
     ctx: &'c Ctx<'a>,
     from: AbsPath,
     search_paths: Vec<AbsPath>,
     option: ProfileOpt,
+    custom_only: bool,
 }
 
 impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
@@ -215,7 +246,15 @@ impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
 
     fn act(&mut self, action: Action, row: Option<&AbsPath>) -> Step {
         match (action, row) {
-            (Action::DeleteBookmark, Some(dir)) => remove_custom_project(self.ctx, dir),
+            (Action::DeleteBookmark, Some(dir)) => {
+                let step = remove_custom_project(self.ctx, dir);
+                // P-67: the custom window closes when its last custom project is removed (D-12, as the bookmark picker).
+                if self.custom_only && self.no_custom_left() {
+                    Step::Close(Outcome::Done)
+                } else {
+                    step
+                }
+            }
             (Action::DeleteBookmark, None) => no_action(),
             _ => dir_action(self.ctx, &self.option, action, row),
         }
@@ -225,38 +264,28 @@ impl PickerHandler<AbsPath> for ProjectHandler<'_, '_> {
         // The list is read again after each action; a warning here would draw over the picker, so it is read quietly.
         let custom = store::load_custom_projects(self.ctx.fs, &self.ctx.dirs).unwrap_or_default();
         let projects = load_projects(self.ctx.fs, &self.search_paths, &custom);
-        project_dir_rows(self.ctx, &self.from, &projects)
+        project_dir_rows(self.ctx, &self.from, &projects, self.custom_only)
     }
 }
 
-/// P-65, FR-CONF-07, FR-BM-13: ctrl-d on a custom project removes it from the list, deletes the bookmarks inside it and
-/// kills its managed sessions (the session the user is in last, S-43). The list entry goes last, so a failure before it
-/// leaves the project listed and ctrl-d can be tried again. On any other project the status line says so and nothing
-/// changes.
+impl ProjectHandler<'_, '_> {
+    /// P-67: true when the custom projects file lists nothing now (read quietly, as `reload` reads it).
+    fn no_custom_left(&self) -> bool {
+        store::load_custom_projects(self.ctx.fs, &self.ctx.dirs)
+            .is_ok_and(|custom| custom.entries().is_empty())
+    }
+}
+
+/// P-65, FR-CONF-07, FR-BM-13: ctrl-d on a custom project removes it (`actions::remove_custom_project`). On any other
+/// project the status line says so and nothing changes.
 fn remove_custom_project(ctx: &Ctx<'_>, dir: &AbsPath) -> Step {
-    let mut custom = match store::load_custom_projects(ctx.fs, &ctx.dirs) {
-        Ok(custom) => custom,
-        Err(error) => {
-            return failed(LedgeError::Fatal(messages::could_not_read_custom_projects(
-                &error.to_string(),
-            )))
-        }
-    };
-    if !custom.contains(dir) {
-        return notice(messages::ONLY_CUSTOM_PROJECT_CAN_BE_REMOVED);
-    }
-    if let Err(error) = delete_node_bookmarks(ctx, dir).and_then(|()| kill_node(ctx, dir)) {
-        return failed(error);
-    }
-    custom.remove(dir);
-    if let Err(error) = store::save_custom_projects(ctx.fs, &ctx.dirs, &custom) {
-        return failed(LedgeError::Fatal(
-            messages::could_not_write_custom_projects(&error.to_string()),
-        ));
-    }
-    Step::Continue {
-        status: None,
-        reload: true,
+    match remove_custom(ctx, dir) {
+        Ok(true) => Step::Continue {
+            status: None,
+            reload: true,
+        },
+        Ok(false) => notice(messages::ONLY_CUSTOM_PROJECT_CAN_BE_REMOVED),
+        Err(error) => failed(error),
     }
 }
 
@@ -632,14 +661,21 @@ fn custom_mark(ctx: &Ctx<'_>) -> &'static str {
     }
 }
 
-/// FR-PICK-04..07, P-61, P-65: one row per project (and the launch directory, FR-PICK-05). The project picker has no
+/// FR-PICK-04..07, P-61, P-65, P-67: one row per project (and the launch directory, FR-PICK-05). The project picker has no
 /// marker column: a live session shows in the session cell, and a custom project carries the `◆` mark after its name.
-/// The launch directory's row is preselected.
-fn project_dir_rows(ctx: &Ctx<'_>, from: &AbsPath, projects: &[Project]) -> Result<Vec<DirRow>> {
+/// The launch directory's row is preselected. `custom_only` keeps the custom projects alone (P-67): the launch
+/// directory's row stays only when it is a custom project. The labels still come from all `projects`.
+fn project_dir_rows(
+    ctx: &Ctx<'_>,
+    from: &AbsPath,
+    projects: &[Project],
+    custom_only: bool,
+) -> Result<Vec<DirRow>> {
     let sessions = live_sessions(ctx)?;
     let home = home_of(ctx);
     let rows = project_rows(from, projects)
         .into_iter()
+        .filter(|row| !custom_only || row.custom)
         .map(|row| {
             let live = live_session(&sessions, &row.path);
             let shown = if row.project {

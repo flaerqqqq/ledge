@@ -1,4 +1,5 @@
-//! Help text and group usage text (architecture 2, FR-CMD-01, FR-CMD-02). Every command of D-11 is listed in `HELP`.
+//! Help text and group usage text (architecture 2, FR-CMD-01, FR-CMD-02). Every command of D-11 and the custom project
+//! commands of P-67 are listed in `HELP`.
 
 use super::parse::Group;
 
@@ -16,6 +17,10 @@ pub const HELP: &str = "Usage:
   ledge bm pick [OPTIONS]                            pick a bookmark and open it
   ledge bm edit [DIR] [--session-scope]              edit the bookmarks of the project of DIR
   ledge bm tree [DIR] [--session-scope] [OPTIONS]    show the bookmark tree and open a choice
+  ledge custom add [DIR]                             record DIR as a custom project (default: the current directory)
+  ledge custom remove DIR                            remove the custom project DIR with its bookmarks and sessions
+  ledge custom list                                  list the custom projects
+  ledge custom pick [OPTIONS]                        pick a custom project and open it
   ledge ss [OPTIONS]                                 switch between ledge sessions
   ledge ss list                                      list the ledge sessions
   ledge ss tree [OPTIONS]                            show the sessions as a tree of directories
@@ -53,6 +58,13 @@ pub fn group_usage(group: Group) -> &'static str {
   ledge bm pick [OPTIONS]
   ledge bm edit [DIR] [--session-scope]
   ledge bm tree [DIR] [--session-scope] [OPTIONS]"
+        }
+        Group::Custom => {
+            "Usage:
+  ledge custom add [DIR]
+  ledge custom remove DIR
+  ledge custom list
+  ledge custom pick [OPTIONS]"
         }
     }
 }

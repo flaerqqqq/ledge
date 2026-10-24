@@ -1,6 +1,6 @@
 //! The pure command grammar (architecture 2.3, D-11). argv in, `Command` or the error text out; no I/O. Covers
 //! FR-OPEN-01, FR-OPEN-02, FR-OPEN-04, FR-CMD-02..06, FR-CMD-11, FR-PICK-11, FR-BM-07, FR-BM-10, FR-BM-14,
-//! FR-TREE-09, FR-TREE-10, FR-SESS-05. The texts come from `messages`.
+//! FR-TREE-09, FR-TREE-10, FR-SESS-05, FR-CUST-01..04. The texts come from `messages`.
 
 use crate::app::launch::{split_command, Editor};
 use crate::domain::profile_rules::ProfileOpt;
@@ -8,7 +8,7 @@ use crate::messages;
 
 /// The group words of the explicit commands (D-11). `ss` is a command word and also the switcher; `doctor` is a
 /// command word with no sub-command.
-const COMMAND_WORDS: [&str; 5] = ["project", "history", "bm", "ss", "doctor"];
+const COMMAND_WORDS: [&str; 6] = ["project", "history", "bm", "ss", "doctor", "custom"];
 
 /// The commands that have sub-commands and print a usage text when given none (FR-CMD-02).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +16,7 @@ pub enum Group {
     Project,
     History,
     Bm,
+    Custom,
 }
 
 /// The open options (architecture 2.3 OPEN-OPTS). The defaults are no profile option, no editor and no scope.
@@ -85,6 +86,18 @@ pub enum Command {
     SsKill {
         target: String,
     },
+    /// FR-CUST-01: `custom add [DIR]`; no directory means the working directory.
+    CustomAdd {
+        dir: Option<String>,
+    },
+    /// FR-CUST-02: `custom remove DIR`.
+    CustomRemove {
+        dir: String,
+    },
+    /// FR-CUST-03: `custom list`.
+    CustomList,
+    /// FR-CUST-04: `custom pick [OPTIONS]`, the project picker over the custom projects.
+    CustomPick(Options),
     Doctor,
 }
 
@@ -96,6 +109,11 @@ impl Command {
             Command::Usage(Group::Project) | Command::ProjectPick(_) => "project pick",
             Command::Usage(Group::History) | Command::HistoryPick(_) => "history pick",
             Command::Usage(Group::Bm) | Command::BmPick => "bm pick",
+            Command::Usage(Group::Custom) => "custom",
+            Command::CustomAdd { .. } => "custom add",
+            Command::CustomRemove { .. } => "custom remove",
+            Command::CustomList => "custom list",
+            Command::CustomPick(_) => "custom pick",
             Command::Open { .. } => "project open",
             Command::SsSwitch(_) => "ss",
             Command::HistoryList => "history list",
@@ -301,6 +319,7 @@ fn explicit(word: &str, rest: &[String]) -> Result<Command, String> {
         "history" => history(&words, &opts),
         "bm" => bm(&words, &opts),
         "ss" => ss(&words, &opts),
+        "custom" => custom(&words, &opts),
         _ => {
             check(&opts, NONE)?;
             no_arguments(&words, "doctor")?;
@@ -427,6 +446,44 @@ fn bm(words: &[String], opts: &[Opt]) -> Result<Command, String> {
             })
         }
         other => Err(messages::unknown_group_command("bm", other)),
+    }
+}
+
+/// FR-CUST-01..04: the custom project sub-commands. `custom pick` takes the open options, as `project pick` does.
+fn custom(words: &[String], opts: &[Opt]) -> Result<Command, String> {
+    let Some((sub, tail)) = words.split_first() else {
+        check(opts, NONE)?;
+        return Ok(Command::Usage(Group::Custom));
+    };
+    match sub.as_str() {
+        "add" => {
+            check(opts, NONE)?;
+            if tail.len() > 1 {
+                return Err(messages::custom_add_takes_at_most_one_directory().to_string());
+            }
+            Ok(Command::CustomAdd {
+                dir: tail.first().cloned(),
+            })
+        }
+        "remove" => {
+            check(opts, NONE)?;
+            match tail {
+                [] => Err(messages::custom_remove_requires_directory().to_string()),
+                [dir] => Ok(Command::CustomRemove { dir: dir.clone() }),
+                _ => Err(messages::custom_remove_takes_one_directory().to_string()),
+            }
+        }
+        "list" => {
+            check(opts, NONE)?;
+            no_arguments(tail, "custom list")?;
+            Ok(Command::CustomList)
+        }
+        "pick" => {
+            check(opts, OPEN)?;
+            no_arguments(tail, "custom pick")?;
+            Ok(Command::CustomPick(options(opts)?))
+        }
+        other => Err(messages::unknown_group_command("custom", other)),
     }
 }
 

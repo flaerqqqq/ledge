@@ -592,7 +592,7 @@ have no FR-IDs state why.
 - branch: slice/S-50-unique-project-labels
 
 ### S-51 Custom project commands and custom-only picker
-- status: in-progress
+- status: done
 - deps: S-49, S-50
 - FR-IDs: new FR-CUST-01..04 (proposal P-67; the user owns requirements.md)
 - scope: src/cli/parse.rs and src/cli/mod.rs (custom add, custom remove, custom list, custom pick), src/app/custom_cmd.rs (new: add, remove, list services), src/app/pickers.rs (custom picker: project picker rows restricted to custom projects), src/messages.rs, tests/component_cli.rs, tests/tui_project_picker.rs, tests/component_custom.rs (new)

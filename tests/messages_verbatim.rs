@@ -878,3 +878,39 @@ fn custom_project_texts_are_verbatim() {
         "could not write custom projects: denied"
     );
 }
+
+// P-67, FR-CUST-01..04: the texts of the custom project commands and the custom window
+#[test]
+fn custom_command_texts_are_verbatim() {
+    assert_eq!(messages::NO_CUSTOM_PROJECTS, "No custom projects.");
+    assert_eq!(messages::CUSTOM_PICKER_LABEL, "Custom projects");
+    assert_eq!(messages::custom_added("~/s"), "Added custom project ~/s");
+    assert_eq!(
+        messages::custom_already_listed("~/s"),
+        "Already a custom project: ~/s"
+    );
+    assert_eq!(
+        messages::custom_inside_project("/s/a/b"),
+        "/s/a/b is inside a project; a custom project lies outside every project."
+    );
+    assert_eq!(
+        messages::custom_removed("~/s"),
+        "Removed custom project ~/s"
+    );
+    assert_eq!(
+        messages::custom_not_listed("~/s"),
+        "'~/s' is not a custom project."
+    );
+    assert_eq!(
+        messages::custom_add_takes_at_most_one_directory(),
+        "custom add takes at most one directory."
+    );
+    assert_eq!(
+        messages::custom_remove_requires_directory(),
+        "custom remove requires a directory."
+    );
+    assert_eq!(
+        messages::custom_remove_takes_one_directory(),
+        "custom remove takes one directory."
+    );
+}

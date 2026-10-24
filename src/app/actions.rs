@@ -1,5 +1,5 @@
 //! Kill and rebuild of managed sessions (architecture 2, 6.4, 7.2; FR-ACT-02, FR-ACT-03, FR-ACT-05, FR-ACT-07,
-//! FR-ACT-12, FR-ACT-13, FR-PROF-14, FR-PROF-15, D-04, D-13, D-14, D-17, A-07). The pickers and the tree actions call
+//! FR-ACT-12, FR-ACT-13, FR-PROF-14, FR-PROF-15, FR-CUST-02, D-04, D-13, D-14, D-17, A-07). The pickers and the tree actions call
 //! these services; the messages are the ones of `messages`. Only the ports in `Ctx` are used.
 
 use crate::app::bookmark_cmd::{read_bookmarks, write_bookmarks};
@@ -209,6 +209,27 @@ pub fn delete_node_bookmarks(ctx: &Ctx<'_>, node: &AbsPath) -> Result<()> {
         }
     }
     first.map_or(Ok(()), Err)
+}
+
+/// P-65, FR-CONF-07, FR-BM-13, P-67 FR-CUST-02: removes the custom project `dir`. Its bookmarks are deleted, its managed
+/// sessions are killed (the session the user is in last, S-43), and the list entry goes last, so a failure before it
+/// leaves the project listed. Returns `false` and changes nothing when `dir` is not a custom project.
+pub fn remove_custom_project(ctx: &Ctx<'_>, dir: &AbsPath) -> Result<bool> {
+    let mut custom = store::load_custom_projects(ctx.fs, &ctx.dirs).map_err(|error| {
+        LedgeError::Fatal(messages::could_not_read_custom_projects(&error.to_string()))
+    })?;
+    if !custom.contains(dir) {
+        return Ok(false);
+    }
+    delete_node_bookmarks(ctx, dir)?;
+    kill_node(ctx, dir)?;
+    custom.remove(dir);
+    store::save_custom_projects(ctx.fs, &ctx.dirs, &custom).map_err(|error| {
+        LedgeError::Fatal(messages::could_not_write_custom_projects(
+            &error.to_string(),
+        ))
+    })?;
+    Ok(true)
 }
 
 /// FR-SCOPE-02, A-37: the managed sessions whose directory is `node` or inside it, as (session name, directory). A
