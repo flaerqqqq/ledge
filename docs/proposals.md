@@ -562,3 +562,38 @@ Format:
 - doc: requirements.md (Shared rules for display; FR-HIST-03 already uses ~)
 - change: every directory path that ledge displays (rows, listings, messages, doctor lines) shows a path under the home folder as "~" or "~/rest"; paths outside home are shown in full. Stored data and command inputs stay absolute.
 - why: the user wants one display form for paths everywhere.
+
+### P-58 Confirm before a kill or a bookmark delete (FR-ACT-01, FR-ACT-06, FR-ACT-10, FR-BM-13)
+- from: designer, slice D-01 (docs/design.md section 4.4)
+- status: Open
+- doc: requirements.md (FR-ACT-01, FR-ACT-06, FR-ACT-10, FR-BM-13; the Screens tables for ctrl-x, ctrl-d, alt-x, alt-d)
+- change: add "FR-ACT-14: ledge shall ask for confirmation in the status line before it kills a session or deletes a bookmark, on the kill key, the delete key and the alt-kill and alt-delete keys. The confirmation names the session or the number of sessions. Only the key y confirms; any other key, including enter and escape, cancels."
+- why: a kill ends the processes running in the session, and nothing can undo it. Today ctrl-x, ctrl-d, alt-x and alt-d act at once (pickers.rs kill_row, delete_bookmark, node_step). The design asks first on the four keys named.
+- open choice: whether the rebuild keys (ctrl-r, ctrl-p, alt-r, alt-p), which also kill a session first (FR-ACT-03), ask as well. The design does not ask for them.
+- until accepted: the keys keep acting at once, as FR-ACT-01 and FR-BM-13 say.
+
+### P-59 Key panel on F1, marker legend, footer fit and messages for keys with no effect (FR-TUI-04, FR-TUI-07)
+- from: designer, slice D-01 (docs/design.md sections 3.3, 4.2, 4.5)
+- status: Open
+- doc: requirements.md (FR-TUI-04; Screens and interactions, footers; Messages)
+- change:
+  - add "FR-TUI-12: ledge shall show every key of the open picker and the meaning of its markers in a panel on the F1 key; escape closes the panel."
+  - add "FR-TUI-13: ledge shall drop whole key-and-label pairs from the end of a footer that is too wide, and shall never cut a key name in the middle."
+  - add "FR-TUI-14: ledge shall show a status message when a key has no effect on the selected row, and shall still do nothing else."
+  - new Messages, proposed texts: "No session on this row." (ctrl-r, ctrl-p, ctrl-x on a row with no session); "Nothing to open on this row." (enter on a gray connector row); "Only a bookmark can be deleted." (ctrl-d on a row that is not a bookmark, in the bookmark tree); "esc close" is the footer of an empty window.
+  - the project picker marker legend: "* current directory  ● live session  ○ no session", shown in the F1 panel and, when the width allows, at the start of the footer.
+- why: the footer is the only key help and it is cut at narrow widths, which hides the destructive keys first. A key that does nothing looks broken. Markers have no legend anywhere on screen (FR-PICK-05, FR-PICK-07).
+- open choice: the exact message texts (the designer proposes the ones above); whether F1 is the help key or another key.
+- note: FR-ACT-11 says the delete key does nothing on other rows. A status message does not change that: the row is not changed.
+
+### P-60 Theme and colour overrides in the configuration (FR-CONF-02, FR-TUI-09)
+- from: designer, slice D-01 (docs/design.md section 6.3, docs/design/themes.md)
+- status: Open
+- doc: requirements.md (FR-CONF-02; Configuration keys; Messages)
+- change:
+  - Configuration keys: "theme" (one of default, ink, mist, zen, pearl; missing means default) and "theme_colors" (an object from token name to a hex colour "#rrggbb"; each entry replaces one colour of the chosen theme).
+  - FR-CONF-09: ledge shall warn on stderr and use the theme's own colour when a theme_colors value is not a #rrggbb colour or names no known token, and shall fall back to the default theme when the theme name is unknown.
+  - new Messages, proposed texts: "Warning: theme '<name>' is unknown; using default."; "Warning: theme_colors '<name>' is not a colour token; ignored."; "Warning: theme_colors '<value>' is not a #rrggbb colour; ignored."
+  - FR-CONF-01 default content does not change: no theme key is written on first run.
+- why: the user chooses a palette and overrides one colour without editing code. Colour is never the only cue (FR-TUI-09), so a theme changes colours only.
+- open choice: an environment variable for one run (LEDGE_THEME), not proposed here.
