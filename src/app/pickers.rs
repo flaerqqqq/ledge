@@ -1034,6 +1034,7 @@ fn tree_chrome(kind: TreeKind) -> Chrome {
                 ColumnSpec::text(messages::HEADER_DIRECTORY),
                 ColumnSpec::name(messages::HEADER_SESSION),
                 ColumnSpec::text(messages::HEADER_PROFILE),
+                ColumnSpec::wide_path(messages::HEADER_PATH),
             ],
             0,
             0,
@@ -1159,8 +1160,10 @@ fn tree_item(
             } else {
                 row.label.clone()
             };
+            // S-46: the Path column is the directory of the row, the home folder as `~`, shown at 120 cells and up.
+            let path = row.path.display_with_home(home);
             (
-                vec![label.clone(), session_text(live), profile_text(live)],
+                vec![label.clone(), session_text(live), profile_text(live), path],
                 label,
             )
         }

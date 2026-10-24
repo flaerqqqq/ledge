@@ -556,7 +556,7 @@ have no FR-IDs state why.
 - branch: slice/S-45-profile-preview
 
 ### S-46 Path column in the bookmark tree
-- status: in-progress
+- status: done
 - deps: S-45
 - FR-IDs: FR-TUI-05 (column fit at 120 cells and wider), FR-TREE-01 (bookmark tree rows); the same Path column as the project picker and bookmark edit window
 - scope: src/app/pickers.rs (tree_chrome and tree_item for the bookmark tree), src/tui/columns.rs if the path column needs a new width rule, tests/tui_trees.rs

@@ -1024,6 +1024,140 @@ fn bookmark_tree_root_outside_every_project_under_home_shows_tilde() {
     );
 }
 
+/// The cell (character index) at which `text` first appears in `line`, or past the end when it does not.
+fn column_of(line: &str, text: &str) -> usize {
+    line.find(text)
+        .map_or(usize::MAX, |byte| line[..byte].chars().count())
+}
+
+/// A bookmark of the project `app` and one of `notes`, a folder under HOME outside every project. Returns both.
+fn path_fixture(h: &Harness) -> (AbsPath, AbsPath) {
+    search_in_projects(h);
+    let app = abs(&h.project("app"));
+    let notes = h.root().join("home").join("notes");
+    fs::create_dir_all(&notes).expect("create notes");
+    let notes = abs(notes.to_str().expect("UTF-8 path"));
+    write_bookmarks(h, &[app.as_str(), notes.as_str()]);
+    (app, notes)
+}
+
+// FR-TUI-05, design 2.1, S-46: at 120 cells the bookmark tree has a Path column, last, with the directory of each row
+// and the home folder as "~"
+#[test]
+fn bookmark_tree_at_120_cells_shows_a_path_column_with_tilde() {
+    let h = Harness::new("tui_trees-bm-path-120");
+    let (app, notes) = path_fixture(&h);
+    h.terminal.set_size(120, 24);
+    h.terminal.script(vec![esc()]);
+    let outcome = bookmark_tree_picker(
+        &h.ctx(),
+        &ProfileOpt::Unset,
+        &TreeScope::Directory(notes.clone()),
+    );
+    assert_eq!(outcome, Ok(Outcome::Cancelled));
+    let lines = screen(&h);
+    let header = line_with(&lines, "Directory");
+    let path = column_of(header, "Path");
+    assert!(path > column_of(header, "Profile"), "{header:?}");
+    let notes_row = line_with(&lines, "notes");
+    let tilde = notes_row
+        .rfind("~/notes")
+        .map_or(usize::MAX, |byte| notes_row[..byte].chars().count());
+    assert!(tilde >= path, "~/notes in the Path column: {notes_row:?}");
+    assert!(
+        !lines.iter().any(|line| line.contains(notes.as_str())),
+        "no full path under HOME: {lines:#?}"
+    );
+    assert!(
+        !lines.iter().any(|line| line.contains(app.as_str())),
+        "app is not in this tree: {lines:#?}"
+    );
+}
+
+// FR-TUI-05, design 2.1, S-46: at 120 cells a directory outside HOME shows its full path in the Path column
+#[test]
+fn bookmark_tree_path_column_shows_a_full_path_outside_home() {
+    let h = Harness::new("tui_trees-bm-path-full");
+    let (app, _) = path_fixture(&h);
+    h.terminal.set_size(120, 24);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    let app_row = line_with(&lines, "app");
+    assert!(
+        app_row.contains(app.as_str()),
+        "full path outside HOME: {app_row:?}"
+    );
+}
+
+// FR-TUI-05, design 2.1, S-46: at 80 cells the bookmark tree has no Path column
+#[test]
+fn bookmark_tree_at_80_cells_has_no_path_column() {
+    let h = Harness::new("tui_trees-bm-path-80");
+    path_fixture(&h);
+    h.terminal.set_size(80, 24);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    let header = line_with(&lines, "Directory");
+    assert!(!header.contains("Path"), "{header:?}");
+}
+
+// FR-TUI-05, S-46: the session tree has no Path column at 120 cells
+#[test]
+fn session_tree_at_120_cells_has_no_path_column() {
+    let h = Harness::new("tui_trees-session-path-120");
+    session_fixture(&h);
+    h.terminal.set_size(120, 24);
+    h.terminal.script(vec![esc()]);
+    session_tree_picker(&h.ctx(), &ProfileOpt::Unset).expect("session tree");
+    let lines = screen(&h);
+    let header = line_with(&lines, "Project");
+    assert!(!header.contains("Path"), "{header:?}");
+}
+
+// FR-TREE-02, S-46: at 120 cells the bookmark tree still draws its branch glyphs in the Directory column
+#[test]
+fn bookmark_tree_glyphs_are_unchanged_at_120_cells() {
+    let mut h = Harness::new("tui_trees-bm-glyphs-120");
+    search_in_projects(&h);
+    utf8(&mut h);
+    h.terminal.set_size(120, 24);
+    let app = h.project("app");
+    write_bookmarks(&h, &[&format!("{app}/src/x")]);
+    h.terminal.script(vec![esc()]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    assert!(line_with(&lines, "(src)").contains("└─(src)"));
+    assert!(line_with(&lines, "└─x").contains("  └─x"));
+}
+
+// FR-TUI-02, S-46: at 120 cells the filter still matches the Directory label, not the Path column
+#[test]
+fn bookmark_tree_filter_is_unchanged_at_120_cells() {
+    let h = Harness::new("tui_trees-bm-filter-120");
+    let (app, _) = path_fixture(&h);
+    h.terminal.set_size(120, 24);
+    // "projects" is only in the Path cell of `app`, so a filter on the Path cell would keep the row.
+    h.terminal.script(vec![
+        key(KeyCode::Char('p')),
+        key(KeyCode::Char('r')),
+        key(KeyCode::Char('o')),
+        key(KeyCode::Char('j')),
+        key(KeyCode::Char('e')),
+        key(KeyCode::Char('c')),
+        key(KeyCode::Char('t')),
+        key(KeyCode::Char('s')),
+        esc(),
+    ]);
+    bookmark_tree_picker(&h.ctx(), &ProfileOpt::Unset, &TreeScope::All).expect("bookmark tree");
+    let lines = screen(&h);
+    assert!(
+        !lines.iter().any(|line| line.contains(app.as_str())),
+        "app is filtered out by its label: {lines:#?}"
+    );
+}
+
 fn ctrl(c: char) -> Input {
     Input::Key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL))
 }
