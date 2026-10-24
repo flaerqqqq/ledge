@@ -548,3 +548,10 @@ Format:
 - doc: requirements.md (FR-SESS-03 and FR-SESS-06 column text)
 - change: session tree and session switcher show a "Project" column. The value is the project name when the session directory is inside a project from search_paths, otherwise the session directory with the home folder written as "~".
 - why: a full path is long and repeats the project; the project name is what the user thinks in.
+
+### P-56 Session tree: Activity column and sibling order by activity (FR-SESS-03, FR-SESS-06)
+- from: user request / coordinator, slice S-35
+- status: Open
+- doc: requirements.md (FR-SESS-03 column list; Screens "does not sort" for the tree)
+- change: the session tree shows an Activity column (same age text as the switcher). Sessions that share a parent, and the top-level projects, are ordered by most recent activity first, ties by session name. The nesting rule of P-54 is unchanged.
+- why: the user wants the most recently used sessions first, in the tree as well as the switcher. This supersedes "does not sort" for the session tree only.

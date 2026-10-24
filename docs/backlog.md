@@ -455,3 +455,12 @@ have no FR-IDs state why.
 - acceptance: the session tree and the session switcher show a "Project" column in place of "Directory"; the value is the name of the project from the search paths that contains the session directory; for a session outside every project, the value is its directory with the home folder shown as "~".
 - size: S
 - branch: slice/S-34-session-project-column
+
+### S-35 Session tree shows Activity and sorts siblings by activity
+- status: in-progress
+- deps: S-33, S-34, S-16
+- FR-IDs: FR-SESS-03 (activity text) and FR-SESS-06 (proposal P-56; the user owns requirements.md, and the Screens rule "does not sort" for the tree is superseded for the session tree only)
+- scope: src/domain/tree.rs (sibling order in session_tree), src/app/pickers.rs (Activity column for the session tree), src/messages.rs (no new text: the switcher's HEADER_ACTIVITY and activity_age are reused)
+- acceptance: the session tree has an Activity column with the same age text as the switcher ("just now", "<n>m ago", "<n>h ago", "<n>d ago"); sessions that share a parent (and the top-level projects) are ordered most recently active first, ties by session name; the nesting is unchanged; a project placeholder row has no activity. Bookmark tree unchanged.
+- size: S
+- branch: slice/S-35-session-tree-activity
